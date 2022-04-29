@@ -5,7 +5,7 @@
 
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>bucket</artifactId>
-  <version>0.0.1</version>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
   <name>Bucket</name>
@@ -101,4 +101,14 @@
       <url>https://maven.pkg.github.com/sparklicorn/bucket</url>
     </repository>
   </distributionManagement>
+
+  <developers>
+    <developer>
+      <id>sparklicorn</id>
+      <name>Jeff</name>
+      <email>jeffymoose@gmail.com</email>
+      <url>https://sparklicorn.com/</url>
+      <timezone>America/Chicago</timezone>
+    </developer>
+  </developers>
 </project>
