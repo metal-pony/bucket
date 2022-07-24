@@ -1,7 +1,10 @@
 package com.sparklicorn.bucket.util.event;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +24,13 @@ import java.util.function.Consumer;
  * the thread.
  */
 public class EventBus {
+	public static final long MIN_POLLING_RATE = 1L;
+	public static final long MAX_POLLING_RATE = TimeUnit.HOURS.toMillis(1L);
+	public static final long DEFAULT_POLLING_RATE = TimeUnit.SECONDS.toMillis(1L);
+
+	private static final String POLLING_RATE_OUT_OF_BOUNDS =
+		"polling rate out of bounds";
+
 	private static class WorkItem {
 		final Consumer<Event> listener;
 		final Event event;
@@ -31,6 +41,7 @@ public class EventBus {
 		}
 	}
 
+	private long pollingRate;
 	private HashMap<String, ArrayList<Consumer<Event>>> eventListeners;
 
 	private Thread executorThread;
@@ -38,23 +49,43 @@ public class EventBus {
 	private BlockingQueue<WorkItem> workQueue;
 
 	/**
-	 * Creates a new EventBus and immediately starts a worker thread.
+	 * Creates a new EventBus with the default polling rate and starts the worker thread.
+	 * The thread will continue to poll the event queue until it is shut down by calling
+	 * <code>dispose(force)</code>.
 	 */
 	public EventBus() {
-		eventListeners = new HashMap<>();
+		this(DEFAULT_POLLING_RATE);
+	}
 
+	/**
+	 * Creates a new EventBus with the given polling rate and starts the worker thread.
+	 * The thread will continue to poll the event queue until it is shut down by calling
+	 * <code>dispose(force)</code>.
+	 *
+	 * @param pollingRate The maximum length of time the worker thread will spend waiting for events
+	 * from the work queue. The thread checks
+	 *
+	 */
+	public EventBus(long pollingRate) {
+		if (pollingRate < MIN_POLLING_RATE || pollingRate > MAX_POLLING_RATE) {
+			throw new IllegalArgumentException(POLLING_RATE_OUT_OF_BOUNDS);
+		}
+
+		eventListeners = new HashMap<>();
 		workQueue = new LinkedBlockingQueue<>();
-		isShutDown = new AtomicBoolean();
+		isShutDown = new AtomicBoolean(false);
+		this.pollingRate = pollingRate;
 
 		executorThread = new Thread(() -> {
 			while (!isShutDown.get()) {
 				try {
-					WorkItem work = workQueue.poll(2, TimeUnit.SECONDS);
+					WorkItem work = workQueue.poll(this.pollingRate, TimeUnit.MILLISECONDS);
 					if (!isShutDown.get() && work != null) {
 						work.listener.accept(work.event);
 					}
 				} catch (InterruptedException ex) {
-					// The thread was interrupted, probably by disposeImmediately()
+					// The thread was interrupted, probably by dispose(force: true)
+					// Do nothing
 				}
 			}
 		});
@@ -90,21 +121,21 @@ public class EventBus {
 	 * @return True if the listener was registered; otherwise false.
 	 */
 	public boolean registerEventListener(String eventName, Consumer<Event> listener) {
+		Event.validateEventName(eventName);
+
+		if (listener == null) {
+			throw new NullPointerException();
+		}
+
 		if (isShutDown.get()) {
 			return false;
 		}
 
-		if (eventName == null || listener == null) {
-			throw new IllegalArgumentException();
-		}
-
 		boolean result = false;
 
-		String _eventName = eventName.toUpperCase();
-
-		if (eventListeners.containsKey(_eventName)) {
+		if (eventListeners.containsKey(eventName)) {
 			boolean alreadyRegistered = false;
-			for (Consumer<Event> el : eventListeners.get(_eventName)) {
+			for (Consumer<Event> el : eventListeners.get(eventName)) {
 				if (el == listener) {
 					alreadyRegistered = true;
 					break;
@@ -112,13 +143,14 @@ public class EventBus {
 			}
 
 			if (!alreadyRegistered) {
-				eventListeners.get(_eventName).add(listener);
+				eventListeners.get(eventName).add(listener);
 				result = true;
 			}
 		} else {
 			ArrayList<Consumer<Event>> list = new ArrayList<>();
 			list.add(listener);
-			eventListeners.put(_eventName, list);
+			eventListeners.put(eventName, list);
+			result = true;
 		}
 
 		return result;
@@ -144,24 +176,36 @@ public class EventBus {
 	 * running will continue to execute.
 	 */
 	public void unregisterAll() {
-		for (String s : eventListeners.keySet()) {
+		HashSet<String> eventNames = new HashSet<>(eventListeners.keySet());
+		for (String s : eventNames) {
 			unregisterEvent(s);
 		}
 	}
 
 	/**
 	 * Unregisters all listeners tied to the given event name.
+	 *
 	 * @param eventName - Name of the event to unregister.
 	 * @return True if any listener was removed as result of this; otherwise false.
 	 */
 	public boolean unregisterEvent(String eventName) {
-		boolean result = false;
-		for (Consumer<Event> f : eventListeners.get(eventName)) {
-			if (unregisterEventListener(eventName, f)) {
-				result = true;
-			}
+		if (eventName == null) {
+			throw new NullPointerException();
 		}
-		return result;
+
+		AtomicBoolean result = new AtomicBoolean(false);
+
+		List<Consumer<Event>> listeners = eventListeners.get(eventName);
+		if (listeners == null) {
+			return result.get();
+		}
+
+		new ArrayList<>(listeners).forEach((listener) -> {
+			unregisterEventListener(eventName, listener);
+			result.set(true);
+		});
+
+		return result.get();
 	}
 
 	/**
@@ -174,8 +218,7 @@ public class EventBus {
 	public void throwEvent(Event event) {
 		if (!isShutDown.get() && event != null) {
 			event.freeze();
-			String eventName = event.name.toUpperCase();
-			ArrayList<Consumer<Event>> _listeners = eventListeners.get(eventName);
+			ArrayList<Consumer<Event>> _listeners = eventListeners.get(event.name);
 			if (_listeners != null && !_listeners.isEmpty()) {
 				for (Consumer<Event> el : _listeners) {
 					workQueue.offer(new WorkItem(el, event));

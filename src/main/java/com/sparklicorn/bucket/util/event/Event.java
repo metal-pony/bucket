@@ -42,6 +42,12 @@ public class Event {
 		public MalformedNameException(String message) { super(message); }
 	}
 
+	public static void validateEventName(String name) {
+		if (!name.matches(Event.NAME_PATTERN)) {
+			throw new MalformedNameException(MalformedNameException.BAD_EVENT_NAME);
+		}
+	}
+
 	public final String name;
 
 	private Map<String, Object> properties;
@@ -69,9 +75,7 @@ public class Event {
 			throw new NullPointerException("Name must not be null");
 		}
 
-		if (!name.matches(Event.NAME_PATTERN)) {
-			throw new MalformedNameException(MalformedNameException.BAD_EVENT_NAME);
-		}
+		validateEventName(name);
 
 		this.name = name;
 		this.frozen = false;
