@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+# Builds an executable jar of Sudoku utilities.
+# Run this from the base project directory.
+
+mvn -f pom-sudoku.xml package
