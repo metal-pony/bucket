@@ -9,6 +9,42 @@ import java.util.random.RandomGenerator;
  */
 public final class Shuffler {
 
+	public static int[] random(int[] arr) {
+		return random(arr, 0, Integer.MAX_VALUE);
+	}
+
+	public static int[] random(int[] arr, int bound) {
+		return random(arr, 0, bound);
+	}
+
+	public static int[] random(int[] arr, int origin, int bound) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+		for (int i = 0; i < arr.length; i++) {
+			arr[i] = rand.nextInt(origin, bound);
+		}
+		return arr;
+	}
+
+	public static <T> List<T> shuffleList(final List<T> list) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
+		for(int i = list.size() - 1; i > 0; i--) {
+			swapList(list, i, rand.nextInt(i + 1));
+		}
+
+		return list;
+	}
+
+	public static int[] shuffleInts(final int[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
+		for(int i = arr.length - 1; i > 0; i--) {
+			swap(arr, i, rand.nextInt(i + 1));
+		}
+
+		return arr;
+	}
+
 	private final RandomGenerator rand;
 
 	/**
@@ -110,43 +146,43 @@ public final class Shuffler {
 		return arr;
 	}
 
-	private static <T> void swapList(final List<T> list, int a, int b) {
+	public static <T> void swapList(final List<T> list, int a, int b) {
 		final T temp = list.get(a);
 		list.set(a, list.get(b));
 		list.set(b, temp);
 	}
 
-	private static <T> void swap(final T[] arr, int a, int b) {
+	public static <T> void swap(final T[] arr, int a, int b) {
 		T temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;
 	}
 
-	private static void swap(char[] arr, int a, int b) {
+	public static void swap(char[] arr, int a, int b) {
 		char temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;
 	}
 
-	private static void swap(int[] arr, int a, int b) {
+	public static void swap(int[] arr, int a, int b) {
 		int temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;
 	}
 
-	private static void swap(long[] arr, int a, int b) {
+	public static void swap(long[] arr, int a, int b) {
 		long temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;
 	}
 
-	private static void swap(float[] arr, int a, int b) {
+	public static void swap(float[] arr, int a, int b) {
 		float temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;
 	}
 
-	private static void swap(double[] arr, int a, int b) {
+	public static void swap(double[] arr, int a, int b) {
 		double temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;

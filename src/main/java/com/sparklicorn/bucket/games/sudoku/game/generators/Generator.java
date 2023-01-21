@@ -11,320 +11,330 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.sparklicorn.bucket.games.sudoku.game.*;
 import com.sparklicorn.bucket.games.sudoku.game.solvers.*;
+import com.sparklicorn.bucket.util.Shuffler;
 
+/**
+* Responsible for generating Sudoku configurations and puzzles.
+*/
 public class Generator {
 
-    private static class Node {
-        Board b;
-        private Node[] nexts;
-        Node prev;
-        boolean visited;
+  private static class Node {
+    Board board;
+    private Node[] nexts;
+    Node prev;
+    boolean visited;
 
-        Node(Board b, Node prev) {
-            this.b = b;
-            this.prev = prev;
-            visited = false;
+    Node(Board board, Node prev) {
+      this.board = board;
+      this.prev = prev;
+      visited = false;
+    }
+
+    Node(Board board) {
+      this(board, null);
+    }
+
+    void visit() {
+      visited = true;
+    }
+
+    void dispose() { //release memory
+      board = null;
+      nexts = null;
+    }
+
+    private void findNexts() {
+      if (nexts == null) {
+        nexts = new Node[board.getNumClues()];
+        int index = 0;
+        for (int i = 0; i < Board.NUM_CELLS; i++) {
+          if (board.getValueAt(i) > 0) {
+            Board bCopy = new Board(board);
+            bCopy.setValueAt(i, 0);
+            nexts[index++] = new Node(bCopy, this);
+          }
         }
+      }
+    }
 
-        void visit() {
-            visited = true;
+    Node[] getNeighbors() {
+      if (nexts == null) {
+        findNexts();
+      }
+
+      return nexts;
+    }
+
+    /**
+     * Attempts to get a random, unvisited neighbor of this node.
+     * Populates the list of neighbors for this node if it does not yet exist.
+     *
+     * @return A random unvisited neighbor node.
+     */
+    Node getNextUnvisited() {
+      if (nexts == null) {
+        findNexts();
+      }
+
+      ArrayList<Node> bag = new ArrayList<>();
+      for (Node next : nexts) {
+        if (next != null && !next.visited) {
+          bag.add(next);
         }
+      }
+      if (bag.isEmpty()) {
+        return null;
+      }
 
-        void kill() { //release memory
-            b = null;
-            nexts = null;
+      return bag.get(ThreadLocalRandom.current().nextInt(bag.size()));
+    }
+
+    @Override
+    public int hashCode() {
+      return board.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (other == this) {
+        return true;
+      }
+
+      if (other instanceof Node) {
+        return board.equals(((Node) other).board);
+      }
+
+      return false;
+    }
+  }
+
+  public static List<Board> generatePuzzles(int numClues) {
+    return generatePuzzles(numClues, Integer.MAX_VALUE);
+  }
+
+  public static Board generatePuzzle(int numClues) {
+    List<Board> boards = generatePuzzles(numClues);
+    return boards.get(boards.size() - 1);
+  }
+
+  //Uses stochastic BFS
+  public static List<Board> generatePuzzles2(int numClues, double prob) {
+    Queue<Node> q = new ArrayDeque<>();
+    Queue<Node> u = new ArrayDeque<>();
+    int[] _board = new int[Board.NUM_CELLS];
+
+    Board config = generateConfig();
+
+    Node root = new Node(config, null);
+    q.offer(root);
+
+    int pollCounter = 0;
+    final int dot_increments = 10000;
+
+    Node n = null;
+    boolean found = false;
+
+    while (!found && !q.isEmpty() || !u.isEmpty()) {
+      if (q.isEmpty()) {
+        Queue<Node> temp = q;
+        q = u;
+        u = temp;
+      }
+
+      n = q.poll();
+      n.visit();
+
+      if (++pollCounter % dot_increments == 0) {
+        System.out.print('.');
+        if (pollCounter > 0 && pollCounter % (80 * dot_increments) == 0) {
+          System.out.println();
         }
+      }
 
-        private void findNexts() {
-            if (nexts == null) {
-                nexts = new Node[b.getNumClues()];
-                int index = 0;
-                for (int i = 0; i < Board.NUM_CELLS; i++) {
-                    if (b.getValueAt(i) > 0) {
-                        Board bCopy = new Board(b);
-                        bCopy.setValueAt(i, 0);
-                        nexts[index++] = new Node(bCopy, this);
-                    }
-                }
+      n.board.getMasks(_board);
+      if (Solver.solvesUniquely(_board)) {
+        if (n.board.getNumClues() <= numClues) {
+          //System.out.println("Target found!");
+          found = true; //break out of loop
+
+        } else {
+          if (ThreadLocalRandom.current().nextDouble() < prob) {
+            for (Node next : n.getNeighbors()) {
+              if (!next.visited) {
+                q.offer(next);
+              }
             }
-        }
-
-        Node[] getNeighbors() {
-            if (nexts == null)
-                findNexts();
-            return nexts;
-        }
-
-        Node getNextUnvisited() {
-            if (nexts == null)
-                findNexts();
-            ArrayList<Node> bag = new ArrayList<>();
-            for (Node n : nexts) {
-                if (n != null && !n.visited) {
-                    bag.add(n);
-                }
+          } else {
+            for (Node next : n.getNeighbors()) {
+              if (!next.visited) {
+                u.offer(next);
+              }
             }
-            if (bag.isEmpty())
-                return null;
-            return bag.get(ThreadLocalRandom.current().nextInt(bag.size()));
+          }
         }
-
-        @Override
-        public int hashCode() {
-            return b.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (other == this)
-                return true;
-            if (other instanceof Node) {
-                Node _other = (Node) other;
-                return b.equals(_other.b);
-            }
-            return false;
-        }
+      } else {
+        n.dispose(); //releases some memory
+      }
 
     }
 
-    public static List<Board> generatePuzzles(int numClues) {
-        return generatePuzzles(numClues, Integer.MAX_VALUE);
+    //System.out.println();
+    //System.out.println("Polls: " + pollCounter);
+
+    //if search criteria found, then n should point to
+    //node holding target board.
+
+    List<Board> result = new ArrayList<>();
+
+    if (found) {
+      Stack<Board> stack = new Stack<>();
+      while (n != null) {
+        stack.push(n.board);
+        n = n.prev;
+      }
+
+      while (!stack.isEmpty()) {
+        result.add(stack.pop());
+      }
     }
 
-    public static Board generatePuzzle(int numClues) {
-        List<Board> boards = generatePuzzles(numClues);
-        return boards.get(boards.size() - 1);
-    }
+    return result;
+  }
 
-    //Uses stochastic BFS
-    public static List<Board> generatePuzzles2(int numClues, double prob) {
-        Queue<Node> q = new ArrayDeque<>();
-        Queue<Node> u = new ArrayDeque<>();
+  // Uses DFS to locate valid sudoku puzzle.
+  public static List<Board> generatePuzzles(int numClues, int maxPops) {
+    Stack<Node> puzzleStack = new Stack<>();
+    Board config = generateConfig();
+    Node rootNode = new Node(config);
+    int[] _board = new int[Board.NUM_CELLS];
+    puzzleStack.push(rootNode);
 
-        Board config = generateConfig();
+    int numPops = 0; // Number of pops. If the search resets, so does this.
 
-        Node root = new Node(config, null);
-        q.offer(root);
+    while (!puzzleStack.isEmpty() && numPops < maxPops) {
+      Node puzzleNode = puzzleStack.peek();
+      Board puzzle = puzzleNode.board;
+      puzzleNode.visit();
 
-        int pollCounter = 0;
-        final int dot_increments = 10000;
+      puzzle.getMasks(_board);
+      if (!Solver.solvesUniquely(_board)) {
+        puzzleStack.pop();
+        puzzleNode.dispose();
 
-        Node n = null;
-        boolean found = false;
-
-        while (!found && !q.isEmpty() || !u.isEmpty()) {
-            if (q.isEmpty()) {
-                Queue<Node> temp = q;
-                q = u;
-                u = temp;
-            }
-
-            n = q.poll();
-            n.visit();
-
-            if (++pollCounter % dot_increments == 0) {
-                //System.out.print('.');
-                if (pollCounter > 0 && pollCounter % (80 * dot_increments) == 0) {
-                    //System.out.println();
-                }
-            }
-
-            if (Solver.solvesUniquely(n.b, config)) {
-                if (n.b.getNumClues() <= numClues) {
-                    //System.out.println("Target found!");
-                    found = true; //break out of loop
-
-                } else {
-                    if (ThreadLocalRandom.current().nextDouble() < prob) {
-                        for (Node next : n.getNeighbors()) {
-                            if (!next.visited) {
-                                q.offer(next);
-                            }
-                        }
-                    } else {
-                        for (Node next : n.getNeighbors()) {
-                            if (!next.visited) {
-                                u.offer(next);
-                            }
-                        }
-                    }
-                }
-            } else {
-                n.kill(); //releases some memory
-            }
-
+        // TODO explore whether it's possible to keep a history for each node,
+        // TODO i.e. track which cells were attempted to be removed.
+        // TODO Then, this won't need any sort of restart fail-safe.
+        // After a certain number of pops, restart the search. This ensures that
+        // that the algorithm won't continue to try to remove cells when there is
+        // no path to a valid puzzle.
+        if (++numPops == 100) {
+          puzzleStack.clear();
+          puzzleStack.push(rootNode);
+          numPops = 0;
         }
 
-        //System.out.println();
-        //System.out.println("Polls: " + pollCounter);
+        continue;
+      }
 
-        //if search criteria found, then n should point to
-        //node holding target board.
+      if (puzzle.getNumClues() <= numClues) {
+        break;
+      }
 
-        List<Board> result = new ArrayList<>();
+      Node next = puzzleNode.getNextUnvisited();
+      if (next != null) {
+        puzzleStack.push(next);
+      } else {
+        puzzleStack.pop();
 
-        if (found) {
-            Stack<Board> stack = new Stack<>();
-            while (n != null) {
-                stack.push(n.b);
-                n = n.prev;
-            }
-
-            while (!stack.isEmpty()) {
-                result.add(stack.pop());
-            }
+        if (++numPops == 100) {
+          puzzleStack.clear();
+          puzzleStack.push(rootNode);
+          numPops = 0;
         }
-
-        return result;
+      }
     }
 
-    //Uses DFS to locate valid sudoku puzzle.
-    public static List<Board> generatePuzzles(int numClues, int maxPops) {
-        Stack<Node> stack = new Stack<>();
-        //HashSet<Node> visited = new HashSet<>();
-        Board config = generateConfig();
-        Node root = new Node(config, null);
-        stack.push(root);
-        //visited.add(root);
+    List<Board> result = new ArrayList<>();
+    if (!puzzleStack.isEmpty()) {
+      for (Node n : puzzleStack) {
+        result.add(n.board);
+      }
+    }
 
-        int tp = 0;
-        int pops = 0;
+    return result;
+  }
 
-        // System.out.println("Starting with " + config.getSimplifiedString());
+  /**
+   * Populates the given list with a random permutation of numbers 1 - n.
+   * TODO move to some other utility
+   *
+   * @param n
+   * @param list
+   * @return The passed list, for convenience.
+   */
+  @SuppressWarnings("unused")
+  private static List<Integer> randPerm(int n, List<Integer> list) {
+    ThreadLocalRandom rand = ThreadLocalRandom.current();
+    ArrayList<Integer> bag = new ArrayList<>(n);
 
-        while (!stack.isEmpty() && pops < maxPops) {
-            Node n = stack.peek();
-            n.visit();
-            //visited.add(n);
+    for (int i = 1; i <= n; i++) {
+      bag.add(i);
+    }
 
-            // System.out.println("Peek > (" + n.b.getNumClues() + ") " + n.b.getSimplifiedString());
+    while (!bag.isEmpty()) {
+      list.add(bag.remove(rand.nextInt(bag.size())));
+    }
 
-            //if more than one solution...
-            if (!Solver.solvesUniquely(n.b, config)) {
-                // System.out.println("Doesn't solve uniquely.");
-                stack.pop();
-                n.kill();
-                tp++;
-                if (++pops == 100) {
-                    // System.out.printf("Too many pops (%d)... trying again.%n", tp);
-                    if (tp > 0 && tp % 8000 == 0)
-                        System.out.println();
-                    stack.clear();
-                    stack.push(root);
-                    pops = 0;
-                }
-                continue;
-            } else if (n.b.getNumClues() <= numClues) { //if target found
-                // System.out.println("Target found!");
-                break;
-            }
+    return list;
+  }
 
-            //target number of clues not reached, but current node puzzle has only single solution
+  // TODO move to some other utility
+  // Utility to generate array containing range of integers [start, start + n].
+  private static int[] getSeries(int n, int start) {
+    int[] series = new int[n];
 
-            Node next = n.getNextUnvisited();
+    for (int i = 0; i < n; i++) {
+      series[i] = start + i;
+    }
 
-            if (next != null) {
-                stack.push(next);
-                //visited.add(next);
-            } else {
-                // System.out.println("Out of neighbors.");
-                stack.pop();
+    return series;
+  }
 
-                tp++;
-                if (++pops == 100) {
-                    // System.out.printf("Too many pops (%d)... trying again.%n", tp);
-                    if (tp > 0 && tp % 8000 == 0)
-                        System.out.println();
-                    stack.clear();
-                    stack.push(root);
-                    pops = 0;
-                }
-            }
+  private static void fillSections(Board board, int mask) {
+    int[] list = getSeries(Board.NUM_DIGITS, 1);
+    for (int m = 0; m < Board.NUM_DIGITS; m++) {
+      if ((mask & (1 << (8 - m))) > 0) {
+        Shuffler.shuffleInts(list);
+        int gr = m/3;
+        int gc = m%3;
+        for (int i = 0; i < Board.NUM_DIGITS; i++) {
+          int bi = gr*27 + gc*3 + (i/3)*9 + (i%3);
+          board.setValueAt(bi, list[i]);
         }
+      }
+    }
+  }
 
-        // System.out.println();
-        // System.out.println("Pops: " + tp);
+  public static Set<Board> generateConfigs() {
+    Set<Board> configs = null;
 
-        List<Board> result = new ArrayList<>();
-        if (!stack.isEmpty()) {
-            for (Node n : stack)
-                result.add(n.b);
-        }
+    while (configs == null || configs.isEmpty()) {
+      Board b = new Board();
 
-        return result;
+      do {
+        b.clear();
+        fillSections(b, 0b101010001);
+      } while (!b.isValid());
+
+      configs = Solver.getAllSolutions(b);
     }
 
-    //Random permutation of the digits 1 - n, stored in list.
-    @SuppressWarnings("unused")
-    private static List<Integer> randPerm(int n, List<Integer> list) {
-		ThreadLocalRandom rand = ThreadLocalRandom.current();
-		ArrayList<Integer> bag = new ArrayList<>(n);
+    return configs;
+  }
 
-		for (int i = 1; i <= n; i++) {
-			bag.add(i);
-		}
-
-		while (!bag.isEmpty()) {
-			list.add(bag.remove(rand.nextInt(bag.size())));
-		}
-
-		return list;
-    }
-
-    private static void shuffle(int[] array, int numSwaps) {
-        ThreadLocalRandom rand = ThreadLocalRandom.current();
-        for (int n = 0; n < numSwaps; n++) {
-            int i = rand.nextInt(array.length), j = rand.nextInt(array.length);
-            int temp = array[i];
-            array[i] = array[j];
-            array[j] = temp;
-        }
-    }
-
-	private static void fillSections(Board board, int mask) {
-        int[] list = new int[] {1, 2, 3, 4, 5, 6, 7, 8, 9};
-		for (int m = 0; m < 9; m++) {
-			if ((mask & (1 << (8 - m))) > 0) {
-				shuffle(list, 18);
-				int gr = m/3;
-			    int gc = m%3;
-			    for (int i = 0; i < 9; i++) {
-			    	int bi = gr*27 + gc*3 + (i/3)*9 + (i%3);
-			    	board.setValueAt(bi, list[i]);
-			    }
-			}
-		}
-    }
-
-    public static Set<Board> generateConfigs() {
-		//Start with a blank board and generate some of the regions.
-		Set<Board> configs = null;
-
-		while (configs == null || configs.isEmpty()) {
-            Board b = new Board();
-
-            do {
-                b.clear();
-                Generator.fillSections(b, 0b101010001);
-            } while (!b.isValid());
-
-            //System.out.println("Trying partial config: ");
-            //System.out.println(b);
-            //System.out.println("Trying partial config: " + b.getSimplifiedString());
-
-			//Attempt to solve the partially-filled board.
-			configs = Solver.getAllSolutions(b);
-
-            //System.out.println("Found " + set.size() + " solutions.");
-		}
-
-        //System.out.println("Generated config -> " + b.getSimplifiedString());
-		return configs;
-    }
-
-    public static Board generateConfig() {
-        Set<Board> configSet = generateConfigs();
-        int size = configSet.size();
-        return configSet.toArray(new Board[size])[ThreadLocalRandom.current().nextInt(size)];
-    }
+  public static Board generateConfig() {
+    Set<Board> configSet = generateConfigs();
+    int size = configSet.size();
+    return configSet.toArray(new Board[size])[ThreadLocalRandom.current().nextInt(size)];
+  }
 }

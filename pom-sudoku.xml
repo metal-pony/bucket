@@ -5,7 +5,7 @@
 
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>bucket</artifactId>
-  <version>1.1.0</version>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
   <name>Bucket</name>
@@ -88,6 +88,28 @@
           <goals>
             <goal>jar</goal>
           </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <!-- Run shade goal on package phase -->
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+              <!-- add Main-Class to manifest file -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                <mainClass>com.sparklicorn.bucket.games.sudoku.drivers.Main</mainClass>
+              </transformer>
+              </transformers>
+            </configuration>
           </execution>
         </executions>
       </plugin>
