@@ -1,84 +1,436 @@
 package com.sparklicorn.bucket.games.sudoku.game.solvers;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
-import java.util.Stack;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static com.sparklicorn.bucket.games.sudoku.game.Board.*;
 
 import com.sparklicorn.bucket.games.sudoku.game.*;
-import com.sparklicorn.bucket.util.PQEntry;
-import com.sparklicorn.bucket.util.PriorityQueue;
 
 public class Solver {
+	static class Constraints {
+		static final int ROW_MASK = ALL << (NUM_DIGITS * 2);
+		static final int COLUMN_MASK = ALL << NUM_DIGITS;
+		static final int REGION_MASK = ALL;
 
-	public static interface SolutionFoundCallback {
 		/**
-		 * Performs the specified callback with a given Board object.
-		 * @return Whether the solution search algorithm should continue;
+		 * Contains the contraints in the form
+		 * <code>[... other bits][9 row bits][9 column bits][9 region bits]</code>.
+		 * Use the provided masks to filter for row, column, or region constraints.
 		 */
-		public boolean call(Board b);
+		int[] values;
+
+		Constraints() {
+			this.values = new int[NUM_DIGITS];
+		}
+
+		Constraints(Constraints source) {
+			this();
+			System.arraycopy(source.values, 0, this.values, 0, NUM_DIGITS);
+		}
+
+		Constraints(int[] board) {
+			this();
+			forEach(board, (cellIndex, candidates) -> {
+				if (isDigit(candidates)) {
+					add(cellIndex, decode(candidates));
+				}
+			});
+		}
+
+		int getForRow(int rowIndex) {
+			return (values[rowIndex] & ROW_MASK) >> (NUM_DIGITS * 2);
+		}
+
+		int getForCol(int columnIndex) {
+			return (values[columnIndex] & COLUMN_MASK) >> NUM_DIGITS;
+		}
+
+		int getForRegion(int regionIndex) {
+			return values[regionIndex] & REGION_MASK;
+		}
+
+		int getForCell(int cellIndex) {
+			return getForRow(getCellRowIndex(cellIndex)) |
+				getForCol(getCellColIndex(cellIndex)) |
+				getForRegion(getCellRegionIndex(cellIndex));
+
+			// int row = values[getCellRowIndex(cellIndex)] & ROW_MASK;
+			// int col = values[getCellColIndex(cellIndex)] & COLUMN_MASK;
+			// int region = values[getCellRegionIndex(cellIndex)] & REGION_MASK;
+
+			// return row | col | region;
+		}
+
+		void add(int cellIndex, int digit) {
+			int rowIndex = getCellRowIndex(cellIndex);
+			int columnIndex = getCellColIndex(cellIndex);
+			int regionIndex = getCellRegionIndex(cellIndex);
+			// System.out.printf("Adding constraint on %d (%d,%d) -> %d\n", cellIndex, rowIndex + 1, columnIndex + 1, digit);
+
+			values[rowIndex] |= 1 << (digit - 1 + (NUM_DIGITS * 2));
+			values[columnIndex] |= 1 << (digit - 1 + NUM_DIGITS);
+			values[regionIndex] |= 1 << (digit - 1);
+		}
+
+		String[] inspect(int cellIndex) {
+			return new String[] {
+				Integer.toBinaryString(getForRow(getCellRowIndex(cellIndex))),
+				Integer.toBinaryString(getForCol(getCellColIndex(cellIndex))),
+				Integer.toBinaryString(getForRegion(getCellRegionIndex(cellIndex))),
+				Integer.toBinaryString(getForCell(cellIndex))
+			};
+		}
+
+		String toString(int cellIndex) {
+			return String.format(
+				"row: %s, col: %s, reg: %s, cel: %s",
+				d(getForRow(getCellRowIndex(cellIndex))),
+				d(getForCol(getCellColIndex(cellIndex))),
+				d(getForRegion(getCellRegionIndex(cellIndex))),
+				d(getForCell(cellIndex))
+			);
+		}
+
+		String bin(int constraints) {
+			String str = Integer.toBinaryString(constraints);
+			String pad = "";
+
+			if (str.length() < Board.NUM_DIGITS) {
+				pad = "0".repeat(Board.NUM_DIGITS - str.length());
+			}
+
+			return pad + str;
+		}
+	}
+
+	static <T> void forEach(T[] arr, Consumer<Integer> func) {
+		for (int index = 0; index < arr.length; index++) {
+			func.accept(index);
+		}
+	}
+	static <T> void forEach(T[] arr, Function<Integer,Boolean> func) {
+		for (int index = 0; index < arr.length; index++) {
+			if (!func.apply(index)) {
+				return;
+			}
+		}
+	}
+
+	static void forEach(int[] arr, Consumer<Integer> func) {
+		for (int index = 0; index < arr.length; index++) {
+			func.accept(index);
+		}
+	}
+	static void forEach(int[] arr, Function<Integer,Boolean> func) {
+		for (int index = 0; index < arr.length; index++) {
+			if (!func.apply(index)) {
+				return;
+			}
+		}
+	}
+
+	static <T> void forEach(T[] arr, BiConsumer<Integer, T> func) {
+		for (int index = 0; index < arr.length; index++) {
+			func.accept(index, arr[index]);
+		}
+	}
+	static <T> void forEach(T[] arr, BiFunction<Integer, T, Boolean> func) {
+		for (int index = 0; index < arr.length; index++) {
+			if(!func.apply(index, arr[index])) {
+				return;
+			}
+		}
+	}
+
+	static void forEach(int[] arr, BiConsumer<Integer, Integer> func) {
+		for (int index = 0; index < arr.length; index++) {
+			func.accept(index, arr[index]);
+		}
+	}
+	static void forEach(int[] arr, BiFunction<Integer, Integer, Boolean> func) {
+		for (int index = 0; index < arr.length; index++) {
+			if (!func.apply(index, arr[index])) {
+				return;
+			}
+		}
+	}
+
+	static void forEachCell(int[] board, int[] cellIndices, BiConsumer<Integer, Integer> func) {
+		for (int cellIndex : cellIndices) {
+			func.accept(cellIndex, board[cellIndex]);
+		}
+	}
+	static void forEachCell(int[] board, int[] cellIndices, BiFunction<Integer, Integer, Boolean> func) {
+		for (int cellIndex : cellIndices) {
+			if (!func.apply(cellIndex, board[cellIndex])) {
+				return;
+			}
+		}
+	}
+
+	static void forEachCellInRow(int[] board, int rowIndex, BiConsumer<Integer, Integer> func) {
+		forEachCell(board, ROW_INDICES[rowIndex], func);
+	}
+	static void forEachCellInRow(int[] board, int rowIndex, BiFunction<Integer, Integer, Boolean> func) {
+		forEachCell(board, ROW_INDICES[rowIndex], func);
+	}
+
+	static void forEachCellInColumn(int[] board, int columnIndex, BiConsumer<Integer, Integer> func) {
+		forEachCell(board, COL_INDICES[columnIndex], func);
+	}
+	static void forEachCellInColumn(int[] board, int columnIndex, BiFunction<Integer, Integer, Boolean> func) {
+		forEachCell(board, COL_INDICES[columnIndex], func);
+	}
+
+	static void forEachCellInRegion(int[] board, int regionIndex, BiConsumer<Integer, Integer> func) {
+		forEachCell(board, REGION_INDICES[regionIndex], func);
+	}
+	static void forEachCellInRegion(int[] board, int regionIndex, BiFunction<Integer, Integer, Boolean> func) {
+		forEachCell(board, REGION_INDICES[regionIndex], func);
+	}
+
+	static void forEachNeighborCell(int[] board, int cellIndex, BiConsumer<Integer, Integer> func) {
+		forEachCellInRow(board, getCellRowIndex(cellIndex), func);
+		forEachCellInColumn(board, getCellColIndex(cellIndex), func);
+		forEachCellInRegion(board, getCellRegionIndex(cellIndex), func);
 	}
 
 	/**
-	 * Attempts to solve the given Sudoku board, returning the first
-	 * solution found, or null if no solution was found.
-	 * <br/>
-	 * This may take a long time, and possibly never return, depending on
-	 * how much of the board is already solved.  Generally, boards with
-	 * around 20 clues should have little problem solving on modern processors.
-	 * @param board - the Sudoku board to work on.
-	 * @return A new ISudokuBoard representing the puzzle solution.
+	 * Resets empty cells to all candidates.
+	 *
+	 * @param board
 	 */
-	public static Board solve(Board board) {
-		Board[] result = new Board[1];
-		searchForSolution(board, (b) -> {
-			result[0] = b;
-			return false;
+	public static int[] resetEmptyCells(int[] board) {
+		forEach(board, (cellIndex, candidates) -> {
+			if (!isDigit(candidates)) {
+				board[cellIndex] = ALL;
+			}
 		});
-		return result[0];
+		return board;
 	}
 
 	/**
-	 * Attempts to solve the given Sudoku board.
-	 * <br/>This may take a long time, and possibly never return, depending on
-	 * how much of the board is already solved.  Generally, boards with
-	 * around 20 clues should have little problem solving on modern processors.
-	 * @param board - the Sudoku board to work on.
-	 * @return A set containing all the solutions for the given Sudoku board.
+	 * Attempts to get all solutions for the given board.
+	 *
+	 * @param board
+	 * @return
 	 */
-	public static Set<Board> getAllSolutions(Board board) {
-		HashSet<Board> result = new HashSet<>();
-		searchForSolution(board, (b) -> {
-			//System.out.println("found solution: " + b.getSimplifiedString());
-			result.add(b);
-			return true;
+	public static Set<int[]> getSolutions(int[] board) {
+		BoardSolution _board = new BoardSolution(board);
+		Set<int[]> solutions = new HashSet<>();
+		searchForSolutions(_board, (solution) -> {
+			solutions.add(solution);
 		});
+
+		return solutions;
+	}
+
+	/**
+	 * Decodes Sudoku candidate bits into a representation easier consumed by humans.
+	 * Eg, <code>d(0b011011001) => 14578</code>, and each digit in the result
+	 * corresponds to a candidate for the associated cell.
+	 * TODO Remove this after debugging
+	 *
+	 * @param encoded
+	 * @return
+	 */
+	public static int d(int encoded) {
+		if (Board.isDigit(encoded)) {
+			return Board.decode(encoded);
+		}
+
+		int result = 0;
+		for (int digit = 1; digit <= Board.NUM_DIGITS; digit++) {
+			if ((encoded & (1 << (digit - 1))) > 0) {
+				result = (result * 10) + digit;
+			}
+		}
 		return result;
 	}
 
-	/**
-	 * Attempts to solve the given Sudoku board.
-	 * <br/>This may take a long time, and possibly never return, depending on
-	 * how much of the board is already solved.  Generally, boards with
-	 * around 20 clues should have little problem solving on modern processors.
-	 * @param board - the Sudoku board to work on.
-	 * @return A set containing all the solutions for the given Sudoku board.
-	 */
-	public static void findAllSolutions(Board board, Consumer<Board> callback) {
-		searchForSolution3(board, (b) -> {
-			if (callback != null) {
-				callback.accept(b);
+	static int[] decodeToArr(int encoded) {
+		int[] result = new int[Integer.bitCount(encoded)];
+
+		int index = 0;
+		for (int digit = 1; digit <= Board.NUM_DIGITS; digit++) {
+			if ((encoded & (1 << (digit - 1))) > 0) {
+				result[index] = digit;
+				index++;
 			}
-			return true;
+		}
+
+		return result;
+	}
+
+	static void postDigit(BoardSolution board, int cellIndex, int digit) {
+		board.board[cellIndex] = Board.encode(digit);
+		board.constraints.add(cellIndex, digit);
+	}
+
+	static void reduceNeighbors(BoardSolution board, int cellIndex) {
+		// System.out.printf("Relaxing neighbors of cell %d ...\n", cellIndex);
+		forEachNeighborCell(board.board, cellIndex, (neighborIndex, _neighborCandidates) -> {
+			if (neighborIndex != cellIndex) {
+				reduce2(board, neighborIndex);
+			}
 		});
+		// System.out.printf("Done relaxing neighbors of cell %d ...\n", cellIndex);
+	}
+
+	static boolean isCandidateUniqueInArea(int[] board, int[] areaIndices, int cellIndex, int candidateMask) {
+		for (int neighborIndex : areaIndices) {
+			if (neighborIndex == cellIndex) {
+				continue;
+			}
+
+			if ((board[neighborIndex] & candidateMask) > 0) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	static int searchForUniqueCandidate(int[] board, int cellIndex) {
+		final int candidates = board[cellIndex];
+		// // TODO for debug, delete later
+		// System.out.printf(
+		// 	"Unique check on %d for [%d]: ",
+		// 	cellIndex,
+		// 	d(candidates)
+		// );
+		final int row = Board.getCellRowIndex(cellIndex);
+		final int col = Board.getCellColIndex(cellIndex);
+		final int region = Board.getCellRegionIndex(cellIndex);
+
+		// For each candidate of given cell
+		for (int candidateMask = 1; candidateMask < (1<<Board.NUM_DIGITS); candidateMask <<= 1) {
+			if ((candidates & candidateMask) > 0) {
+				// System.out.printf("%d... ", Board.decode(candidateMask));
+
+				// For each area the cell is a part of (row, column, region)
+				// If candidate is unique among cells in any area
+				if (
+					isCandidateUniqueInArea(board, Board.ROW_INDICES[row], cellIndex, candidateMask) ||
+					isCandidateUniqueInArea(board, Board.COL_INDICES[col], cellIndex, candidateMask) ||
+					isCandidateUniqueInArea(board, Board.REGION_INDICES[region], cellIndex, candidateMask)
+				) {
+					// System.out.println("unique found!");
+					// System.out.printf(
+					// 	"Unique check on %d for [%d] found %d\n",
+					// 	cellIndex,
+					// 	d(candidates),
+					// 	d(candidateMask)
+					// );
+					return candidateMask;
+				}
+			}
+		}
+		// System.out.println();
+
+		// No unique candidate found.
+		return 0;
+	}
+
+	// attempts to reduce the given cell's candidates by elimination
+	// returns whether the cell changed as result of this call.
+	// may mutate board.board and board.constraints
+	/**
+	 * Attempts to reduce the given cell's candidates.
+	 *
+	 * @param board
+	 * @param cellIndex
+	 * @param nextCells
+	 * @return
+	 */
+	static boolean reduce2(BoardSolution board, int cellIndex) {
+		Board.validateCellIndex(cellIndex);
+		int[] _board = board.board;
+		int candidates = _board[cellIndex];
+
+		if (isDigit(candidates) || candidates <= 0) {
+			// System.out.println(".  skipping...");
+			return false;
+		}
+
+		// System.out.printf(
+		// 	"reduce %d (%d,%d): [%d]",
+		// 	cellIndex,
+		// 	Board.getCellRowIndex(cellIndex) + 1,
+		// 	Board.getCellColIndex(cellIndex) + 1,
+		// 	d(board.board[cellIndex])
+		// );
+
+		// ? If candidate constraints reduces to 0, then the board is likely invalid.
+		// TODO Reason out and test what happens when the board is invalid.
+		int reducedCandidates = _board[cellIndex] &= ~board.constraints.getForCell(cellIndex);
+		if (reducedCandidates <= 0) {
+			// System.out.printf(
+			// 	"reduce %d (%d,%d): [%d]",
+			// 	cellIndex,
+			// 	Board.getCellRowIndex(cellIndex) + 1,
+			// 	Board.getCellColIndex(cellIndex) + 1,
+			// 	d(candidates)
+			// );
+			// System.out.println(".  constraints reduced to 0... ERROR ERROR ERROR");
+			return false;
+		}
+
+		// // TODO for debug, delete later
+		// if (reducedCandidates < candidates) {
+		// 	System.out.printf(
+		// 		"reduce %d (%d,%d): [%d]",
+		// 		cellIndex,
+		// 		Board.getCellRowIndex(cellIndex) + 1,
+		// 		Board.getCellColIndex(cellIndex) + 1,
+		// 		d(candidates)
+		// 	);
+		// 	System.out.printf(" -> relaxes to [%d]\n", d(reducedCandidates));
+		// }
+
+		if (isDigit(reducedCandidates)) {
+			postDigit(board, cellIndex, Board.decode(reducedCandidates));
+		} else {
+			int uniqueCandidate = searchForUniqueCandidate(_board, cellIndex);
+			if (uniqueCandidate > 0) {
+				postDigit(board, cellIndex, Board.decode(uniqueCandidate));
+				reducedCandidates = uniqueCandidate;
+			}
+		}
+
+		if (reducedCandidates < candidates) {
+			reduceNeighbors(board, cellIndex);
+		}
+
+		// Whether candidates for the given cell have changed.
+		return candidates != reducedCandidates;
+	}
+
+	static boolean reduce(int[] board) {
+		return reduce(new BoardSolution(board));
+	}
+
+	static boolean reduce(BoardSolution boardSolution) {
+		boolean boardSolutionChanged = false;
+		boolean hadReduction;
+
+		do {
+			hadReduction = false;
+			for (int i = 0; i < boardSolution.board.length; i++) {
+				hadReduction |= reduce2(boardSolution, i);
+				boardSolutionChanged |= hadReduction;
+			}
+		} while (hadReduction);
+
+		return boardSolutionChanged;
 	}
 
 	/**
@@ -86,476 +438,183 @@ public class Solver {
 	 * <br/>This may take a long time, and possibly never return, depending on
 	 * how much of the board is already solved.  Generally, boards with
 	 * around 20 clues should have little problem solving on modern processors.
+	 *
 	 * @param board - the Sudoku board to solve.
-	 * @param solution - the solution that the board should solve to.
 	 * @return True if the board has one unique solution equivalent to the
 	 * one provided; otherwise false.
 	 */
-	public static boolean solvesUniquely(Board board, Board solution) {
+	public static boolean solvesUniquely(int[] board) {
 		//p.execute(b) => false if b is alternate solution.
 		//When p.execute == false, search stops and returns false.
 		//When p.execute == true, search continues.
 		//Search returns true when the search is exhausted.
-		AtomicBoolean result = new AtomicBoolean(false);
-		searchForSolution(board, (b) -> {
+		AtomicInteger numSolves = new AtomicInteger(0);
+
+		BoardSolution boardSolution = new BoardSolution(board);
+		searchForSolutions(boardSolution, (b) -> {
 			//System.out.println(b.getSimplifiedString());
-			result.set(b.equals(solution));
-			return result.get();
+			return numSolves.incrementAndGet() == 1;
 		});
-		return result.get();
-	}
 
-	private static boolean searchForSolution(Board board, SolutionFoundCallback p) {
-		//This will be reused and repopulated by board.getCandidates(list) to reduce overhead.
-		List<Integer> candidates = new ArrayList<>(9);
-		Queue<Board> q = new ArrayDeque<>();
-		q.offer(new Board(board));
-
-		while (!q.isEmpty()) {
-			Board b = q.poll();
-
-			if (!b.isFull()) {
-				reduce(b);
-			}
-
-			if (b.isFull()) {
-				if (!p.call(b)) {
-					return false;
-				}
-			} else {
-				int index = pickEmptyCell(b);
-				if (index >= 0) {
-					for (Board c : getCandidateBoards(b, index, candidates)) {
-						q.offer(c);
-					}
-					//putCellCandidatesInQueue(b, index, q, candidates);
-				}
-			}
-		}
-
-		return true;
-	}
-
-	private static class Node<T> {
-		T data;
-		List<Node<T>> nextsUnivisited;
-		boolean visited;
-		boolean gen;
-		Node(T data) {
-			this.data = data;
-			this.visited = false;
-			this.nextsUnivisited = new ArrayList<>();
-			gen = false;
-		}
-		T getData() {
-			return data;
-		}
-		int getSize() {
-			return nextsUnivisited.size();
-		}
-		Node<T> getNextUnvisited() {
-			if (nextsUnivisited.isEmpty()) {
-				return null;
-			}
-			return nextsUnivisited.remove(nextsUnivisited.size() - 1);
-		}
-		void visit() {
-			this.visited = true;
-		}
-		boolean addUnvisited(Node<T> neighbor) {
-			gen = true;
-			return nextsUnivisited.add(neighbor);
-		}
-		void kill() {
-			nextsUnivisited = null;
-			data = null;
-		}
-	}
-
-	private static boolean searchForSolution2(Board board, SolutionFoundCallback p) {
-
-		List<Integer> candidates = new ArrayList<>(9);
-		Stack<Node<Board>> stack = new Stack<>();
-
-		HashSet<Board> solutions = new HashSet<>();
-
-		Board _board = board.copy();
-		reduce(_board);
-		Node<Board> startNode = new Node<>(_board);
-		startNode.visit();
-
-		stack.push(startNode);
-
-		int[] masks = new int[Board.NUM_CELLS];
-
-		search: while (!stack.empty()) {
-			Node<Board> node = stack.peek();
-			Board b = node.getData();
-
-			System.out.println("Checking " + b.getSimplifiedString());
-
-			if (b.isFull()) {
-				if (!solutions.contains(b)) {
-					if (!p.call(b)) {
-						return false;
-					}
-				}
-				solutions.add(b);
-
-				stack.pop();
-				node.kill();
-				b.kill();
-			} else {
-
-				if (node.gen) {
-					if (node.getSize() > 0) {
-						Node<Board> next = node.getNextUnvisited();
-						next.visit();
-						stack.push(next);
-					} else {
-						stack.pop();
-						node.kill();
-						b.kill();
-					}
-
-				} else {
-					//int count = 0;
-					for (int i = 0; i < Board.NUM_CELLS; i++) {
-						if (b.getValueAt(i) == 0) {
-							candidates.clear();
-							for (Board c : getCandidateBoards(b, i, candidates)) {
-								reduce(c);
-								boolean hasZero = false;
-								for (int rawValue : c.getMasks(masks)) {
-									if (rawValue == 0) {
-										hasZero = true;
-										//System.out.println("Board has zero.");
-										break;
-									}
-								}
-								if (!hasZero && c.isValid()) {
-									node.addUnvisited(new Node<>(c));
-									//count++;
-								} else {
-									stack.pop();
-									node.kill();
-									b.kill();
-									continue search;
-								}
-							}
-						}
-					}
-					node.gen = true;
-					//System.out.println("Generated " + count + " neighbors.");
-
-					if (node.getSize() > 0) {
-						Node<Board> next = node.getNextUnvisited();
-						next.visit();
-						stack.push(next);
-					} else {
-						stack.pop();
-						node.kill();
-						b.kill();
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
-	private static <T> boolean isheap(List<T> list, Comparator<T> comparator) {
-		for (int i = 1; i < list.size(); i++) {
-			if (comparator.compare(list.get(i), list.get((i - 1) / 2)) < 0) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	//use priorityQueue, where less empty spaces = higher priority
-	private static boolean searchForSolution3(Board board, SolutionFoundCallback p) {
-		//This will be reused and repopulated by board.getCandidates(list)
-		//	to reduce overhead.
-		List<Integer> candidates = new ArrayList<>(9);
-		Comparator<Board> boardComparator = (Board b1, Board b2) -> {
-			return b2.getNumClues() - b1.getNumClues();
-		};
-
-		PriorityQueue<PQEntry<Board>> q = new PriorityQueue<>();
-
-		HashSet<Board> solutions = new HashSet<>();
-		//int[] masks = new int[Board.NUM_CELLS];
-		q.offer(new PQEntry<>(board.copy(), boardComparator));
-
-		while (!q.isEmpty()) {
-			Board b = q.poll().data();
-
-			//System.out.print(q.size() + " Checking " + b.getSimplifiedString());
-
-			//ArrayList<Board> heap = new ArrayList<>(q);
-			//if (!isheap(heap, comparator)) {
-			//	System.out.println();
-			//	System.out.println("HEAP BROKEN");
-			//	return false;
-			//}
-
-			if (!b.isValid()) {
-				//System.out.println(" [INVALID]");
-				continue;
-			}
-
-			if (b.isFull()) {
-				if (solutions.add(b)) {
-					//System.out.println(" [SOLUTION FOUND]");
-					if (!p.call(b)) {
-						return false;
-					}
-				}
-
-			} else {
-				for (int i = 0; i < Board.NUM_CELLS; i++) {
-					if (b.getValueAt(i) == 0) {
-						for (Board c : getCandidateBoards(b, i, candidates)) {
-							reduce(c);
-							q.offer(new PQEntry<>(c, boardComparator));
-						}
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
-	//Use arraylist for queue, sort after inserting
-	private static boolean searchForSolution4(Board board, SolutionFoundCallback p) {
-		//This will be reused and repopulated by board.getCandidates(list)
-		//	to reduce overhead.
-		//List<Integer> candidates = new ArrayList<>(9);
-		Comparator<Board> boardComparator = (Board b1, Board b2) -> {
-			return b2.getNumClues() - b1.getNumClues();
-		};
-		ArrayList<Board> q = new ArrayList<>();
-		//HashSet<Board> solutions = new HashSet<>();
-		//int[] masks = new int[Board.NUM_CELLS];
-		q.add(board.copy());
-
-		while (!q.isEmpty()) {
-			Board b = q.remove(0);
-
-			System.out.print(q.size() + " Checking " + b.getSimplifiedString());
-
-			//ArrayList<Board> heap = new ArrayList<>(q);
-			//if (!isheap(heap, comparator)) {
-			//	System.out.println();
-			//	System.out.println("HEAP BROKEN");
-			//	return false;
-			//}
-
-			if (!b.isValid()) {
-				System.out.println(" [INVALID]");
-				continue;
-			}
-
-			if (b.isFull()) {
-				//if (!solutions.contains(b)) {
-					System.out.println(" [SOLUTION FOUND]");
-					if (!p.call(b)) {
-						return false;
-					}
-					//solutions.add(b);
-				//}
-
-			} else {
-				int count = 0;
-				for (int i = 0; i < Board.NUM_CELLS; i++) {
-					if (b.getValueAt(i) == 0) {
-						for (int x = 1; x < 10; x++) {
-							Board c = b.copy();
-							c.setValueAt(i, x);
-							q.add(c);
-							count++;
-						}
-					}
-				}
-				if (count > 0) {
-					q.sort(boardComparator);
-				}
-				System.out.println(" [" + count + "]");
-			}
-		}
-
-		return true;
+		return numSolves.get() == 1;
 	}
 
 	/**
-	 * Searches for the index of the empty cell in board which has the fewest
-	 * number of candidates. Starts at the top of the board.
+	 * Attempts to solve the given Sudoku puzzle.
+	 * This may take a long time, and possibly never return, depending on
+	 * how much of the board is already solved.
+	 *
+	 * @param puzzle - The Sudoku board to solve.
+	 * @return A set containing all the solutions for the given Sudoku board.
 	 */
-	private static int pickEmptyCell(Board b) {
-		int index = -1;
-		int numDigits = 10; //number of digit options for cell at index
-		for (int i = 0; i < NUM_CELLS; i++) {
-			int numOpts = Integer.bitCount(b.getMaskAt(i));
-			if (numOpts > 1 && numOpts < numDigits) {
-				index = i;
-				numDigits = numOpts;
-				if (numDigits == 2) //stop early. Won't find a cell with fewer candidates.
-					break;
-			}
-		}
-		return index;
-	}
+	public static Set<Board> getAllSolutions(Board puzzle) {
+		HashSet<Board> result = new HashSet<>();
 
-	/**
-	 * Picks the cell from board with the fewest number of candidates,
-	 * then fills in the candidates for that cell in copies of board.  Places
-	 * the copies into the queue.
-	 * <br/>Since this method is called frequently while searching for Sudoku
-	 * solutions, and Board.getCandidates() takes and returns a List, the caller may
-	 * pass in a list object to be used instead of this method allocating a new one
-	 * (and creating more garbage).
-	 * @param board - the Sudoku board trying to be solved.
-	 * @param queue - the queue of boards used to search for the solution(s).
-	 * @param candidates - a list of Integers used internally.
-	 * The list will be cleared and repopulated with the candidates for the
-	 * cell described above.
-	 */
-	private static void putCellCandidatesInQueue(Board board, int cellIndex,
-	Queue<Board> queue, List<Integer> candidates)
-	{
-		if (candidates == null)
-			candidates = new ArrayList<Integer>(9);
+		searchForSolutions(new BoardSolution(puzzle), (solution) -> {
+			//System.out.println("found solution: " + b.getSimplifiedString());
+			result.add(Board.fromCandidates(solution));
+		});
 
-		candidates.clear();
-		board.getCandidates(cellIndex, candidates);
-		for (int option : candidates) {
-			Board bCopy = new Board(board);
-			bCopy.setValueAt(cellIndex, option);
-			queue.offer(bCopy);
-		}
-	}
-
-	private static List<Board> getCandidateBoards(Board board, int cellIndex, List<Integer> candidates) {
-		if (candidates == null)
-			candidates = new ArrayList<Integer>(9);
-
-		candidates.clear();
-		board.getCandidates(cellIndex, candidates);
-		List<Board> result = new ArrayList<>();
-		for (int option : candidates) {
-			Board bCopy = new Board(board);
-			bCopy.setValueAt(cellIndex, option);
-			result.add(bCopy);
-		}
 		return result;
 	}
 
-	/**
-	 * Attempts to fill in the most obvious cells on the board.
-	 * <br/>It is possible that this method solves the puzzle.
-	 * @param board - the Sudoku board to work on.
-	 * @return True if the board was changed as a result of this call;
-	 * otherwise false.
-	 */
-	protected static boolean reduce(Board board) {
-		if (board.isFull()) {
-			return false;
+	static int[] copyBoard(int[] board) {
+		int[] copy = new int[NUM_CELLS];
+		System.arraycopy(board, 0, copy, 0, NUM_CELLS);
+		return copy;
+	}
+
+	static record BoardSolution(int[] board, Constraints constraints) {
+		BoardSolution(int[] board) {
+			this(copyBoard(board), new Constraints(board));
+		}
+		BoardSolution(Board board) {
+			this(board.toArray(), new Constraints(board.toArray()));
+		}
+		BoardSolution(BoardSolution source) {
+			this(copyBoard(source.board), new Constraints(source.constraints));
 		}
 
-		//reduce until we can't reduce no more
-	    boolean overallChange = false;
-		boolean changed = false;
+		void solve() {
 
-	    int[] masks = board.getMasks(new int[NUM_CELLS]);
-
-	    //Track positions that are not already reduced.
-	    ArrayList<Integer> indices = new ArrayList<>();
-	    for (int i = 0; i < NUM_CELLS; i++) {
-	    	if (board.getValueAt(i) == 0) {
-	    		indices.add(i);
-	    		masks[i] = ALL;
-	    	}
-	    }
-
-		do {
-			changed = false;
-	        for (int i = indices.size() - 1; i >= 0; i--) {
-	        	int j = indices.get(i);
-	        	if (reduce(masks, j)) {
-	                changed = true;
-	                overallChange = true;
-	                board.setMaskAt(j, masks[j]);
-	            }
-	        	if (decode(masks[j]) > 0) {
-		    		indices.remove(i);
-		    	}
-	        }
-		} while (changed);
-
-	    return overallChange;
+		}
 	}
 
-	private static boolean reduce(int[] masks, int index) {
-	    int initial = masks[index];
-
-	    //check if this cell already contains a single digit
-	    if (decode(initial) > 0)
-	        return false;
-
-	    int candidates = ALL;
-	    candidates = reduceRow(masks, index, candidates);
-	    candidates = reduceCol(masks, index, candidates);
-	    candidates = reduceRegion(masks, index, candidates);
-	    masks[index] = candidates;
-	    return (initial - candidates) > 0;
+	public static void forAllSolutions(Board board, Consumer<Board> func) {
+		searchForSolutions(
+			new BoardSolution(board),
+			(solution) -> {
+				func.accept(Board.fromCandidates(solution));
+				return true;
+			}
+		);
 	}
 
-	private static int reduceRegion(int[] masks, int index, int candidates) {
-	    for (int i : REGION_INDICES[Board.getRegionForIndex(index)]) {
-	        if (i == index)
+	public static Board solve(Board board) {
+		int[] solution = SudokuUtility.emptyBoard();
+		searchForSolutions(
+			new BoardSolution(board),
+			(_solution) -> {
+				System.arraycopy(_solution, 0, solution, 0, NUM_CELLS);
+				return false;
+			}
+		);
+		return Board.fromCandidates(solution);
+	}
+
+	/**
+	 * Performs a breadth-first search for sudoku solution(s) of the given board.
+	 * The given callback function is triggered when a solution is found. If the callback
+	 * returns <code>false</code>, the search will stop;
+	 * otherwise it will continue searching for solutions.
+	 *
+	 * @param boardSolution Contains the initial board and its constraints.
+	 * @param solutionFoundCallback Called with a solution board when one is found.
+	 * If this returns <code>true</code>, then the search will continue for more solutions;
+	 * otherwise the search will stop.
+	 * @return <code>true</code> if the search exhausted all possible solutions;
+	 * otherwise <code>false</code>.
+	 */
+	static boolean searchForSolutions(
+		BoardSolution boardSolution,
+		Function<int[], Boolean> solutionFoundCallback
+	) {
+		Queue<BoardSolution> solutionQueue = new ArrayDeque<>();
+		solutionQueue.offer(boardSolution);
+		resetEmptyCells(boardSolution.board);
+
+		while (!solutionQueue.isEmpty()) {
+			BoardSolution possibleSolution = solutionQueue.poll();
+			reduce(possibleSolution);
+
+			if (isSolved(possibleSolution) && !solutionFoundCallback.apply(possibleSolution.board)) {
+				return false;
+			} else {
+				expandQueueWithPossibleSolutions(solutionQueue, possibleSolution);
+			}
+		}
+
+		return true;
+	}
+
+	static boolean searchForSolutions(BoardSolution boardSolution, Consumer<int[]> callback) {
+		return searchForSolutions(boardSolution, (solution) -> {
+			callback.accept(solution);
+			return true;
+		});
+	}
+
+	private static void expandQueueWithPossibleSolutions(
+		Queue<BoardSolution> queue,
+		BoardSolution currentSolution
+	) {
+		int unsolvedIndex = pickEmptyCell(currentSolution.board);
+		if (
+			unsolvedIndex >= 0 // &&
+			// empty cell actually has candidates (if cell is 0 -> board is invalid)
+			// TODO This doesn't seem possible - may be able to remove
+			// candidateBoard[emptyCellIndex] > 0
+		) {
+			forEachCellCandidate(currentSolution.board, unsolvedIndex, (candidateDigit) -> {
+				BoardSolution possibleSolution = new BoardSolution(currentSolution);
+				possibleSolution.board[unsolvedIndex] = encode(candidateDigit);
+				possibleSolution.constraints.add(unsolvedIndex, candidateDigit);
+				queue.offer(possibleSolution);
+			});
+		}
+	}
+
+	/**
+	 * Returns the index of an empty cell in <code>board</code> which contains the
+	 * fewest candidates. If the board has no empty cell, returns <code>-1</code>.
+	 *
+	 * @param board Sudoku board array.
+	 * @return Index of an unsolved cell that contains the fewest number of candidates,
+	 * or <code>-1</code> if the board has no empty cells.
+	 */
+	private static int pickEmptyCell(int[] board) {
+		int minIndex = -1;
+		int minCandidates = Board.NUM_DIGITS + 1;
+
+		for (int i = 0; i < Board.NUM_CELLS; i++) {
+			int numCandidates = Integer.bitCount(board[i]);
+
+			if (numCandidates < 2) {
 				continue;
+			} else if (numCandidates == 2) {
+				return i;
+			}
 
-	    	int v = masks[i];
-	        if (decode(v) > 0) {
-	            if ((candidates ^ v) < candidates) {
-	                candidates ^= v;
-	            }
-	        }
-	    }
-		return candidates;
+			if (numCandidates < minCandidates) {
+				minIndex = i;
+				minCandidates = numCandidates;
+			}
+		}
+
+		return minIndex;
 	}
 
-	private static int reduceCol(int[] masks, int index, int candidates) {
-		int c = index % 9;
-	    for (int i : COL_INDICES[c]) {
-	        if (i == index)
-				continue;
-
-	        int v = masks[i];
-	        if (decode(v) > 0) {
-	            if ((candidates ^ v) < candidates) {
-	                candidates ^= v;
-	            }
-	        }
-	    }
-		return candidates;
-	}
-
-	private static int reduceRow(int[] masks, int index, int candidates) {
-		int r = index / 9;
-		for (int i : ROW_INDICES[r]) {
-	        if (i == index)
-	            continue;
-
-	        int v = masks[i];
-	        if (decode(v) > 0) {
-	        	if ((candidates ^ v) < candidates) {
-	                candidates ^= v;
-	            }
-	        }
-	    }
-		return candidates;
+	static boolean isSolved(BoardSolution boardSolution) {
+		return Board.isSolved(boardSolution.board);
 	}
 }

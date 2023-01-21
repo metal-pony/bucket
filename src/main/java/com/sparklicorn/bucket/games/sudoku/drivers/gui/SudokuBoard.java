@@ -3,7 +3,6 @@ package com.sparklicorn.bucket.games.sudoku.drivers.gui;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.FontFormatException;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -17,8 +16,6 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
-import java.io.IOException;
-import java.io.InputStream;
 
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -164,14 +161,7 @@ public class SudokuBoard extends JPanel implements ComponentListener {
 		this.board = board;
 		this.cells = new SudokuCell[NUM_CELLS];
 
-		try {
-			InputStream fontfs = ClassLoader.getSystemClassLoader().getResourceAsStream("Roboto-Regular.ttf");
-			font = Font.createFont(Font.TRUETYPE_FONT, fontfs);
-			fontfs.close();
-		} catch (FontFormatException | IOException e1) {
-			e1.printStackTrace();
-			font = new Font("Consolas", Font.PLAIN, 24);
-		}
+		font = new Font("Consolas", Font.PLAIN, 24);
 		SudokuCell.font = font.deriveFont(24f);
 
 		setBackground(Color.white);

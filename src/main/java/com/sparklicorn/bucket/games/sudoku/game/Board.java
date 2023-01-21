@@ -2,12 +2,19 @@ package com.sparklicorn.bucket.games.sudoku.game;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import com.sparklicorn.bucket.games.sudoku.game.solvers.Solver;
+import com.sparklicorn.bucket.util.LoadingMember;
 
 /**
  * The standard 9x9 Sudoku board.
- * <br/><br/>
+ *
  * This SudokuBoard can also keep track of candidate values in each cell
  * through somewhat cumbersome bitmasking.
  * <br/>Values in the backing array are bitmasks in the interval [0x0, 0x1FF].
@@ -21,7 +28,6 @@ import java.util.List;
  * <li><code>000000011</code> represents the candidate values 1 and 2.</li>
  * <li><code>000100011</code> represents the candidate values 1, 2, 6.</li>
  * <li><code>101010101</code> represents the candidate values 1, 3, 5, 7, 9.</li>
- * And lastly,
  * <li><code>000000000</code> represents no possible candidate values.</li>
  * </ul>
  */
@@ -50,21 +56,25 @@ public class Board implements ISudokuBoard, Serializable {
 	 * 482 => (1 1110 0010)
 	 * (1 1110 0010) has bits 2, 6, 7, 8, 9 set.
 	 * board[z] real value may be 2, 6, 7, 8, 9, to be resolved by user later.
-	 ******************************************************/
+	 * *****************************************************/
 
-	public static final int NUM_DIGITS = 9;
-	public static final int NUM_ROWS_IN_REGION = 3;
-	public static final int NUM_COLS_IN_REGION = 3;
+	public static final int
+		NUM_DIGITS = 9,
+		NUM_ROWS = 9,
+		NUM_COLUMNS = 9,
+		NUM_REGIONS = 9,
+		NUM_ROWS_IN_REGION = 3,
+		NUM_COLS_IN_REGION = 3;
 
 	/** Number of cells in a standard Sudoku board.*/
-	public static final int NUM_CELLS = NUM_DIGITS * NUM_DIGITS;
+	public static final int NUM_CELLS = 81;
 
 	/** Represents the combination of all candidate values.*/
 	public static final int ALL = 0x1ff;
 
-	public static final int[][] ROW_INDICES = new int[NUM_DIGITS][];
-	public static final int[][] COL_INDICES = new int[NUM_DIGITS][];
-	public static final int[][] REGION_INDICES = new int[NUM_DIGITS][];
+	public static final int[][] ROW_INDICES = new int[NUM_ROWS][];
+	public static final int[][] COL_INDICES = new int[NUM_COLUMNS][];
+	public static final int[][] REGION_INDICES = new int[NUM_REGIONS][];
 	static {
 		for (int i = 0; i < NUM_DIGITS; i++) {
 			ROW_INDICES[i] = getRowIndices(i);
@@ -73,53 +83,214 @@ public class Board implements ISudokuBoard, Serializable {
 		}
 	}
 
-	public static int getRowForIndex(int i) {
-		return i / 9;
+	public static void validateCellIndex(int index) {
+		if (index < 0 || index >= NUM_CELLS) {
+			throw new IllegalArgumentException(
+				String.format("Cell index %d is out of bounds.", index)
+			);
+		}
 	}
 
-	public static int getColForIndex(int i) {
-		return i % 9;
+	public static void validateDigit(int digit) {
+		if (digit < 0 || digit > 9) {
+			throw new IllegalArgumentException(
+				String.format("%d is not a valid sudoku digit.", digit)
+			);
+		}
 	}
 
-	public static int getRegionForIndex(int i) {
-		int r = i / 9;
-		int c = i % 9;
-		return (r / 3) * 3 + c/3;
+	public static void validateCellCandidates(int value) {
+		if (value < 0 || value > ALL) {
+			throw new IllegalArgumentException(
+				String.format("Cell candidate value %d is invalid. Min: %d, Max: %d.", value, 0, ALL)
+			);
+		}
+	}
+
+	public static void validateBoardSize(int[] board) {
+		if (board.length != NUM_CELLS) {
+			throw new IllegalArgumentException(
+				String.format("Given board length %d is invalid", board.length)
+			);
+		}
+	}
+
+	public static int getCellRowIndex(int i) {
+		return i / NUM_COLUMNS;
+	}
+
+	public static int getCellColIndex(int i) {
+		return i % NUM_COLUMNS;
+	}
+
+	public static int getCellRegionIndex(int i) {
+		int r = i / NUM_COLUMNS;
+		int c = i % NUM_COLUMNS;
+		return (r / NUM_COLS_IN_REGION) * NUM_COLS_IN_REGION + c/NUM_COLS_IN_REGION;
 	}
 
 	public static int getIndexInRegion(int i) {
-		int r = i / 9;
-		int c = i % 9;
-		return (r % 3) * 3 + (c % 3);
+		int r = i / NUM_COLUMNS;
+		int c = i % NUM_COLUMNS;
+		return (r % NUM_COLS_IN_REGION) * NUM_COLS_IN_REGION + (c % NUM_COLS_IN_REGION);
 	}
 
 	/**
 	 * Looks up the real Sudoku board value from the given bitstring version.
 	 * If the bitstring does not represent a single value, then 0 is returned.
-	 * @param bits - bitstring board value.
-	 * @return A digit from 0 to 9. A return of zero means the value is empty.
+	 * @param mask - bitstring board value.
+	 * @return A digit from 0 to NUM_DIGITS. A return of zero means the value is empty.
 	 */
-	public static int decode(int bits) {
-		return DECODER2[bits];
+	public static int decode(int mask) {
+		return MASK_TO_DIGIT[mask];
 	}
 
-	private static final int[] DECODER2 = new int[512];
+	public static int encode(int digit) {
+		validateDigit(digit);
+		return (digit > 0 && digit <= NUM_DIGITS) ? 1 << (digit - 1) : 0;
+	}
+
+	private static final int[] MASK_TO_DIGIT = new int[1 << NUM_DIGITS];
 	static {
-		for (int i = 1; i <= 9; i++) {
-			int index = (1 << (i - 1));
-			DECODER2[index] = i;
+		for (int digit = 1; digit <= NUM_DIGITS; digit++) {
+			int mask = (1 << (digit - 1));
+			MASK_TO_DIGIT[mask] = digit;
+		}
+	}
+
+	private static final int[] DIGIT_TO_MASK = new int[NUM_DIGITS + 1];
+	static {
+		for (int digit = 1; digit <= NUM_DIGITS; digit++) {
+			DIGIT_TO_MASK[digit] = 1 << (digit - 1);
 		}
 	}
 
 	/**
 	 * Determines whether the given bitstring board value represents a
 	 * real Sudoku board value (and not a combination of multiple values).
-	 * @param bits - bitstring board value.
+	 * @param mask - bitstring board value.
 	 * @return True if the given bitstring represents an actual Sudoku board
 	 * value; otherwise false.
 	 */
-	public static boolean isSingleDigit(int bits) {
-		return DECODER2[bits] > 0;
+	public static boolean isDigit(int mask) {
+		return MASK_TO_DIGIT[mask] > 0;
+	}
+
+	private static final int[] INVERTED_MASK_TO_DIGIT = new int[1 << NUM_DIGITS];
+	private static final int[] DIGIT_TO_INVERTED_MASK = new int[NUM_DIGITS + 1];
+	static {
+		for (int digit = 1; digit <= NUM_DIGITS; digit++) {
+			int digitMask = (1 << (digit - 1));
+			INVERTED_MASK_TO_DIGIT[digitMask] = digit;
+			DIGIT_TO_INVERTED_MASK[digit] = ALL ^ digitMask;
+		}
+	}
+
+	/**
+	 * Removes a digit from the given candidate mask.
+	 *
+	 * @param mask
+	 * @param digit
+	 * @return
+	 */
+	public static int removeCandidate(int mask, int digit) {
+		// mask: 110110101 (candidates: 135689)
+		// digit: 5
+		// result: 110100101 (candidates: 13689)
+
+		if (digit < 1 || digit > NUM_DIGITS) {
+			throw new IllegalArgumentException(
+				String.format("digit (%d) out of bounds [1,%d]", digit, NUM_DIGITS)
+			);
+		}
+
+		return mask & DIGIT_TO_INVERTED_MASK[digit];
+	}
+
+	public static int[] parseBoardString(String values) {
+		if (values == null) {
+			throw new NullPointerException("Given Board string is null.");
+		}
+
+		//Empty row shorthand.
+		values = values.replaceAll("-", "000000000");
+
+		if (values.length() > NUM_CELLS) {
+			values = values.substring(0, NUM_CELLS);
+		}
+
+		while (values.length() < NUM_CELLS) {
+			values += "0";
+		}
+
+		//Non-conforming characters to ZERO.
+		values = values.replaceAll("[^1-9]", "0");
+
+		int[] board = new int[NUM_CELLS];
+		for (int i = 0; i < NUM_CELLS; i++) {
+			int v = values.charAt(i) - '0';
+			board[i] = (v > 0) ? (1 << (v - 1)) : 0;
+		}
+
+		return board;
+	}
+
+	public static int[][] getRows(int[] board) {
+		int[][] rows = new int[NUM_ROWS][];
+		for (int rowIndex = 0; rowIndex < NUM_ROWS; rowIndex++) {
+			rows[rowIndex] = getRow(board, rowIndex);
+		}
+		return rows;
+	}
+
+	public static int[] getRow(int[] board, int rowIndex) {
+		int[] row = new int[NUM_DIGITS];
+		int index = 0;
+		for (int boardIndex : ROW_INDICES[rowIndex]) {
+			row[index++] = board[boardIndex];
+		}
+		return row;
+	}
+
+	public static int[][] getColumns(int[] board) {
+		int[][] columns = new int[NUM_COLUMNS][];
+		for (int colIndex = 0; colIndex < NUM_COLUMNS; colIndex++) {
+			columns[colIndex] = getColumn(board, colIndex);
+		}
+		return columns;
+	}
+
+	public static int[] getColumn(int[] board, int colIndex) {
+		int[] column = new int[NUM_DIGITS];
+		int index = 0;
+		for (int boardIndex : COL_INDICES[colIndex]) {
+			column[index++] = board[boardIndex];
+		}
+		return column;
+	}
+
+	public static int[][] getRegions(int[] board) {
+		int[][] regions = new int[NUM_REGIONS][];
+		for (int regionIndex = 0; regionIndex < NUM_REGIONS; regionIndex++) {
+			regions[regionIndex] = getRegion(board, regionIndex);
+		}
+		return regions;
+	}
+
+	public static int[] getRegion(int[] board, int regionIndex) {
+		int[] region = new int[NUM_DIGITS];
+		int index = 0;
+		for (int boardIndex : REGION_INDICES[regionIndex]) {
+			region[index++] = board[boardIndex];
+		}
+		return region;
+	}
+
+	public static Board fromCandidates(int[] candidates) {
+		Board board = new Board();
+		System.arraycopy(candidates, 0, board.board, 0, NUM_CELLS);
+		board.numClues = board.countClues();
+		return board;
 	}
 
 	/**
@@ -127,13 +298,23 @@ public class Board implements ISudokuBoard, Serializable {
 	 */
 	protected int[] board;
 
-	protected int numClues;
+	protected transient int numClues;
+
+	protected transient LoadingMember<Set<Board>> solutions;
+
+	public boolean hasUniqueSolution() {
+		return this.solutions.get().size() == 1;
+	}
 
 	/** Creates a Board that is empty.*/
 	public Board() {
 		board = new int[NUM_CELLS];
 		Arrays.fill(board, ALL);
 		numClues = 0;
+
+		solutions = new LoadingMember<Set<Board>>(() -> {
+			return Solver.getAllSolutions(this);
+		});
 	}
 
 	/**
@@ -165,6 +346,7 @@ public class Board implements ISudokuBoard, Serializable {
 		board = new int[NUM_CELLS];
 		for (int i = 0; i < NUM_CELLS; i++) {
 			int v = values.charAt(i) - '0';
+			// TODO should this be initializing non-digits to ALL?? I would expect 0 candidates instead.
 			board[i] = (v > 0) ? (1 << (v - 1)) : ALL;
 		}
 
@@ -181,8 +363,9 @@ public class Board implements ISudokuBoard, Serializable {
 	 */
 	public Board(int[] values) {
 		if (values.length != NUM_CELLS) {
-			throw new IllegalArgumentException("Number of values was not appropriate.");
+			throw new IllegalArgumentException("Invalid array length");
 		}
+
 		board = new int[NUM_CELLS];
 
 		for (int i = 0; i < NUM_CELLS; i++) {
@@ -261,14 +444,13 @@ public class Board implements ISudokuBoard, Serializable {
 	}
 
 	@Override
-	public void setValueAt(int index, int value) {
-		if (value < 0 || value > 9) {
-			throw new IllegalArgumentException("Value is out of bounds.");
-		}
+	public void setValueAt(int index, int digit) {
+		validateCellIndex(index);
+		validateDigit(digit);
 
 		int prevValue = decode(board[index]);
-		if (value > 0) {
-			board[index] = 1 << (value - 1);
+		if (digit > 0) {
+			board[index] = 1 << (digit - 1);
 			if (prevValue == 0) {
 				numClues++;
 			}
@@ -316,6 +498,17 @@ public class Board implements ISudokuBoard, Serializable {
 		board[index] = value;
 	}
 
+	public Set<Board> getSolutions() {
+		return getSolutions(new HashSet<>());
+	}
+
+	public Set<Board> getSolutions(final Set<Board> solutionSet) {
+		this.solutions.get().forEach((solution) -> {
+			solutionSet.add(solution);
+		});
+		return solutionSet;
+	}
+
 	/**
 	 * <em>Two boards are equal if they contain the same configuration of values.</em>
 	 * <br/><br/>
@@ -358,6 +551,7 @@ public class Board implements ISudokuBoard, Serializable {
 				Character.toString(alphabet.charAt(numEmpty - 2))
 			);
 		}
+
 		return str;
 	}
 
@@ -365,10 +559,10 @@ public class Board implements ISudokuBoard, Serializable {
 
 	@Override
 	public String toString() {
-		StringBuilder strb = new StringBuilder("  ");
+		StringBuilder strb = new StringBuilder("\n  ");
 
 	    for (int i = 0; i < NUM_CELLS; i++) {
-	    	if (isSingleDigit(board[i])) {
+	    	if (isDigit(board[i])) {
 	    		strb.append(decode(board[i]));
 	    	} else {
 	    		strb.append('.');
@@ -388,7 +582,7 @@ public class Board implements ISudokuBoard, Serializable {
 	        	}
 
 	            if (((Math.floor((i+1) / 9) % 3) == 0) && ((Math.floor(i/9) % 8) != 0)) {
-	            	strb.append(" -----------|-----------|------------");
+	            	strb.append(" -----------+-----------+------------");
 	            	strb.append(System.lineSeparator());
 	            } else {
 	                strb.append("            |           |            ");
@@ -397,6 +591,43 @@ public class Board implements ISudokuBoard, Serializable {
 	            strb.append("  ");
 	        }
 	    }
+
+		return strb.toString();
+	}
+
+	public static String toString(int[] board) {
+		StringBuilder strb = new StringBuilder("  ");
+
+		for (int i = 0; i < NUM_CELLS; i++) {
+			if (isDigit(board[i])) {
+				strb.append(decode(board[i]));
+			} else {
+				strb.append('.');
+			}
+
+			if (((((i+1) % 9) % 3) == 0) && (((i+1) % 9) != 0)) {
+					strb.append(" | ");
+			} else {
+				strb.append("   ");
+			}
+
+			if (((i+1) % 9) == 0) {
+				strb.append(System.lineSeparator());
+
+				if (i == NUM_CELLS - 1) {
+					break;
+				}
+
+				if (((Math.floor((i+1) / 9) % 3) == 0) && ((Math.floor(i/9) % 8) != 0)) {
+					strb.append(" -----------|-----------|------------");
+					strb.append(System.lineSeparator());
+				} else {
+						strb.append("            |           |            ");
+					strb.append(System.lineSeparator());
+				}
+				strb.append("  ");
+			}
+		}
 
 		return strb.toString();
 	}
@@ -422,6 +653,108 @@ public class Board implements ISudokuBoard, Serializable {
 		return list;
 	}
 
+	public int[] getCellCandidates(int index, int[] candidates) {
+		int value = board[index];
+		int decoded = decode(value);
+		int numCandidates = 0;
+
+		if (decoded > 0) {
+			// candidates.add(decoded);
+			candidates[numCandidates++] = decoded;
+		} else {
+			for (int shift = 0; shift < 9; shift++) {
+				if ((value & (1 << shift)) > 0) {
+					// candidates.add(shift + 1);
+					candidates[numCandidates++] = shift + 1;
+				}
+			}
+		}
+
+		return candidates;
+	}
+
+	/**
+	 * Populates the given list with copies of this board, one for each candidate at the given cell.
+	 * If the cell is already resolved to a value, this returns the list with a copy of this board.
+	 *
+	 * @param cellIndex Index of the cell.
+	 * @param candidateBoards List of boards to populate.
+	 * @return The given list, returned for convenience.
+	 */
+	public List<Board> getCandidateBoards(int cellIndex, List<Board> candidateBoards) {
+		forEachCandidateInCell(cellIndex, (digit) -> {
+			Board copy = this.copy();
+			this.setValueAt(cellIndex, digit);
+			candidateBoards.add(copy);
+		});
+
+		return candidateBoards;
+	}
+
+	/**
+	 * Performs the given callback function for all candidates of the given cell.
+	 * The candidate digit is passed to the callback.
+	 *
+	 * @param cellIndex
+	 * @param callback
+	 */
+	private void forEachCandidateInCell(int cellIndex, Consumer<Integer> callback) {
+		int value = board[cellIndex];
+
+		for (int shift = 0; shift < NUM_DIGITS; shift++) {
+			if ((value & (1 << shift)) > 0) {
+				callback.accept(shift + 1);
+			}
+		}
+	}
+
+	/**
+	 * Iterates through each candidate for a given cell on the board. A callback is invoked
+	 * with each candidate digit.
+	 *
+	 * @param board
+	 * @param cellIndex
+	 * @param func
+	 */
+	public static void forEachCellCandidate(int[] board, int cellIndex, Consumer<Integer> func) {
+		if (func == null) {
+			throw new NullPointerException("Given func cannot be null");
+		}
+
+		validateBoardSize(board);
+		validateCellIndex(cellIndex);
+
+		int candidates = board[cellIndex];
+
+		for (int shift = 0; shift < NUM_DIGITS; shift++) {
+			if ((candidates & (1 << shift)) > 0) {
+				func.accept(shift + 1);
+			}
+		}
+	}
+
+	public static void forEachCellCandidate(int[] board, int cellIndex, Function<Integer,Boolean> func) {
+		if (func == null) {
+			throw new NullPointerException("Given func cannot be null");
+		}
+
+		validateBoardSize(board);
+		validateCellIndex(cellIndex);
+
+		int candidates = board[cellIndex];
+
+		for (int shift = 0; shift < NUM_DIGITS; shift++) {
+			if ((candidates & (1 << shift)) > 0) {
+				boolean result = func.apply(shift + 1);
+				if (!result) {
+					break;
+				}
+			}
+		}
+	}
+
+
+
 	@Override
 	public Iterator<Integer> iterator() {
 		return Arrays.stream(board).iterator();
@@ -434,6 +767,26 @@ public class Board implements ISudokuBoard, Serializable {
 		return new Board(this);
 	}
 
+	public static boolean isValid(int[] board) {
+		validateBoardSize(board);
+
+		for (int i = 0; i < NUM_DIGITS; i++) {
+			if (!isRowValid(board, i)) {
+				return false;
+			}
+
+			if (!isColValid(board, i)) {
+				return false;
+			}
+
+			if (!isRegionValid(board, i)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	/**
 	 * Determines whether the given Sudoku board is valid.
 	 * <br/>A board is valid if every row, column, and 3x3 region is valid,
@@ -442,6 +795,7 @@ public class Board implements ISudokuBoard, Serializable {
 	 * acceptable.  It does not mean the configuration is correct.
 	 * <br/>The board does not need to be complete to be valid. A blank board
 	 * is valid by the above definition.
+	 *
 	 * @return True if the board is valid; otherwise false.
 	 */
 	public boolean isValid() {
@@ -453,7 +807,7 @@ public class Board implements ISudokuBoard, Serializable {
 				return false;
 		}*/
 
-		for (int x = 0; x < 9; x++) {
+		for (int x = 0; x < NUM_DIGITS; x++) {
 			if (!isRowValid(x)) {
 				return false;
 			}
@@ -508,7 +862,7 @@ public class Board implements ISudokuBoard, Serializable {
 		int c = 0;
 		for (int i : ROW_INDICES[row]) {
 			int digit = getValueAt(i);
-			if (digit > 0 && digit <= 9) {
+			if (digit > 0 && digit <= NUM_DIGITS) {
 				int mask = 1 << (digit - 1);
 				if ((c & mask) != 0) {
 					return false;
@@ -519,9 +873,66 @@ public class Board implements ISudokuBoard, Serializable {
 		return true;
 	}
 
+	public static boolean isRowValid(int[] board, int rowIndex) {
+		validateBoardSize(board);
+		validateRowIndex(rowIndex);
+		int c = 0;
+		for (int cellIndex : ROW_INDICES[rowIndex]) {
+			int digit = decode(board[cellIndex]);
+			if (digit > 0 && digit <= NUM_DIGITS) {
+				int mask = 1 << (digit - 1);
+				if ((c & mask) != 0) {
+					return false;
+				}
+				c |= mask;
+			}
+		}
+		return true;
+	}
+
+	private static void validateRowIndex(int rowIndex) {
+		if (rowIndex < 0 || rowIndex >= NUM_ROWS) {
+			throw new IllegalArgumentException(
+				String.format("Given row index %d is invalid", rowIndex)
+			);
+		}
+	}
+
+	private static void validateColumnIndex(int columnIndex) {
+		if (columnIndex < 0 || columnIndex >= NUM_COLUMNS) {
+			throw new IllegalArgumentException(
+				String.format("Given column index %d is invalid", columnIndex)
+			);
+		}
+	}
+
+	private static void validateRegionIndex(int regionIndex) {
+		if (regionIndex < 0 || regionIndex >= NUM_REGIONS) {
+			throw new IllegalArgumentException(
+				String.format("Given region index %d is invalid", regionIndex)
+			);
+		}
+	}
+
 	public boolean isRowFull(int row) {
-		for (int i = row * 9, nextRow = (row + 1) * 9; i < nextRow; i++) {
+		for (int i = row * NUM_DIGITS, nextRow = (row + 1) * NUM_DIGITS; i < nextRow; i++) {
 			if (getValueAt(i) == 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public static boolean isRowFull(int[] board, int rowIndex) {
+		validateBoardSize(board);
+		validateRowIndex(rowIndex);
+
+		for (
+			int cellIndex = rowIndex * NUM_DIGITS, nextRow = (rowIndex + 1) * NUM_DIGITS;
+			cellIndex < nextRow;
+			cellIndex++
+		) {
+			if (decode(board[cellIndex]) == 0) {
 				return false;
 			}
 		}
@@ -551,9 +962,39 @@ public class Board implements ISudokuBoard, Serializable {
 		return true;
 	}
 
+	public static boolean isColValid(int[] board, int columnIndex) {
+		validateBoardSize(board);
+		validateColumnIndex(columnIndex);
+
+		int c = 0;
+		for (int cellIndex : COL_INDICES[columnIndex]) {
+			int digit = decode(board[cellIndex]);
+			if (digit > 0 && digit <= 9) {
+				int mask = 1 << (digit - 1);
+				if ((c & mask) != 0) {
+					return false;
+				}
+				c |= mask;
+			}
+		}
+		return true;
+	}
+
 	public boolean isColFull(int column) {
 		for (int i : COL_INDICES[column]) {
 			if (getValueAt(i) == 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public static boolean isColFull(int[] board, int columnIndex) {
+		validateBoardSize(board);
+		validateColumnIndex(columnIndex);
+
+		for (int cellIndex : COL_INDICES[columnIndex]) {
+			if (decode(board[cellIndex]) == 0) {
 				return false;
 			}
 		}
@@ -583,6 +1024,24 @@ public class Board implements ISudokuBoard, Serializable {
 		return true;
 	}
 
+	public static boolean isRegionValid(int[] board, int regionIndex) {
+		validateBoardSize(board);
+		validateRegionIndex(regionIndex);
+
+		int c = 0;
+		for (int cellIndex : REGION_INDICES[regionIndex]) {
+			int digit = decode(board[cellIndex]);
+			if (digit > 0 && digit <= 9) {
+				int mask = 1 << (digit - 1);
+				if ((c & mask) != 0) {
+					return false;
+				}
+				c |= mask;
+			}
+		}
+		return true;
+	}
+
 	public boolean isRegionFull(int region) {
 		for (int i : REGION_INDICES[region]) {
 			if (getValueAt(i) == 0) {
@@ -592,21 +1051,37 @@ public class Board implements ISudokuBoard, Serializable {
 		return true;
 	}
 
+	public static boolean isRegionFull(int[] board, int regionIndex) {
+		validateBoardSize(board);
+		validateRegionIndex(regionIndex);
+
+		for (int cellIndex : REGION_INDICES[regionIndex]) {
+			if (decode(board[cellIndex]) == 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/**
-	 * Determines whether the given Sudoku board is full.
-	 * <br/>A board is full if every cell contains a digit from 1 to 9.
-	 * <br/>The configuration of the digits does not need to be valid
-	 * for the board to be considered full.
+	 * Determines whether the given Sudoku board is full. A board is full if every
+	 * cell contains a digit from 1 to 9.
+	 *
 	 * @return True if the board is full; otherwise false.
 	 */
 	public boolean isFull() {
 		return numClues == NUM_CELLS;
-		//for (int b : board) {
-		//	if (DECODER2[b] == 0) {
-		//		return false;
-		//	}
-		//}
-		//return true;
+	}
+
+	public static boolean isFull(int[] board) {
+		validateBoardSize(board);
+
+		for (int cellIndex = 0; cellIndex < NUM_CELLS; cellIndex++) {
+			if (decode(board[cellIndex]) == 0) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -619,7 +1094,30 @@ public class Board implements ISudokuBoard, Serializable {
 		return isFull() && isValid();
 	}
 
+	public static boolean isSolved(int[] board) {
+		validateBoardSize(board);
+
+		return isFull(board) && isValid(board);
+	}
+
 	public void kill() {
 		this.board = null;
+	}
+
+	public int[] toArray() {
+		return toArray(SudokuUtility.emptyBoard());
+	}
+
+	public int[] toArray(int[] arr) {
+		if (arr.length < NUM_CELLS) {
+			throw new IllegalArgumentException(String.format(
+				"Given array does not have enough space (size=%d)",
+				arr.length
+			));
+		}
+
+		System.arraycopy(board, 0, arr, 0, NUM_CELLS);
+
+		return arr;
 	}
 }
