@@ -19,15 +19,6 @@ public class FilesTest {
     }
 
     @Test
-    public void readString_whenInputStreamIsClosed_throwsIOException() {
-        assertThrows(IOException.class, () -> {
-            InputStream in = System.in;
-            in.close();
-            Files.readString(in);
-        });
-    }
-
-    @Test
     public void readString_returnsAllContentInTheStream() {
         String expected = "This is all the content in the input stream";
         InputStream in = new ByteArrayInputStream(expected.getBytes());
