@@ -1,9 +1,14 @@
 package com.sparklicorn.bucket.games.sudoku.game.generators;
 
 import java.util.Stack;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Queue;
 import java.util.ArrayDeque;
 
@@ -11,12 +16,21 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.sparklicorn.bucket.games.sudoku.game.*;
 import com.sparklicorn.bucket.games.sudoku.game.solvers.*;
+import com.sparklicorn.bucket.util.PriorityQueue;
 import com.sparklicorn.bucket.util.Shuffler;
 
 /**
 * Responsible for generating Sudoku configurations and puzzles.
 */
-public class Generator {
+public class SudokuGeneratorService {
+
+  public static void main(String[] args) {
+    int[] config = config();
+    generatePuzzle(config, 20);
+  }
+
+  private static Shuffler shuffler = new Shuffler();
+  private static int[] indices = getSeries(Board.NUM_CELLS, 0);
 
   private static class Node {
     Board board;
@@ -105,6 +119,70 @@ public class Generator {
       }
 
       return false;
+    }
+  }
+
+  private static class Node2 implements Comparable<Node2> {
+    static final int MAX_NEIGHBORS = 3;
+
+    int[] board;
+    int clues;
+
+    Node2(int[] board, int clues) {
+      this.board = board;
+      this.clues = clues;
+    }
+
+    Node2(int[] board) {
+      this(board, Board.countClues(board));
+    }
+
+    Node2[] getNeighbors() {
+      Node2[] result = new Node2[MAX_NEIGHBORS];
+      int resultIndex = 0;
+
+      SudokuGeneratorService.shuffler.shuffle(indices);
+      for (int i : indices) {
+        if (Board.isDigit(board[i])) {
+          int[] next = arrCopy(board);
+          next[i] = 0;
+          result[resultIndex++] = new Node2(next, clues - 1);
+
+          // Stop early if neighbors array full
+          if (resultIndex == result.length) {
+            break;
+          }
+        }
+      }
+
+      return result;
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(board);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (other == this) {
+        return true;
+      }
+
+      if (other instanceof Node2) {
+        Node2 _other = (Node2) other;
+        return (
+          (clues == _other.clues) &&
+          Arrays.equals(this.board, ((Node2) other).board)
+        );
+      }
+
+      return false;
+    }
+
+    @Override
+    public int compareTo(Node2 other) {
+      return clues - other.clues;
     }
   }
 
@@ -201,10 +279,111 @@ public class Generator {
     return result;
   }
 
+  public static int[] generatePuzzle(int[] config, int numClues) {
+    return generatePuzzle(config, numClues, Integer.MAX_VALUE);
+  }
+
+  public static int[] arrCopy(int[] arr) {
+    int[] copy = new int[arr.length];
+    System.arraycopy(arr, 0, copy, 0, arr.length);
+    return copy;
+  }
+
+  public static <K,V> V defaultInMap(Map<K,V> map, K key, V defaultValue) {
+    V value = map.getOrDefault(key, defaultValue);
+    if (value == null) {
+      map.put(key, defaultValue);
+    }
+    return value;
+  }
+
+  public static int[] generatePuzzle(int[] config, int numClues, int maxPops) {
+    PriorityQueue<Node2> puzzleQueue = new PriorityQueue<>();
+    puzzleQueue.offer(new Node2(arrCopy(config)));
+
+    int numPops = 0; // Number of pops. If the search resets, so does this.
+
+    // Keep track of all nodes that have been offered to the queue.
+    // We'll check this to ensure we're not solving the same puzzles repeatedly.
+    HashMap<Integer,HashSet<Node2>> seen = new HashMap<>();
+
+    System.out.printf("Attempting to generate puzzle from %s\n", SudokuUtility.getSimplifiedString(config));
+
+    while (!puzzleQueue.isEmpty() && numPops < maxPops) {
+      Node2 puzzle = puzzleQueue.poll();
+
+      if (!Solver.solvesUniquely(puzzle.board)) {
+        continue;
+      }
+
+      int puzzleClues = Board.countClues(puzzle.board);
+      if (puzzleClues == numClues) {
+        StringBuilder strb = new StringBuilder("seenMap[size=%d]{");
+        long seenSize = 0L;
+        for (Entry<Integer,HashSet<Node2>> entry : seen.entrySet()) {
+          int size = entry.getValue().size();
+          seenSize += size;
+          strb.append(String.format("%d->%d,", entry.getKey(), size));
+        }
+        strb.append("}");
+
+        System.out.printf(
+          """
+          FOUND [%d] %s
+          %s
+          """,
+          puzzleClues, SudokuUtility.getSimplifiedString(puzzle.board),
+          String.format(strb.toString(), seenSize)
+        );
+
+        return puzzle.board;
+      }
+
+      if (puzzleClues > numClues) {
+        // System.out.println("Adding neighbors...");
+        for (Node2 next : puzzle.getNeighbors()) {
+          int nextClues = puzzleClues - 1;
+
+          HashSet<Node2> _seen = seen.get(nextClues);
+          if (_seen == null) {
+            _seen = new HashSet<>();
+            seen.put(nextClues, _seen);
+            System.out.printf("Added a new seen bucket for %d clues.\n", nextClues);
+          }
+
+          if (_seen.add(next)) {
+            puzzleQueue.offer(next);
+            // System.out.printf(
+            //   "Added to queue: [%d] %s\n",
+            //   Board.countClues(next.board),
+            //   SudokuUtility.getSimplifiedString(next.board)
+            // );
+          } else {
+            long seenSize = 0L;
+            for (Entry<Integer,HashSet<Node2>> entry : seen.entrySet()) {
+              seenSize += entry.getValue().size();
+            }
+
+            System.out.printf(
+              """
+              Skipped already tried (%d) %s
+              seenMapSize=%d; seenSetSize=%d
+              """,
+              Board.countClues(next.board), SudokuUtility.getSimplifiedString(next.board),
+              seenSize, _seen.size()
+            );
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   // Uses DFS to locate valid sudoku puzzle.
   public static List<Board> generatePuzzles(int numClues, int maxPops) {
-    Stack<Node> puzzleStack = new Stack<>();
     Board config = generateConfig();
+    Stack<Node> puzzleStack = new Stack<>();
     Node rootNode = new Node(config);
     int[] _board = new int[Board.NUM_CELLS];
     puzzleStack.push(rootNode);
@@ -289,7 +468,7 @@ public class Generator {
   }
 
   // TODO move to some other utility
-  // Utility to generate array containing range of integers [start, start + n].
+  // Utility to generate array containing range of integers [start, start + n).
   private static int[] getSeries(int n, int start) {
     int[] series = new int[n];
 
@@ -336,5 +515,12 @@ public class Generator {
     Set<Board> configSet = generateConfigs();
     int size = configSet.size();
     return configSet.toArray(new Board[size])[ThreadLocalRandom.current().nextInt(size)];
+  }
+
+  public static int[] config() {
+    Board config = generateConfig();
+    int[] _config = SudokuUtility.emptyBoard();
+    config.getMasks(_config);
+    return _config;
   }
 }

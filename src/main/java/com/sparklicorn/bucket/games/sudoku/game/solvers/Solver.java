@@ -1,7 +1,9 @@
 package com.sparklicorn.bucket.games.sudoku.game.solvers;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -217,20 +219,50 @@ public class Solver {
 		return board;
 	}
 
+	static class IntArr {
+		int[] arr;
+
+		IntArr(int[] arr) {
+			this.arr = new int[arr.length];
+			System.arraycopy(arr, 0, this.arr, 0, arr.length);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj) {
+				return true;
+			}
+
+			if (obj instanceof IntArr) {
+				IntArr _obj = (IntArr) obj;
+				return Arrays.equals(arr, _obj.arr);
+			}
+
+			return false;
+		}
+
+		@Override
+		public int hashCode() {
+			return Arrays.hashCode(arr);
+		}
+	}
+
 	/**
 	 * Attempts to get all solutions for the given board.
 	 *
 	 * @param board
 	 * @return
 	 */
-	public static Set<int[]> getSolutions(int[] board) {
+	public static List<int[]> getSolutions(int[] board) {
 		BoardSolution _board = new BoardSolution(board);
-		Set<int[]> solutions = new HashSet<>();
+		Set<IntArr> solutions = new HashSet<>();
 		searchForSolutions(_board, (solution) -> {
 			solutions.add(solution);
 		});
 
-		return solutions;
+		return solutions.stream()
+			.map((intArr) -> intArr.arr)
+            .toList();
 	}
 
 	/**
@@ -472,7 +504,7 @@ public class Solver {
 
 		searchForSolutions(new BoardSolution(puzzle), (solution) -> {
 			//System.out.println("found solution: " + b.getSimplifiedString());
-			result.add(Board.fromCandidates(solution));
+			result.add(Board.fromCandidates(solution.arr));
 		});
 
 		return result;
@@ -504,7 +536,7 @@ public class Solver {
 		searchForSolutions(
 			new BoardSolution(board),
 			(solution) -> {
-				func.accept(Board.fromCandidates(solution));
+				func.accept(Board.fromCandidates(solution.arr));
 				return true;
 			}
 		);
@@ -515,7 +547,7 @@ public class Solver {
 		searchForSolutions(
 			new BoardSolution(board),
 			(_solution) -> {
-				System.arraycopy(_solution, 0, solution, 0, NUM_CELLS);
+				System.arraycopy(_solution.arr, 0, solution, 0, NUM_CELLS);
 				return false;
 			}
 		);
@@ -537,7 +569,7 @@ public class Solver {
 	 */
 	static boolean searchForSolutions(
 		BoardSolution boardSolution,
-		Function<int[], Boolean> solutionFoundCallback
+		Function<IntArr, Boolean> solutionFoundCallback
 	) {
 		Queue<BoardSolution> solutionQueue = new ArrayDeque<>();
 		solutionQueue.offer(boardSolution);
@@ -547,7 +579,10 @@ public class Solver {
 			BoardSolution possibleSolution = solutionQueue.poll();
 			reduce(possibleSolution);
 
-			if (isSolved(possibleSolution) && !solutionFoundCallback.apply(possibleSolution.board)) {
+			if (
+                isSolved(possibleSolution) &&
+                !solutionFoundCallback.apply(new IntArr(possibleSolution.board))
+            ) {
 				return false;
 			} else {
 				expandQueueWithPossibleSolutions(solutionQueue, possibleSolution);
@@ -557,7 +592,7 @@ public class Solver {
 		return true;
 	}
 
-	static boolean searchForSolutions(BoardSolution boardSolution, Consumer<int[]> callback) {
+	static boolean searchForSolutions(BoardSolution boardSolution, Consumer<IntArr> callback) {
 		return searchForSolutions(boardSolution, (solution) -> {
 			callback.accept(solution);
 			return true;

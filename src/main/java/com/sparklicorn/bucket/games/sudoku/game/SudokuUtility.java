@@ -161,9 +161,9 @@ public class SudokuUtility {
 	public static boolean hasValidArea(int[] board) {
 		for (int areaIndex = 0; areaIndex < NUM_DIGITS; areaIndex++) {
 			if (
-			isRowValid(board, areaIndex) ||
-			isColValid(board, areaIndex) ||
-			isRegionValid(board, areaIndex)
+				isRowValid(board, areaIndex) ||
+				isColValid(board, areaIndex) ||
+				isRegionValid(board, areaIndex)
 			) {
 				return true;
 			}
@@ -173,8 +173,8 @@ public class SudokuUtility {
 
 	public static boolean cellAreaIsValid(int[] board, int cellIndex) {
 		return isRowValid(board, getCellRowIndex(cellIndex)) ||
-		isColValid(board, getCellColIndex(cellIndex)) ||
-		isRegionValid(board, getCellRegionIndex(cellIndex));
+			isColValid(board, getCellColIndex(cellIndex)) ||
+			isRegionValid(board, getCellRegionIndex(cellIndex));
 	}
 
 	public static void makeIncomplete(int[] board) {
@@ -220,9 +220,9 @@ public class SudokuUtility {
 	public static void validateValues(int[] values) {
 		if (values == null || values.length != NUM_DIGITS) {
 			throw new IllegalArgumentException(String.format(
-			"Failed to set board values. values[%s] = %s",
-			(values == null) ? "-" : Integer.toString(values.length),
-			(values == null) ? "null" : Arrays.toString(values)
+				"Failed to set board values. values[%s] = %s",
+				(values == null) ? "-" : Integer.toString(values.length),
+				(values == null) ? "null" : Arrays.toString(values)
 			));
 		}
 	}
@@ -248,17 +248,17 @@ public class SudokuUtility {
 
 	public static String boardRowStr(int[] board, int rowIndex) {
 		return Arrays.toString(
-		Arrays.stream(getRow(board, rowIndex))
-		.map(Board::decode)
-		.toArray()
+			Arrays.stream(getRow(board, rowIndex))
+				.map(Board::decode)
+				.toArray()
 		);
 	}
 
 	public static String boardColStr(int[] board, int colIndex) {
 		return Arrays.toString(
-		Arrays.stream(getColumn(board, colIndex))
-		.map(Board::decode)
-		.toArray()
+			Arrays.stream(getColumn(board, colIndex))
+				.map(Board::decode)
+				.toArray()
 		);
 	}
 
@@ -337,6 +337,10 @@ public class SudokuUtility {
 	}
 
 	public static String getSimplifiedString(int[] board) {
+		if (board == null) {
+			return "null";
+		}
+
 		StringBuilder strb = new StringBuilder();
 		for (int i : board) {
 			int v = decode(i);

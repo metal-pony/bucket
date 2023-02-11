@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.sparklicorn.bucket.games.sudoku.game.Board;
 import com.sparklicorn.bucket.games.sudoku.game.SudokuUtility;
 import com.sparklicorn.bucket.games.sudoku.game.solvers.Solver.BoardSolution;
+import com.sparklicorn.bucket.games.sudoku.game.solvers.Solver.IntArr;
 
 public class TestSolver {
   private static final List<String> VALID_CONFIGS = Collections.unmodifiableList(
@@ -528,10 +529,10 @@ public class TestSolver {
   void testSearchForSolutions_whenCallbackIsNull_throwsException() {
     BoardSolution boardSolution = new BoardSolution(VALID_BOARDS.get(0));
     assertThrows(NullPointerException.class, () -> {
-      Solver.searchForSolutions(boardSolution, (Function<int[],Boolean>) null);
+      Solver.searchForSolutions(boardSolution, (Function<IntArr,Boolean>) null);
     });
     assertThrows(NullPointerException.class, () -> {
-      Solver.searchForSolutions(boardSolution, (Consumer<int[]>) null);
+      Solver.searchForSolutions(boardSolution, (Consumer<IntArr>) null);
     });
   }
 
@@ -557,8 +558,8 @@ public class TestSolver {
       int[] originalBoardInput = Solver.copyBoard(boardInput);
       Solver.searchForSolutions(new BoardSolution(boardInput), (solution) -> {
         callbackCounter.incrementAndGet();
-        assertArrayEquals(originalBoardInput, solution);
-        assertFalse(boardInput == solution);
+        assertArrayEquals(originalBoardInput, solution.arr);
+        assertFalse(boardInput == solution.arr);
 
         // Does not modify input
         assertArrayEquals(originalBoardInput, boardInput);

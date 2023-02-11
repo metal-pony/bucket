@@ -67,7 +67,7 @@ public class GeneratePuzzles {
     if (threads == 1) {
       for (int n = 0; n < amount; n++) {
         System.out.println(
-          Generator.generatePuzzle(clues).getSimplifiedString()
+          SudokuGeneratorService.generatePuzzle(clues).getSimplifiedString()
         );
       }
 
@@ -88,7 +88,7 @@ public class GeneratePuzzles {
     for (int threadIndex = 0; threadIndex < threads; threadIndex++) {
       pool.submit(() -> {
         while(latch.get() > 0) {
-          printPuzzle(Generator.generatePuzzle(clues), latch);
+          printPuzzle(SudokuGeneratorService.generatePuzzle(clues), latch);
         }
       });
     }

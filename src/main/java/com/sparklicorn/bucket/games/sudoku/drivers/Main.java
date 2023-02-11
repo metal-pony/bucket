@@ -21,12 +21,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.sparklicorn.bucket.games.sudoku.game.Board;
 import com.sparklicorn.bucket.games.sudoku.game.SudokuUtility;
 import com.sparklicorn.bucket.games.sudoku.game.generators.*;
 import com.sparklicorn.bucket.games.sudoku.game.solvers.Solver;
 import com.sparklicorn.bucket.games.sudoku.puzzles.GeneratedPuzzles;
+import com.sparklicorn.bucket.games.sudoku.Sudoku;
 import com.sparklicorn.bucket.games.sudoku.drivers.gui.SudokuGuiDemo;
 
 /**
@@ -72,17 +75,35 @@ import com.sparklicorn.bucket.games.sudoku.drivers.gui.SudokuGuiDemo;
  *        probably not super useful.
  */
 public class Main {
-  public static final String DEFAULT_COMMAND = "configs";
+  public static final String DEFAULT_COMMAND = "generate";
 
   private static Map<String, Consumer<Map<String,String>>> commands = new HashMap<>();
   static {
     // REGISTER NEW COMMANDS HERE
     commands.put("play", Main::play);
-    commands.put("generateConfigs", Main::generateConfigs);
-    commands.put("generatePuzzles", Main::generatePuzzles);
+    commands.put("generate", Main::generate2);
+    // commands.put("generateConfigs", Main::generateConfigs);
+    // commands.put("generatePuzzles", Main::generatePuzzles);
     commands.put("solve", Main::solve);
-    commands.put("generate", Main::generate);
+    // commands.put("generate", Main::generate);
     commands.put("benchmark", Main::benchmark);
+  }
+
+  private static void generate2(Map<String,String> args) {
+    defaultInMap(args, "amount", "1");
+    defaultInMap(args, "clues", "27");
+    final int amount = inBounds(Integer.parseInt(args.get("amount")), 1, 1_000_000);
+    final int clues = inBounds(Integer.parseInt(args.get("clues")), 19, Board.NUM_CELLS);
+
+    System.out.println('[');
+    for (int i = 0; i < amount; i++) {
+      System.out.print(Sudoku.generate(clues).toJsonString(1));
+      if (i < amount - 1) {
+        System.out.print(',');
+      }
+      System.out.println();
+    }
+    System.out.println(']');
   }
 
   private static void play(Map<String,String> args) {
@@ -98,7 +119,7 @@ public class Main {
     final boolean normalize = args.containsKey("normalize");
 
     for (int n = 0; n < numConfigs; n++) {
-      Board config = Generator.generateConfig();
+      Board config = SudokuGeneratorService.generateConfig();
 
       if (normalize) {
         config = SudokuUtility.normalize(config);
@@ -174,7 +195,7 @@ public class Main {
       if (i > 100 && i % interval == 0) {
         System.out.print('.');
       }
-      configs[i] = Generator.generateConfig();
+      configs[i] = SudokuGeneratorService.generateConfig();
     }
     System.out.println('#');
 
@@ -269,9 +290,20 @@ public class Main {
       for (int i = 1; i < args.length; i++) {
         String arg = args[i];
 
-        // An arg can be either a key
+        String argRegex = "\\-\\-([a-zA-Z]+)\\=([a-zA-Z0-9]+)";
+        Matcher matcher = Pattern.compile(argRegex).matcher(arg);
+        if(matcher.find()) {
+          lastArgKey = matcher.group(1);
 
-        if (arg.startsWith("--")) {
+          if (mapped.get(lastArgKey) != null) {
+            throw new IllegalArgumentException("Invalid argument format: " + String.join(" ", args));
+          }
+
+          mapped.put(lastArgKey, matcher.group(2));
+          continue;
+        }
+
+          if (arg.startsWith("--")) {
           // This arg is a key. Add to the map with an empty value for now.
 
           lastArgKey = arg.substring(2);

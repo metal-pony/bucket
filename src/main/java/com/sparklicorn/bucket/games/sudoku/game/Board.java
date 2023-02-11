@@ -407,8 +407,12 @@ public class Board implements ISudokuBoard, Serializable {
 	}
 
 	public int countClues() {
+		return countClues(this.board);
+	}
+
+	public static int countClues(int[] board) {
 		int result = 0;
-		for (int v : this) {
+		for (int v : board) {
 			if (decode(v) > 0) {
 				result++;
 			}

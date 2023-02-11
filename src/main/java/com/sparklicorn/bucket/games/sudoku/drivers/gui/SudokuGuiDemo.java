@@ -8,7 +8,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 
 import com.sparklicorn.bucket.games.sudoku.game.Board;
-import com.sparklicorn.bucket.games.sudoku.game.generators.Generator;
+import com.sparklicorn.bucket.games.sudoku.game.generators.SudokuGeneratorService;
 import com.sparklicorn.bucket.games.sudoku.game.solvers.Solver;
 
 public class SudokuGuiDemo {
@@ -19,7 +19,7 @@ public class SudokuGuiDemo {
 			numClues = Integer.parseInt(args[0]);
 		}
 
-		Board b = Generator.generatePuzzle(numClues);
+		Board b = SudokuGeneratorService.generatePuzzle(numClues);
 		System.out.println(b);
 
 		JFrame f = new JFrame();

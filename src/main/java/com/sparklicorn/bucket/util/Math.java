@@ -27,6 +27,10 @@ public class Math {
         if (arr.length == 0) throw new IllegalArgumentException(EMPTY_ARRAY_ERR);
     }
 
+    public static int inBounds(int value, int min, int max) {
+        return Math.max(min, Math.min(value, max));
+    }
+
     /**
      * Finds the maximum value among given numbers.
      * @param n - list of one or more numbers
