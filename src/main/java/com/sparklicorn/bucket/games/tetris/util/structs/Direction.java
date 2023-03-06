@@ -1,7 +1,6 @@
 package com.sparklicorn.bucket.games.tetris.util.structs;
 
 public enum Direction {
-
 	UP(new FinalCoord(-1, 0), 0),
 	DOWN(new FinalCoord(1, 0), 0),
 	LEFT(new FinalCoord(0, -1), 0),

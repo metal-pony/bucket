@@ -94,18 +94,17 @@ public class Coord {
 	}
 
 	@Override public boolean equals(Object obj) {
-		boolean result = false;
+		if (obj == this)
+			return true;
+		if (obj == null)
+			return false;
 
-		if (obj != null) {
-			if (obj instanceof Coord) {
-				Coord o = (Coord) obj;
-				if (row == o.row && col == o.col) {
-					result = true;
-				}
-			}
+		if (obj instanceof Coord) {
+			Coord _obj = (Coord) obj;
+			return (this.row == _obj.row && this.col == _obj.col);
 		}
 
-		return result;
+		return false;
 	}
 
 	@Override public int hashCode() {
