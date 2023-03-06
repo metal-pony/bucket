@@ -21,8 +21,6 @@ import com.sparklicorn.bucket.games.tetris.util.structs.Shape;
  * {@link Coord} is provided for this purpose.</li>
  * </ul>
  * <br>
- *
- * @author Jeff
  */
 public interface ITetrisGame {
 

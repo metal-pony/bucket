@@ -1,7 +1,7 @@
 package com.sparklicorn.bucket.games.tetris;
 
 public enum TetrisEvent {
-
+	// TODO add descriptions
 	NEW_GAME,
 	START,
 	STOP,
@@ -14,15 +14,15 @@ public enum TetrisEvent {
 	LEVEL_CHANGE,
 	LINE_CLEAR,
 
-	BLOCKS,
+	BLOCKS, // TODO what is this used for?
 	PIECE_SHIFT,
 	PIECE_ROTATE,
 	PIECE_CREATE,
 	PIECE_PLACED;
 
-	public final String name;
+	// public final String name;
 
-	private TetrisEvent() {
-		this.name = name();
-	}
+	// private TetrisEvent() {
+	// 	this.name = name();
+	// }
 }

@@ -1,5 +1,7 @@
 package com.sparklicorn.bucket.games.tetris;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -8,89 +10,101 @@ import com.sparklicorn.bucket.games.tetris.util.Timer;
 import com.sparklicorn.bucket.util.event.*;
 import com.sparklicorn.bucket.games.tetris.util.structs.*;
 
+// TODO Feature: Multiplayer co-op
+// Side-by-side boards, with light visual border between.
+// Standard tetris rules apply.
+// Players can place pieces anywhere.
+// How to handle collisions?
+
+// TODO Feature: Dynamic entry point option
+// Default entry point for first piece.
+// Each subsequent piece will enter row 1, at column of last placed piece.
+// May be useful for multiplayer
+
 //Implementation of Tetris that uses the 7-bag random piece generator.
 //The number of rows and columns can be specified by the user.
 public class TetrisGame implements ITetrisGame {
-
-	/*****************
-	 * CONSTANTS
-	 ******************/
 	public static final int DEFAULT_NUM_ROWS = 20;
 	public static final int DEFAULT_NUM_COLS = 10;
+	public static final int DEFAULT_ENTRY_COLUMN = calcEntryColumn(DEFAULT_NUM_COLS);
+	public static final Coord DEFAULT_ENTRY_COORD = new FinalCoord(1, DEFAULT_ENTRY_COLUMN);
 
-	public static final int MINIMUM_ROWS = 4;
+	public static final int MINIMUM_ROWS = 8;
 	public static final int MAXIMUM_ROWS = 200;
 
-	public static final int MINIMUM_COLS = 4;
+	public static final int MINIMUM_COLS = 8;
 	public static final int MAXIMUM_COLS = 200;
 
-	public static final Coord DEFAULT_ENTRY_POINT = new FinalCoord(0,4);
+	public static final List<Long> POINTS_BY_LINES_CLEARED = Collections.unmodifiableList(
+		Arrays.asList(new Long[]{ 0L, 40L, 100L, 300L, 1200L })
+	);
 
-	private static final long POINTS_BY_LINES_CLEARED[] = {0, 40, 100, 300, 1200};
-
-	private static final long MIN_LEVEL = 0;
-	private static final long MAX_LEVEL = 255;
-	private static final Coord GRAVITY_OFFSET = Direction.DOWN.coordValue;
-	private static final int LINES_PER_LEVEL = 10;
-
-	/* ****************
-	 * STATES AND STATS
-	 ******************/
-	private boolean isGameOver, isPaused, isClearingLines, hasStarted;
-	private long level, score, linesCleared, numPiecesDropped;
-	private int numRows, numCols, linesUntilNextLevel;
-	private Coord entryPoint;
-	private long[] dist;
-
-	private int numTimerPushbacks;
+	public static final long MIN_LEVEL = 0L;
+	public static final long MAX_LEVEL = 255L;
+	public static final Coord GRAVITY_OFFSET = Direction.DOWN.coordValue;
+	public static final int LINES_PER_LEVEL = 10;
 
 	/* ****************
-	 * STRUCTURES
+	 * STATE AND STATS
 	 ******************/
-	private ShapeQueue nextShapes;
+	protected boolean isGameOver, isPaused, isClearingLines, hasStarted;
+	protected long level, score, linesCleared, numPiecesDropped;
+	protected int numRows, numCols, linesUntilNextLevel;
+	protected Coord entryPoint;
+	protected long[] dist;
+
+	protected int numTimerPushbacks;
+
+	protected ShapeQueue nextShapes;
 
 	/* ****************
 	 * GAME COMPONENTS
 	 ******************/
-	private Board board;
-	private Tetromino piece;
-	private EventBus eventBus;
+	protected Board board;
+	protected Tetromino piece;
+	protected EventBus eventBus;
 
 	protected Timer gameTimer;
 
-	//Returns the number of points earned for clearing a given number of
-	//	lines at a given level.
-	private static long getPointsForClearing(int size, long level) {
-		return POINTS_BY_LINES_CLEARED[size] * (level + 1);
+	/**
+	 * Returns points rewarded for clearing lines at a given level.
+	 *
+	 * @param lines Number of lines cleared.
+	 * @param level Current level.
+	 * @return Points to reward.
+	 */
+	public static long calcPointsForClearing(int lines, long level) {
+		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
+	}
+
+	public static int calcEntryColumn(int numCols) {
+		return (numCols / 2) - ((numCols % 2 == 0) ? 1 : 0);
 	}
 
 	/**
-	 * Creates a new Tetris game object, including a game board with the
-	 * default number of rows and columns and default entry point.
+	 * Creates a new Tetris game with standard number of rows and columns.
 	 */
 	public TetrisGame() {
-		this(DEFAULT_NUM_ROWS, DEFAULT_NUM_COLS, DEFAULT_ENTRY_POINT);
+		this(DEFAULT_NUM_ROWS, DEFAULT_NUM_COLS);
 	}
 
 	/**
-	 * Creates a new Tetris game object, including a game board with the given
-	 * number of rows and columns. The entry point will be automatically
-	 * calculated.
-	 * @param numRows - Number of rows for the game board.
-	 * @param numCols - Number of columns for the game board.
+	 * Creates a new Tetris game with the given number of rows and columns.
+	 * The piece entry point will be automatically calculated.
 	 */
 	public TetrisGame(int numRows, int numCols) {
-		this(numRows, numCols, new Coord(1, (numCols / 2) - ((numCols % 2 == 0) ? 1 : 0)));
+		this(numRows, numCols, calcEntryColumn(numCols), true);
 	}
 
 	/**
 	 * Creates a new Tetris game object, including a game board with the given
 	 * number of rows and columns, and the entry point for pieces.
+	 *
 	 * @param numRows - Number of rows for the game board.
 	 * @param numCols - Number of columns for the game board.
-	 * @param entryPoint - The coordinates at which the pieces start.
+	 * @param entryColumn - The coordinates at which the pieces start.
 	 */
-	public TetrisGame(int numRows, int numCols, Coord entryPoint) {
+	public TetrisGame(int numRows, int numCols, int entryColumn, boolean useGameloopTimer) {
 		if (numRows < MINIMUM_ROWS || numRows > MAXIMUM_ROWS) {
 			numRows = DEFAULT_NUM_ROWS;
 		}
@@ -101,13 +115,73 @@ public class TetrisGame implements ITetrisGame {
 
 		this.numRows = numRows;
 		this.numCols = numCols;
-		this.entryPoint = entryPoint;//todo make sure this is valid
+
+		//? Should this be row 0 or 1? Seeing inconsistency
+		this.entryPoint = new Coord(1, entryColumn); // TODO validate before setting
+
 		this.nextShapes = new ShapeQueue();
 		this.eventBus = new EventBus();
-		this.gameTimer = new Timer(
-				() -> {gameloop();},
-				1L, TimeUnit.SECONDS, true);
+		if (useGameloopTimer) {
+			this.gameTimer = new Timer(this::gameloop, 1L, TimeUnit.SECONDS, true);
+		}
 		this.numTimerPushbacks = 0;
+	}
+
+	/**
+	 * Removes the timer component. This can only be done if the game is over or has
+	 * not yet been started.
+	 *
+	 * @return True if the timer was removed; otherwise false.
+	 */
+	protected boolean withoutTimer() {
+		if (!isGameOver()) {
+			return false;
+		}
+
+		this.gameTimer.shutdown();
+		this.gameTimer = null;
+
+		return true;
+	}
+
+	/**
+	 * Adds a timer component for the gameloop. This can only be done if the game
+	 * is over or has not yet been started.
+	 *
+	 * @return True if the timer was added (or already exists); otherwise false.
+	 */
+	protected boolean withTimer() {
+		if (!isGameOver()) {
+			return false;
+		}
+
+		if (this.gameTimer == null) {
+			this.gameTimer = new Timer(this::gameloop, 1L, TimeUnit.SECONDS, true);
+		}
+
+		return true;
+	}
+
+	protected boolean attemptClearLines() {
+		// TODO refactor after board.clearLines() is refactored
+		List<Integer> lines = board.clearLines();
+
+		if (lines != null) {	//lines were cleared!
+			linesCleared += lines.size();
+			score += calcPointsForClearing(lines.size(), level);
+			linesUntilNextLevel -= lines.size();
+
+			throwEvent(TetrisEvent.LINE_CLEAR);
+			throwEvent(TetrisEvent.SCORE_UPDATE);
+			throwEvent(TetrisEvent.BLOCKS);
+
+			//check if we need to update level
+			if (linesUntilNextLevel <= 0) { //level up!!
+				increaseLevel();
+			}
+		}
+
+		return lines != null;
 	}
 
 	protected synchronized void gameloop() {
@@ -126,23 +200,7 @@ public class TetrisGame implements ITetrisGame {
 			throwEvent(TetrisEvent.BLOCKS);
 
 		} else if (!piece.isActive()) {	//the loop after piece kerplunks
-			List<Integer> lines = board.clearLines();
-			if (lines != null) {	//lines were cleared!
-
-				linesCleared += lines.size();
-				score += getPointsForClearing(lines.size(), level);
-				linesUntilNextLevel -= lines.size();
-
-				throwEvent(TetrisEvent.LINE_CLEAR);
-				throwEvent(TetrisEvent.SCORE_UPDATE);
-				throwEvent(TetrisEvent.BLOCKS);
-
-				//check if we need to update level
-				if (linesUntilNextLevel <= 0) { //level up!!
-					increaseLevel();
-				}
-
-			} else {	//piece is inactive, no line clears on this loop tick
+			if (!attemptClearLines()) {
 				//create next piece
 				piece.reset(nextShapes.poll(), entryPoint);
 				throwEvent(TetrisEvent.PIECE_CREATE);
@@ -175,9 +233,11 @@ public class TetrisGame implements ITetrisGame {
 	private void increaseLevel() {
 		level++;
 		linesUntilNextLevel += LINES_PER_LEVEL;
-		gameTimer.setDelay(getTimerDelay(), TimeUnit.MILLISECONDS);
-		//loopTickNanos = TimeUnit.MILLISECONDS.toNanos(
-		//		Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0));
+		if (gameTimer != null) {
+			gameTimer.setDelay(getTimerDelay(), TimeUnit.MILLISECONDS);
+			//loopTickNanos = TimeUnit.MILLISECONDS.toNanos(
+			//		Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0));
+		}
 		throwEvent(TetrisEvent.LEVEL_CHANGE);
 	}
 
@@ -222,10 +282,15 @@ public class TetrisGame implements ITetrisGame {
 			this.level = (level >= 0) ? level : MIN_LEVEL;
 			this.level = (level <= MAX_LEVEL) ? level : MAX_LEVEL;
 			hasStarted = true;
-			gameTimer.setDelay(
+
+			if (gameTimer != null) {
+				gameTimer.setDelay(
 					Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0),
-					TimeUnit.MILLISECONDS);
-			gameTimer.start();
+					TimeUnit.MILLISECONDS
+				);
+				gameTimer.start();
+			}
+
 			throwEvent(TetrisEvent.START);
 		}
 	}
@@ -234,14 +299,14 @@ public class TetrisGame implements ITetrisGame {
 		isPaused = false;
 		isGameOver = true;
 		isClearingLines = false;
-		gameTimer.stop();
+		if (gameTimer != null) { gameTimer.stop(); }
 		throwEvent(TetrisEvent.STOP);
 	}
 
 	@Override public synchronized void pause() {
 		if (hasStarted && !isGameOver) {
 			isPaused = true;
-			gameTimer.stop();
+			if (gameTimer != null) { gameTimer.stop(); }
 			throwEvent(TetrisEvent.PAUSE);
 		}
 	}
@@ -250,14 +315,14 @@ public class TetrisGame implements ITetrisGame {
 		isGameOver = true;
 		isPaused = false;
 		isClearingLines = false;
-		gameTimer.stop();
+		if (gameTimer != null) { gameTimer.stop(); }
 		throwEvent(TetrisEvent.GAME_OVER);
 	}
 
 	@Override public synchronized void resume() {
 		if (hasStarted && !isGameOver) {
 			isPaused = false;
-			gameTimer.start();
+			if (gameTimer != null) { gameTimer.start(); }
 			throwEvent(TetrisEvent.RESUME);
 		}
 	}
@@ -304,8 +369,10 @@ public class TetrisGame implements ITetrisGame {
 		boolean result = board.rotatePieceClockwise();
 
 		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			//gameTimer.resetTickDelay();
-			//System.out.println(gameTimer.resetTickDelay());
+			// if (gameTimer != null) {
+			// 	gameTimer.resetTickDelay();
+			// 	System.out.println(gameTimer.resetTickDelay());
+			// }
 			numTimerPushbacks++;
 		}
 
@@ -319,8 +386,10 @@ public class TetrisGame implements ITetrisGame {
 		boolean result = board.rotatePieceCounterClockwise();
 
 		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			//gameTimer.resetTickDelay();
-			//System.out.println(gameTimer.resetTickDelay());
+			// if (gameTimer != null) {
+			// 	gameTimer.resetTickDelay();
+			// 	System.out.println(gameTimer.resetTickDelay());
+			// }
 			numTimerPushbacks++;
 		}
 
@@ -334,7 +403,6 @@ public class TetrisGame implements ITetrisGame {
 		boolean result = board.shiftPiece(new Coord(rowOffset, colOffset));
 
 		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			//System.out.println(gameTimer.resetTickDelay());
 			numTimerPushbacks++;
 		}
 
@@ -350,22 +418,22 @@ public class TetrisGame implements ITetrisGame {
 
 	@Override
 	public boolean registerEventListener(TetrisEvent event, Consumer<Event> listener) {
-		return eventBus.registerEventListener(event.name, listener);
+		return eventBus.registerEventListener(event.name(), listener);
 	}
 
 	@Override
 	public boolean unregisterEventListener(TetrisEvent event, Consumer<Event> listener) {
-		return eventBus.unregisterEventListener(event.name, listener);
+		return eventBus.unregisterEventListener(event.name(), listener);
 	}
 
 	private void throwEvent(TetrisEvent event) {
-		eventBus.throwEvent(new Event(event.name));
+		eventBus.throwEvent(new Event(event.name()));
 	}
 
 	//Clean-up.  Free any used resources.
 	@Override public void shutdown() {
 		stop();
 		eventBus.dispose(false);
-		gameTimer.shutdown();
+		if (gameTimer != null) { gameTimer.shutdown(); }
 	}
 }

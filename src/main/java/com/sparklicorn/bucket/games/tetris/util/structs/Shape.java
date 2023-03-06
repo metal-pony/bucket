@@ -63,14 +63,8 @@ public enum Shape {
 		return rotationOffsets[((rotationIndex % len) + len) % len];
 	}
 
-	/* *************
-	 * STATIC ITEMS
-	 ***************/
-
 	public static final int NUM_SHAPES = Shape.values().length;
-
 	private static final Shape[] shapeMap;
-
 	static {
 		shapeMap = new Shape[NUM_SHAPES + 1];
 		for (Shape s : Shape.values()) {

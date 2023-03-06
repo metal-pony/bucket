@@ -36,9 +36,14 @@ public class Timer implements Runnable {
 		this(r, delay, delayUnit, repeats, 0L, TimeUnit.SECONDS);
 	}
 
-	public Timer(Runnable r, long delay, TimeUnit delayUnit, boolean repeats,
-			long initialDelay, TimeUnit initialDelayUnit)
-	{
+	public Timer(
+		Runnable r,
+		long delay,
+		TimeUnit delayUnit,
+		boolean repeats,
+		long initialDelay,
+		TimeUnit initialDelayUnit
+	) {
 		this.runnable = r;
 
 		this.delayNano = delayUnit.toNanos(delay);
