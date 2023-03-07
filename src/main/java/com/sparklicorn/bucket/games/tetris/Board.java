@@ -325,11 +325,14 @@ public class Board {
 		return (blocks[row * cols + col] != 0);
 	}
 
+	private static void removeRows(int[] blocks, int[] rows) {
+		// TODO implement and use below
+	}
+
 	/**
-	 * Attempts to clear lines that are full of blocks and
-	 * shift the remaining blocks down appropriately.
-	 * @return A list of rows that were cleared (zero-based),
-	 * or null if no rows were cleared.
+	 * Clears full lines and shift remaining blocks down.
+	 *
+	 * @return List of cleared rows, or null if no rows were cleared.
 	 */
 	public List<Integer> clearLines() {
 		List<Integer> fullRows = getFullRows();
@@ -358,6 +361,10 @@ public class Board {
 		}
 
 		return (fullRows.isEmpty() ? null : fullRows);
+	}
+
+	private static boolean isRowFull(int[] blocks, int row) {
+		return false; // TODO implement and use below
 	}
 
 	/**

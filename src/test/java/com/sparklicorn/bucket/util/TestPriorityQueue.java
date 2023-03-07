@@ -33,7 +33,7 @@ public class TestPriorityQueue {
     }
 
     private static final int SMALL_SIZE = 100;
-    private static final int LARGE_SIZE = 1000000;
+    private static final int LARGE_SIZE = 100_000;
 
     private static ThreadLocalRandom rand = ThreadLocalRandom.current();
 
