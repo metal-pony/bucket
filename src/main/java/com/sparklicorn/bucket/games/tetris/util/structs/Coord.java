@@ -1,40 +1,49 @@
 package com.sparklicorn.bucket.games.tetris.util.structs;
 
-/** A Coord represents (row, column) coordinates.*/
+/**
+ * Contains row, column coordinates.
+ */
 public class Coord {
+	public static final class FinalCoord extends Coord {
+		public FinalCoord(int r, int c) { super(r, c); }
+		public FinalCoord(Coord otherCoord) { super(otherCoord); }
 
-	private int row, col;
+		@Override public void add(int r, int c) { throw new UnsupportedOperationException(); }
+		@Override public void add(Coord...coords) { throw new UnsupportedOperationException(); }
+		@Override public void set(int row, int col) { throw new UnsupportedOperationException(); }
+		@Override public void set(Coord other) { throw new UnsupportedOperationException(); }
+	}
+
+	private int row;
+	private int col;
 
 	/**
 	 * Creates a new Coord with the given row and column coordinates.
-	 * @param r - Row coordinate.
-	 * @param c - Column coordinate.
 	 */
-	public Coord(int r, int c) {
-		this.row = r;
-		this.col = c;
+	public Coord(int row, int col) {
+		this.row = row;
+		this.col = col;
 	}
 
 	/**
 	 * Creates a new Coord with coordinates copied from the one given.
-	 * @param otherCoord - Another Coord to copy from.
+	 *
+	 * @param other - Another Coord to copy from.
 	 */
-	public Coord(Coord otherCoord) {
-		this.row = otherCoord.row;
-		this.col = otherCoord.col;
+	public Coord(Coord other) {
+		this.row = other.row;
+		this.col = other.col;
 	}
 
 	/**
-	 * Returns the row coordinate.
-	 * @return The row.
+	 * Gets the row coordinate.
 	 */
 	public int row() {
 		return this.row;
 	}
 
 	/**
-	 * Returns the column coordinate.
-	 * @return The column.
+	 * Gets the column coordinate.
 	 */
 	public int col() {
 		return this.col;
@@ -42,55 +51,44 @@ public class Coord {
 
 	/**
 	 * Sets the coordinates to the ones specified.
-	 * @param row - The row.
-	 * @param col - The column.
-	 * @return Returns itself for convenience.
 	 */
-	public Coord set(int row, int col) {
+	public void set(int row, int col) {
 		this.row = row;
 		this.col = col;
-
-		return this;
 	}
 
 	/**
 	 * Sets the coordinate to the ones specified.
+	 *
 	 * @param other - Another coordinate to copy from.
-	 * @return Returns itself for convenience.
 	 */
-	public Coord set(Coord other) {
+	public void set(Coord other) {
 		this.row = other.row;
 		this.col = other.col;
-
-		return this;
 	}
 
 	/**
 	 * Adds an arbitrary number of coordinates to this one.
+	 *
 	 * @param coords - Other coords whose positions should
 	 * be added to this one.
-	 * @return Returns itself for convenience.
 	 */
-	public Coord add(Coord... coords) {
+	public void add(Coord... coords) {
 		for (Coord c : coords){
 			row += c.row;
 			col += c.col;
 		}
-
-		return this;
 	}
 
 	/**
 	 * Add the given coordinates to this one.
-	 * @param r - Number of rows to add.
-	 * @param c - Number of columns to add.
-	 * @return Returns itself for convenience.
+	 *
+	 * @param toRow - Number of rows to add.
+	 * @param toCol - Number of columns to add.
 	 */
-	public Coord add(int r, int c) {
-		this.row += r;
-		this.col += c;
-
-		return this;
+	public void add(int toRow, int toCol) {
+		this.row += toRow;
+		this.col += toCol;
 	}
 
 	@Override public boolean equals(Object obj) {
@@ -108,7 +106,7 @@ public class Coord {
 	}
 
 	@Override public int hashCode() {
-		return row * 37 + col;
+		return 31 * row + col;
 	}
 
 	@Override public String toString() {

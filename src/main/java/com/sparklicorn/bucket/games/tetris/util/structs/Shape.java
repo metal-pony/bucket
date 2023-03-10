@@ -1,5 +1,7 @@
 package com.sparklicorn.bucket.games.tetris.util.structs;
 
+import com.sparklicorn.bucket.games.tetris.util.structs.Coord.FinalCoord;
+
 /**
  * Represents the different shapes of pieces in Tetris. Each Shape is
  * associated with an integer value which can be retrieved with
