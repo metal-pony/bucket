@@ -11,7 +11,6 @@ import javax.swing.JPanel;
 import com.sparklicorn.bucket.games.tetris.ITetrisGame;
 import com.sparklicorn.bucket.games.tetris.TetrisEvent;
 import com.sparklicorn.bucket.games.tetris.TetrisGame;
-import com.sparklicorn.bucket.games.tetris.Tetromino;
 import com.sparklicorn.bucket.games.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.games.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.event.Event;
@@ -145,10 +144,8 @@ public class TetrisBoardPanel extends JPanel {
 		System.arraycopy(blocks, 0, blockData, 0, blocks.length);
 	}
 
-	public void updatePiece(Tetromino piece) {
-		if (piece != null) {
-			updatePiece(piece.getBlockLocations(), piece.getShape());
-		}
+	public void updatePiece(int[] blockLocations, Shape shape) {
+		updatePiece(blockLocations, shape);
 	}
 
 	public void updatePiece(int[] pieceBlocks, int shape) {
