@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# Starts a Tetris game in a Java Swing GUI.
+# Run this from the base project directory.
+# echo "#: '$#'"
+if [ "$#" -gt '0' ]; then
+    # echo "arg1: '$1'"
+    if [ "$1" = '--rebuild' ]; then
+        echo 'Rebuilding...'
+
+        # TODO check success of rebuild before trying to run jar
+        mvn -f pom-tetris.xml package
+    fi
+fi
+
+java -jar target/tetris-1.0.0.jar
