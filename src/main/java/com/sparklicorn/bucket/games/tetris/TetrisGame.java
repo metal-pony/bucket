@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.sparklicorn.bucket.games.tetris.util.Timer;
+import com.sparklicorn.bucket.util.Array;
 import com.sparklicorn.bucket.util.PriorityQueue;
 import com.sparklicorn.bucket.util.event.*;
 import com.sparklicorn.bucket.games.tetris.util.structs.*;
@@ -40,17 +41,31 @@ public class TetrisGame implements ITetrisGame {
 	public static final int MAXIMUM_COLS = 200;
 
 	public static final List<Long> POINTS_BY_LINES_CLEARED = Collections.unmodifiableList(
-		Arrays.asList(new Long[]{ 0L, 40L, 100L, 300L, 1200L })
+		Arrays.asList(0L, 40L, 100L, 300L, 1200L)
 	);
 
 	public static final long MIN_LEVEL = 0L;
 	public static final long MAX_LEVEL = 255L;
 	public static final int LINES_PER_LEVEL = 10;
 
+	/**
+	 * Calculates the column where pieces appear, which is the center column,
+	 * or just left of center if there are an even number of columns.
+	 *
+	 * @param cols Number of columns on the board.
+	 */
+	private static int calcEntryColumn(int cols) {
+		return (cols / 2) - ((cols % 2 == 0) ? 1 : 0);
+	}
+
 	/* ****************
 	 * STATE AND STATS
 	 ******************/
 	protected int[] board;
+
+	// TODO keep track of full rows as pieces are placed
+	protected boolean[] fullRows;
+
 	protected boolean isGameOver, isPaused, isClearingLines, hasStarted;
 	protected long level, score, linesCleared, numPiecesDropped;
 	protected int rows, cols, linesUntilNextLevel;
@@ -64,316 +79,18 @@ public class TetrisGame implements ITetrisGame {
 	/* ****************
 	 * GAME COMPONENTS
 	 ******************/
-	// protected Board board;
-	// protected Tetromino piece;
 	protected EventBus eventBus;
 	protected Timer gameTimer;
 
-	// TODO incorporate piece state from Tetromino
-	private Shape shape;
-	private Coord location, blockLocations[];
-	private int rotationIndex;
-	private boolean isActive;
+	protected Shape shape;
 
-	/**
-	 * Returns points rewarded for clearing lines at a given level.
-	 *
-	 * @param lines Number of lines cleared.
-	 * @param level Current level.
-	 * @return Points to reward.
-	 */
-	private long calcPointsForClearing(int lines) {
-		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
-	}
+	// TODO location + rotationIndex can be combined into a Position type
+	// protected Move position;
+	protected Coord location;
+	protected int rotationIndex;
 
-	private static int calcEntryColumn(int cols) {
-		return (cols / 2) - ((cols % 2 == 0) ? 1 : 0);
-	}
-
-	/**
-	 * Determines whether the current piece can rotate clockwise.
-	 *
-	 * @return An integer representing how many blocks to shift the piece to be able to rotate,
-	 * or null if the piece cannot rotate at all.
-	 */
-	public Integer canPieceRotateClockwise() {
-		return canRotate(Move.CLOCKWISE);
-	}
-
-	/**
-	 * Determines whether the current piece can rotate counter-clockwise.
-	 *
-	 * @return An integer representing how many blocks to shift the piece to be able to rotate,
-	 * or null if the piece cannot rotate at all.
-	 */
-	//todo RENAME METHOD - The answer to the question "can...something something"
-	// Should never be "7".
-	// How about "whatOffsetCanPieceRotateCounterClockwiseWith()"
-	public Integer canPieceRotateCounterClockwise() {
-		return canRotate(Move.COUNTERCLOCKWISE);
-	}
-
-	private Integer canRotate(Move move) {
-		if (move != Move.CLOCKWISE && move != Move.COUNTERCLOCKWISE) {
-			return null;
-		}
-
-		if (canPieceMove(move)) {
-			return 0;
-		}
-
-		// Attempt to "kick off" an edge or block if rotating too close.
-		Move kickLeft = new Move(move);
-		Move kickRight = new Move(move);
-		for (int colOffset = 1; colOffset < 3; colOffset++) {
-			kickLeft.offset().add(Move.LEFT.offset());
-			kickRight.offset().add(Move.RIGHT.offset());
-
-			if (canPieceMove(kickLeft)) {
-				return colOffset;
-			} else if (canPieceMove(kickRight)) {
-				return -colOffset;
-			}
-		}
-
-		return null;
-	}
-
-	private boolean validateBlockPosition(Coord coords) {
-		return (
-			coords.row() >= 0 && coords.row() < rows &&
-			coords.col() >= 0 && coords.col() < cols
-		);
-	}
-
-	/**
-	 * Determines if the piece can move with the given offset and rotation.
-	 *
-	 * @param offset - Offset coordinates relative to the current piece.
-	 * @param rotationOffset - Offset applied to the current piece's rotation index.
-	 * <code>0</code> for no rotation.
-	 * @return True if the piece can move to the specified position; otherwise false.
-	 */
-	public boolean canPieceMove(Move move) {
-		if (!isActive || move.rowOffset() < 0) {
-			return false;
-		}
-
-		Coord newBlockCoords[] = getNewPositions(move);
-		// int s = newBlockCoords[0].col(); //column of last checked position
-
-		int minCol = cols - 1;
-		int maxCol = 0;
-
-		for (Coord c : newBlockCoords) {
-			minCol = Math.min(minCol, c.col());
-			maxCol = Math.max(maxCol, c.col());
-
-			if (
-				!validateBlockPosition(c) ||
-				!isCellEmpty(c) ||
-				(maxCol - minCol) > 4
-			) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Attempts to rotate the current piece clockwise.
-	 *
-	 * @return True if the piece was successfully rotated; otherwise false.
-	 */
-	public boolean rotatePieceClockwise() {
-		boolean result = false;
-		Integer offset = canPieceRotateClockwise();
-
-		//If piece is not set, then canPieceRotateClockwise() will return null.
-		if (offset != null) {
-			result = true;
-			if (offset != 0) {
-				shift(new Coord(0, offset));
-			}
-			pieceRotateClockwise();
-		}
-
-		return result;
-	}
-
-	/**
-	 * Attempts to rotate the current piece counter-clockwise.
-	 *
-	 * @return True if the piece was successfully rotated; otherwise false.
-	 */
-	public boolean rotatePieceCounterClockwise() {
-		boolean result = false;
-		Integer offset = canPieceRotateCounterClockwise();
-
-		if (offset != null) {
-			result = true;
-			if (offset != 0) {
-				shift(new Coord(0, offset));
-			}
-			pieceRotateCounterClockwise();
-		}
-
-		return result;
-	}
-
-	/**
-	 * Attempts to shift the current piece with the given offset.
-	 *
-	 * @param offset - Offset coordinates relative to the current piece.
-	 * @return True if the piece was successfully shifted; otherwise false.
-	 */
-	//! NOTE: move.rotation is ignored
-	public boolean shiftPiece(Move move) {
-		if (!isActive) {
-			return false;
-		}
-
-		if (canPieceMove(move)) {
-			location.add(move.offset());
-			for (Coord b : blockLocations) {
-				b.add(move.offset());
-			}
-
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Returns whether the piece is at the bottom of the board.
-	 *
-	 * @return True if the piece is touching the bottom of the board; otherwise false.
-	 * @throws NullPointerException if the player piece has not been set.
-	 */
-	public boolean isPieceAtBottom() {
-		for (Coord coord : getNewPositions(Move.DOWN)) {
-			if (!validateBlockPosition(coord) || !isCellEmpty(coord)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Transfers the piece's blocks to the Board then kills it.
-	 */
-	public void plotPiece() {
-		Shape shape = getShape();
-
-		for (Coord c : getBlockLocations()) {
-			board[c.row() * cols + c.col()] = shape.value;
-		}
-
-		kill();
-	}
-
-	/**
-	 * Gets whether the cell is empty at the given coordinates.
-	 */
-	public boolean isCellEmpty(Coord coords) {
-		return isCellEmpty(coords.row(), coords.col());
-	}
-
-	/**
-	 * Gets whether the cell is empty at the given coordinates.
-	 */
-	public boolean isCellEmpty(int row, int col) {
-		return (board[row * cols + col] == 0);
-	}
-
-	private static void removeRows(int[] blocks, int[] rows) {
-		// TODO implement and use below
-	}
-
-	/**
-	 * Clears full lines and shift remaining blocks down.
-	 *
-	 * @return List of cleared rows, or null if no rows were cleared.
-	 */
-	public List<Integer> clearLines() {
-		List<Integer> fullRows = getFullRows();
-
-		if (!fullRows.isEmpty()) {
-			int numRowsToDrop = 1;
-			int i = fullRows.size() - 1;
-			//start above the last row in the clearing list
-			for (int row = fullRows.get(i--) - 1; row > 0; row--) {
-				//if this row is in the clearing list too...
-				if (i >= 0 && row == fullRows.get(i)) {
-					numRowsToDrop++;
-					i--;
-				} else {
-					//Row 'row' needs to be shifted down.
-					int k = row * cols; //starting index for blocks in row 'row'.
-
-					//j = starting index for blocks in row 'row + numRowsToDrop'.
-					//replace blocks in 'row + numRowsToDrop' with blocks in 'row'
-					for (int j = (row + numRowsToDrop) * cols; j < (row + numRowsToDrop + 1) * cols; j++) {
-						board[j] = board[k];
-						board[k++] = 0;
-					}
-				}
-			}
-		}
-
-		return (fullRows.isEmpty() ? null : fullRows);
-	}
-
-	private boolean isRowFull(int row) {
-		for (int col = 0; col < cols; col++) {
-			if (isCellEmpty(row, col)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Returns a List of rows that are completely full of blocks.
-	 * The list will sorted in ascending order.
-	 *
-	 * @return A List of row indices for rows that are full.
-	 */
-	//todo Should only need to test rows that have changed since the last check.
-	private List<Integer> getFullRows() {
-		List<Integer> lines = new ArrayList<>();
-
-		for (int row = 0; row < rows; row++) {
-			if (isRowFull(row)) {
-				lines.add(row);
-			}
-		}
-
-		return lines;
-	}
-
-	/**
-	 * Determines if the piece is sharing the same cell as any other block.
-	 *
-	 * @return True if the piece is overlapping with other blocks.
-	 * @throws ArrayIndexOutOfBoundsException if the coordinates are out of
-	 * bounds for the game board.
-	 */
-	public boolean intersects() {
-		for (Coord c : getBlockLocations()) {
-			if (!isCellEmpty(c)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	//! End of copied Board content
+	protected Coord[] blockLocations;
+	protected boolean isActive;
 
 	/**
 	 * Creates a new Tetris game with standard number of rows and columns.
@@ -384,19 +101,21 @@ public class TetrisGame implements ITetrisGame {
 
 	/**
 	 * Creates a new Tetris game with the given number of rows and columns.
-	 * The piece entry point will be automatically calculated.
+	 *
+	 * @param numRows - Number of rows on the game board.
+	 * @param numCols - Number of columns on the game board.
 	 */
 	public TetrisGame(int numRows, int numCols) {
 		this(numRows, numCols, true);
 	}
 
 	/**
-	 * Creates a new Tetris game object, including a game board with the given
-	 * number of rows and columns, and the entry point for pieces.
+	 * Creates a new Tetris game with the given number of rows, columns,
+	 * and whether to initialize a timer to control the gameloop.
 	 *
-	 * @param numRows - Number of rows for the game board.
-	 * @param numCols - Number of columns for the game board.
-	 * @param entryColumn - The coordinates at which the pieces start.
+	 * @param numRows - Number of rows on the game board.
+	 * @param numCols - Number of columns on the game board.
+	 * @param useGameloopTimer - Whether the game instance will use a gameloop timer.
 	 */
 	public TetrisGame(int numRows, int numCols, boolean useGameloopTimer) {
 		if (numRows < MINIMUM_ROWS || numRows > MAXIMUM_ROWS) {
@@ -426,18 +145,21 @@ public class TetrisGame implements ITetrisGame {
 		}
 	}
 
+	/**
+	 * Creates a new Tetris game as a copy of another.
+	 *
+	 * NOTE: The new game will not have an event bus or gameloop timer.
+	 */
 	public TetrisGame(TetrisGame other) {
 		rows = other.rows;
 		cols = other.cols;
 		entryPoint = new FinalCoord(other.entryPoint);
-		board = new int[rows * cols];
-		System.arraycopy(other.board, 0, board, 0, rows * cols);
+		board = Array.copy(other.board);
 		level = other.level;
 		linesCleared = other.linesCleared;
 		linesUntilNextLevel = other.linesUntilNextLevel;
 		score = other.score;
-		dist = new long[NUM_SHAPES];
-		System.arraycopy(other.dist, 0, dist, 0, dist.length);
+		dist = Array.copy(other.dist);
 		hasStarted = other.hasStarted;
 		isGameOver = other.isGameOver;
 		isClearingLines = other.isClearingLines;
@@ -453,6 +175,261 @@ public class TetrisGame implements ITetrisGame {
 			blockLocations[i] = new Coord(location);
 		}
 		setBlockLocations();
+	}
+
+	/**
+	 * Returns points rewarded for clearing lines at a given level.
+	 *
+	 * @param lines Number of lines cleared.
+	 * @param level Current level.
+	 * @return Points to reward.
+	 */
+	protected long calcPointsForClearing(int lines) {
+		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
+	}
+
+	/**
+	 * Checks whether the current piece can move with the given rotation.
+	 * If the piece cannot be rotated in place, it will check whether it can be shifted first.
+	 *
+	 * If shifting doesn't allow rotation, then this returns an adjusted move of STAND, indicating
+	 * the rotation is not possible.
+	 *
+	 * @param move CLOCKWISE or COUNTERCLOCKWISE
+	 * @return A Move representing the rotation, it may be adjusted to include a left
+	 * or right shift that is required to accomodate the rotation.
+	 * If the rotation is not possible, returns Move.STAND.
+	 */
+	protected Move validateRotation(Move move) {
+		// System.out.printf("validateRotation(%s)\n", move);
+
+		if (!(move.equals(Move.CLOCKWISE) || move.equals(Move.COUNTERCLOCKWISE))) {
+			// TODO If going to keep output, wrap into function with debug flag.
+			// System.out.println("validateRotation return standstill");
+			return new Move(Move.STAND);
+		}
+
+		if (canPieceMove(move)) {
+			// System.out.println("validateRotation Move is valid! Returning");
+			return new Move(move);
+		}
+		// System.out.println("validateRotation Move not valid, checking offsets...");
+
+		// Attempt to "kick off" an edge or block if rotating too close.
+		Move kickLeft = new Move(move);
+		Move kickRight = new Move(move);
+		for (int colOffset = 1; colOffset < 3; colOffset++) {
+			kickLeft.add(Move.LEFT);
+			if (canPieceMove(kickLeft)) {
+				// System.out.printf("");
+				return kickLeft;
+			}
+
+			kickRight.add(Move.RIGHT);
+			if (canPieceMove(kickRight)) {
+				return kickRight;
+			}
+		}
+
+		// System.out.println("validateRotation No offsets valid... Returning standstill");
+		return new Move(Move.STAND);
+	}
+
+	/**
+	 * Checks whether the given coordinates are within bounds of the board.
+	 */
+	protected boolean validateBlockPosition(Coord coords) {
+		return (
+			coords.row() >= 0 && coords.row() < rows &&
+			coords.col() >= 0 && coords.col() < cols
+		);
+	}
+
+	/**
+	 * ! it's more like validation of the resulting location and does not imply that a path exists to it unless the
+	 * ! magnitude of the move is (exclusively) one unit of rotation or of offset.
+	 * ! however you wanna fit that into a name... is great
+	 * Checks that the given move is in bounds of the board, that there are no blocks occupying
+	 * the spaces, and that the resulting position does not end up higher on the board.
+	 *
+	 * @param move
+	 * @return True if the active piece can move to the specified position; otherwise false.
+	 */
+	protected boolean canPieceMove(Move move) {
+		if (move.rowOffset() < 0) {
+			return false;
+		}
+
+		Coord newBlockCoords[] = getNewPositions(move);
+		// int s = newBlockCoords[0].col(); //column of last checked position
+
+		int minCol = cols - 1;
+		int maxCol = 0;
+
+		for (Coord c : newBlockCoords) {
+			minCol = Math.min(minCol, c.col());
+			maxCol = Math.max(maxCol, c.col());
+
+			if (
+				!validateBlockPosition(c) ||
+				!isCellEmpty(c) ||
+
+				// A large gap between cell columns means the piece wrapped around the board.
+				(maxCol - minCol) > 4
+			) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Attempts to rotate the current piece clockwise.
+	 * The piece may be shifted left or right to accomodate the rotation.
+	 *
+	 * @return True if the piece was successfully rotated; otherwise false.
+	 */
+	protected boolean rotate(Move move) {
+		// System.out.printf("rotate(%s)\n", move);
+
+		Move _move = validateRotation(move);
+		// System.out.println("Adjusted move: " + move);
+
+		if (_move.equals(Move.STAND)) {
+			// System.out.println("rotate return false (standstill - rotation invalid)");
+			return false;
+		}
+
+		location.add(_move.offset());
+		rotationIndex += _move.rotation();
+		setBlockLocations();
+
+		return true;
+	}
+
+	/**
+	 * Attempts to shift the current piece with the given offset.
+	 *
+	 * @return True if the piece was successfully moved; otherwise false.
+	 */
+	//! NOTE: move.rotation is ignored
+	protected boolean shiftPiece(Move move) {
+		if (canPieceMove(move)) {
+			// String before = location.toString();
+			location.add(move.offset());
+			// System.out.printf("shiftPiece(%s): %s -> %s\n", move.toString(), before, location.toString());
+			setBlockLocations();
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Plots the piece's block data to the board.
+	 */
+	protected void plotPiece() {
+		for (Coord c : getBlockLocations()) {
+			board[c.row() * cols + c.col()] = shape.value;
+		}
+	}
+
+	/**
+	 * Gets whether the cell is empty at the given coordinates.
+	 */
+	protected boolean isCellEmpty(Coord coords) {
+		return isCellEmpty(coords.row(), coords.col());
+	}
+
+	/**
+	 * Gets whether the cell is empty at the given coordinates.
+	 */
+	protected boolean isCellEmpty(int row, int col) {
+		return board[row * cols + col] == 0;
+	}
+
+	// TODO Removes full rows from the board, shifting remaining rows down.
+	protected void removeRows(int[] rows) {
+		// TODO implement and use below
+	}
+
+	/**
+	 * Clears full lines and shift remaining blocks down.
+	 *
+	 * @return List of cleared rows, or null if no rows were cleared.
+	 */
+	protected List<Integer> clearLines() {
+		List<Integer> fullRows = getFullRows();
+
+		if (!fullRows.isEmpty()) {
+			int numRowsToDrop = 1;
+			int i = fullRows.size() - 1;
+			//start above the last row in the clearing list
+			for (int row = fullRows.get(i--) - 1; row > 0; row--) {
+				//if this row is in the clearing list too...
+				if (i >= 0 && row == fullRows.get(i)) {
+					numRowsToDrop++;
+					i--;
+				} else {
+					//Row 'row' needs to be shifted down.
+					int k = row * cols; //starting index for blocks in row 'row'.
+
+					//j = starting index for blocks in row 'row + numRowsToDrop'.
+					//replace blocks in 'row + numRowsToDrop' with blocks in 'row'
+					for (int j = (row + numRowsToDrop) * cols; j < (row + numRowsToDrop + 1) * cols; j++) {
+						board[j] = board[k];
+						board[k++] = 0;
+					}
+				}
+			}
+		}
+
+		return (fullRows.isEmpty() ? null : fullRows);
+	}
+
+	/**
+	 * Determines whether the given row is full of blocks.
+	 */
+	protected boolean isRowFull(int row) {
+		for (int col = 0; col < cols; col++) {
+			if (isCellEmpty(row, col)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Returns a list of rows that are full of blocks, in ascending order.
+	 */
+	//todo Should only need to test rows that have changed since the last check.
+	protected List<Integer> getFullRows() {
+		List<Integer> lines = new ArrayList<>();
+
+		for (int row = 0; row < rows; row++) {
+			if (isRowFull(row)) {
+				lines.add(row);
+			}
+		}
+
+		return lines;
+	}
+
+	/**
+	 * Determines if the piece is sharing the same cell as any other block.
+	 *
+	 * @return True if the piece is overlapping with other blocks.
+	 */
+	protected boolean intersects() {
+		for (Coord c : getBlockLocations()) {
+			if (!isCellEmpty(c)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -490,6 +467,11 @@ public class TetrisGame implements ITetrisGame {
 		return true;
 	}
 
+	/**
+	 * Attempts to clear full rows.
+	 *
+	 * @return True if any row was cleared; otherwise false.
+	 */
 	protected boolean attemptClearLines() {
 		// TODO refactor after clearLines() is refactored
 		List<Integer> lines = clearLines();
@@ -519,10 +501,11 @@ public class TetrisGame implements ITetrisGame {
 
 		numTimerPushbacks = 0;
 
-		if (isActive && isPieceAtBottom()) {
+		if (isActive && !canPieceMove(Move.DOWN)) {
 			//*kerplunk*
 			//next loop should attempt to clear lines
-			plotPiece(); //kills 'piece'
+			plotPiece();
+			isActive = false;
 			numPiecesDropped++;
 			throwEvent(TetrisEvent.PIECE_PLACED);
 			throwEvent(TetrisEvent.BLOCKS);
@@ -542,6 +525,7 @@ public class TetrisGame implements ITetrisGame {
 			}
 
 		} else {	//piece alive && not at bottom
+			// System.out.println("GRAVITY");
 			shiftPiece(Move.DOWN);
 			throwEvent(TetrisEvent.PIECE_SHIFT);
 		}
@@ -558,7 +542,7 @@ public class TetrisGame implements ITetrisGame {
 		throwEvent(TetrisEvent.NEW_GAME);
 	}
 
-	private void increaseLevel() {
+	protected void increaseLevel() {
 		level++;
 		linesUntilNextLevel += LINES_PER_LEVEL;
 		if (gameTimer != null) {
@@ -570,11 +554,11 @@ public class TetrisGame implements ITetrisGame {
 	}
 
 	//Returns the amount of time between gameloop ticks for the current level.
-	private long getTimerDelay() {
+	protected long getTimerDelay() {
 		return Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0);
 	}
 
-	private void reset() {
+	protected void reset() {
 		hasStarted = false;
 		isGameOver = false;
 		isClearingLines = false;
@@ -619,30 +603,38 @@ public class TetrisGame implements ITetrisGame {
 		isPaused = false;
 		isGameOver = true;
 		isClearingLines = false;
-		if (gameTimer != null) { gameTimer.stop(); }
+		if (gameTimer != null) {
+			gameTimer.stop();
+		}
 		throwEvent(TetrisEvent.STOP);
 	}
 
 	@Override public synchronized void pause() {
 		if (hasStarted && !isGameOver) {
 			isPaused = true;
-			if (gameTimer != null) { gameTimer.stop(); }
+			if (gameTimer != null) {
+				gameTimer.stop();
+			}
 			throwEvent(TetrisEvent.PAUSE);
 		}
 	}
 
-	private void gameOver() {
+	protected void gameOver() {
 		isGameOver = true;
 		isPaused = false;
 		isClearingLines = false;
-		if (gameTimer != null) { gameTimer.stop(); }
+		if (gameTimer != null) {
+			gameTimer.stop();
+		}
 		throwEvent(TetrisEvent.GAME_OVER);
 	}
 
 	@Override public synchronized void resume() {
 		if (hasStarted && !isGameOver) {
 			isPaused = false;
-			if (gameTimer != null) { gameTimer.start(); }
+			if (gameTimer != null) {
+				gameTimer.start();
+			}
 			throwEvent(TetrisEvent.RESUME);
 		}
 	}
@@ -650,9 +642,7 @@ public class TetrisGame implements ITetrisGame {
 	// A bunch of Getters
 
 	@Override public int[] getBlocksOnBoard() {
-		int[] result = new int[board.length];
-		System.arraycopy(board, 0, result, 0, board.length);
-		return result;
+		return Array.copy(board);
 	}
 	@Override public int[] getBlocksOnBoard(int[] arr) {
 		if (arr == null || arr.length != rows * cols) {
@@ -673,68 +663,62 @@ public class TetrisGame implements ITetrisGame {
 	@Override public int getNumCols() 				{return cols;}
 	@Override public Coord[] getPieceBlocks() 		{return getBlockLocations();}
 	@Override public Shape getNextShape() 			{return nextShapes.peek();}
-	@Override public Shape getCurrentShape() 		{return getShape();}
+	@Override public Shape getCurrentShape() 		{return shape;}
 	@Override public Coord getLocation() 			{return new Coord(location);}
-	@Override public long[] getDistribution() {
-		long[] result = new long[dist.length];
-		System.arraycopy(dist, 0, result, 0, dist.length);
-		return result;
-	}
+	@Override public long[] getDistribution() 		{return Array.copy(dist);}
 
 	@Override public boolean isPieceActive() {
-		boolean result = false;
-		if (hasStarted && !isGameOver && !isClearingLines && !isPaused) {
-			result = isActive;
+		return (hasStarted && !isGameOver && !isClearingLines && !isPaused && isActive);
+	}
+
+	private boolean handleRotation(Move direction) {
+		// System.out.printf("handleRotation(%s)\n", direction);
+
+		if (!isActive) {
+			// System.out.printf("handleRotation return false (piece is inactive)\n", direction);
+			return false;
 		}
-		return result;
+
+		if (rotate(direction)) {
+			// If next gravity tick will plop the piece, maybe rotation should delay that
+			// a little to give the user time to make final adjustments.
+			// This is an anti-frustration technique.
+			if (!canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
+				// if (gameTimer != null) {
+				// 	gameTimer.resetTickDelay();
+					// System.out.println(gameTimer.resetTickDelay());
+				// }
+				numTimerPushbacks++;
+			}
+
+			// System.out.println("Rotation successful");
+			throwEvent(TetrisEvent.PIECE_ROTATE);
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override public synchronized boolean rotateClockwise() {
-		boolean result = rotatePieceClockwise();
-
-		if (result && isPieceAtBottom() && numTimerPushbacks < 4) {
-			// if (gameTimer != null) {
-			// 	gameTimer.resetTickDelay();
-			// 	System.out.println(gameTimer.resetTickDelay());
-			// }
-			numTimerPushbacks++;
-		}
-
-		if (result) {
-			throwEvent(TetrisEvent.PIECE_ROTATE);
-		}
-		return result;
+		return handleRotation(Move.CLOCKWISE);
 	}
 
 	@Override public synchronized boolean rotateCounterClockwise() {
-		boolean result = rotatePieceCounterClockwise();
-
-		if (result && isPieceAtBottom() && numTimerPushbacks < 4) {
-			// if (gameTimer != null) {
-			// 	gameTimer.resetTickDelay();
-			// 	System.out.println(gameTimer.resetTickDelay());
-			// }
-			numTimerPushbacks++;
-		}
-
-		if (result) {
-			throwEvent(TetrisEvent.PIECE_ROTATE);
-		}
-		return result;
+		return handleRotation(Move.COUNTERCLOCKWISE);
 	}
 
 	@Override public synchronized boolean shift(int rowOffset, int colOffset) {
 		Move move = new Move(new Coord(rowOffset, colOffset), 0);
-		boolean result = shiftPiece(move);
+		if (shiftPiece(move)) {
+			if (!canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
+				numTimerPushbacks++;
+			}
 
-		if (result && isPieceAtBottom() && numTimerPushbacks < 4) {
-			numTimerPushbacks++;
-		}
-
-		if (result) {
 			throwEvent(TetrisEvent.PIECE_SHIFT);
+			return true;
 		}
-		return result;
+
+		return false;
 	}
 
 	////////////////////////
@@ -751,14 +735,16 @@ public class TetrisGame implements ITetrisGame {
 		return eventBus.unregisterEventListener(event.name(), listener);
 	}
 
-	private void throwEvent(TetrisEvent event) {
+	protected void throwEvent(TetrisEvent event) {
 		eventBus.throwEvent(new Event(event.name()));
 	}
 
 	@Override public void shutdown() {
 		stop();
 		eventBus.dispose(false);
-		if (gameTimer != null) { gameTimer.shutdown(); }
+		if (gameTimer != null) {
+			gameTimer.shutdown();
+		}
 	}
 
 	protected static class Position implements Comparable<Position> {
@@ -782,13 +768,22 @@ public class TetrisGame implements ITetrisGame {
 			this.rotation = ((p.rotation + offset.rotation() % numR) + numR) % numR;
 		}
 		@Override public boolean equals(Object obj) {
-			boolean result = false;
+			if (this == obj) {
+				return true;
+			}
+			if (obj == null) {
+				return false;
+			}
+
 			if (obj instanceof Position) {
 				Position o = (Position) obj;
-				result = (o.location.equals(location) && o.rotation == rotation
-					&& ((rotation + numR) % numR) == ((o.rotation + o.numR) % o.numR));
+				return (
+					o.location.equals(location) &&
+					o.rotation == rotation &&
+					((rotation + numR) % numR) == ((o.rotation + o.numR) % o.numR));
 			}
-			return result;
+
+			return false;
 		}
 		@Override public int hashCode() {
 			return location.hashCode() + rotation * 31;
@@ -824,13 +819,13 @@ public class TetrisGame implements ITetrisGame {
 		}
 	}
 
-	private static final Move[] POSSIBLE_MOVES = new Move[] {
+	protected static final Move[] POSSIBLE_MOVES = new Move[] {
 		Move.UP, Move.DOWN,
 		Move.LEFT, Move.RIGHT,
 		Move.CLOCKWISE, Move.COUNTERCLOCKWISE
 	};
 
-	public boolean doesPathExist(Coord location, int rotation) {
+	protected boolean doesPathExist(Coord location, int rotation) {
 		// Check if the piece or it's goal position has blocks in it.
 		for (Coord c : getBlockLocations()) {
 			if (!isCellEmpty(c)) {
@@ -841,7 +836,7 @@ public class TetrisGame implements ITetrisGame {
 		// Tetromino originalPieceCopy = new Tetromino(piece);
 		Position originalPosition = new Position(location, rotationIndex, shape);
 		Position curPosition = new Position(originalPosition);
-		Position goalPosition = new Position(location, rotation, getShape());
+		Position goalPosition = new Position(location, rotation, shape);
 
 		PriorityQueue<PQPositionEntry> frontier = new PriorityQueue<>();
 		HashSet<Position> visited = new HashSet<>();
@@ -851,8 +846,9 @@ public class TetrisGame implements ITetrisGame {
 
 		while (!frontier.isEmpty()) {
 			curPosition = frontier.poll().position;
-			setLocation(curPosition.location);
-			setRotation(curPosition.rotation);
+			location.set(curPosition.location);
+			rotationIndex = curPosition.rotation;
+			setBlockLocations();
 
 			for (Move move : POSSIBLE_MOVES) {
 				if (canPieceMove(move)) {
@@ -886,7 +882,7 @@ public class TetrisGame implements ITetrisGame {
 	 * @param newLocation - The location to reset to.
 	 * @param rotationIndex - The rotation of this piece.
 	 */
-	public void nextPiece() {
+	protected void nextPiece() {
 		shape = nextShapes.poll();
 		location = new Coord(entryPoint);
 		rotationIndex = 0;
@@ -899,114 +895,13 @@ public class TetrisGame implements ITetrisGame {
 	 *
 	 * @return Coordinates of the blocks that make up this piece.
 	 */
-	public Coord[] getBlockLocations() {
-		Coord blocks[] = new Coord[4];
-
-		for (int i = 0; i < 4; i++) {
-			blocks[i] = new Coord(blockLocations[i]);
-		}
-
-		return blocks;
-	}
-
-	/**
-	 * Returns the current rotation of this piece.
-	 *
-	 * @return The rotation of this piece.
-	 */
-	public int getRotationIndex() {
-		return rotationIndex;
-	}
-
-	/**
-	 * Returns the current shape of this piece.
-	 *
-	 * @return The shape of this piece.
-	 */
-	public Shape getShape() {
-		return shape;
-	}
-
-	/**
-	 * Returns whether this piece is currently active.
-	 * A piece that is active is movable.  A piece that is not active
-	 * can not be moved until calling <code>reset</code>.
-	 *
-	 * @return True if this piece is flagged as active; otherwise false.
-	 */
-	public boolean isActive() {
-		return isActive;
-	}
-
-	/**
-	 * Renders this piece unable to move until it is reset.
-	 */
-	public void kill() {
-		isActive = false;
-	}
-
-	/**
-	 * Shifts this piece with the specified offset coordinates.
-	 *
-	 * @param offsetCoords - Offset coordinates.
-	 * @return True if the shift was successful; otherwise false.
-	 */
-	public boolean shift(Coord offsetCoords) {
-		boolean result = false;
-
-		if (isActive) {
-			location.add(offsetCoords);
-
-			for (Coord b : blockLocations) {
-				b.add(offsetCoords);
-			}
-		}
-
-		return result;
-	}
-
-	/**
-	 * Attempts to rotate this piece clockwise.
-	 *
-	 * @return True if the rotation was successful; otherwise false.
-	 */
-	public boolean pieceRotateClockwise() {
-		boolean result = false;
-
-		if (isActive) {
-			rotationIndex--;
-			setBlockLocations();
-			result = true;
-		}
-
-		return result;
-	}
-
-	/**
-	 * Attempts to rotate this piece counter-clockwise.
-	 *
-	 * @return True if the rotation was successful; otherwise false.
-	 */
-	public boolean pieceRotateCounterClockwise() {
-		boolean result = false;
-
-		if (isActive) {
-			rotationIndex++;
-			setBlockLocations();
-			result = true;
-		}
-
-		return result;
+	protected Coord[] getBlockLocations() {
+		return Coord.copyFrom(blockLocations);
 	}
 
 	//Calculates the locations of the blocks which make up this piece.
-	private void setBlockLocations() {
-		Coord[] offsets = shape.getRotation(rotationIndex);
-
-		for (int i = 0; i < 4; i++) {
-			blockLocations[i].set(location);
-			blockLocations[i].add(offsets[i]);
-		}
+	protected void setBlockLocations() {
+		shape.calcBlockPositions(blockLocations, new Move(location, rotationIndex));
 	}
 
 	/**
@@ -1020,85 +915,11 @@ public class TetrisGame implements ITetrisGame {
 	 * @return Coordinates of the would-be piece if it were shifted and/or
 	 * rotated.
 	 */
-	public Coord[] getNewPositions(Move move) {
+	protected Coord[] getNewPositions(Move move) {
 		Coord[] result = new Coord[4];
-		Coord[] blockOffsets = shape.getRotation(rotationIndex + move.rotation());
-
-		for (int i = 0; i < 4; i++) {
-			result[i] = new Coord(location);
-			result[i].add(blockOffsets[i], move.offset());
-		}
-
+		Move newPosition = new Move(new Coord(location), rotationIndex);
+		newPosition.add(move);
+		shape.calcBlockPositions(result, newPosition);
 		return result;
-	}
-
-	// @Override public String toString() {
-	// 	return String.format(
-	// 		"{Shape: %s, Rotation: %d, Coords: %s}",
-	// 		shape.toString(), rotationIndex, Arrays.toString(blockLocations)
-	// 	);
-	// }
-
-	/**
-	 * A Tetromino is equal to another if they share the same block locations.
-	 * The locations must also be in the same order in the underlying array
-	 * (but the user should not need to worry about that.)
-	 */
-	// @Override public boolean equals(Object obj) {
-	// 	boolean result = false;
-	// 	if (obj instanceof Tetromino) {
-	// 		Tetromino o = (Tetromino) obj;
-	// 		if (blockLocations[0].equals(o.blockLocations[0])
-	// 				&& blockLocations[1].equals(o.blockLocations[1])
-	// 				&& blockLocations[2].equals(o.blockLocations[2])
-	// 				&& blockLocations[3].equals(o.blockLocations[3])) {
-	// 			result = true;
-	// 			//if block locations are the same, then they must also be the same
-	// 			// shape and have the same rotation index.
-	// 		}
-	// 	}
-	// 	return result;
-	// }
-
-	// @Override public int hashCode() {
-	// 	return location.hashCode() + (31 * rotationIndex) + (73 * shape.value);
-	// }
-
-	/**
-	 * Sets the location of this piece.
-	 * If the piece is flagged as inactive (<code>isActive()</code> returns
-	 * <code>false</code>), then this operation will fail.
-	 *
-	 * @param newLocation - The new coordinates.
-	 * @return True if the piece was moved; otherwise false.
-	 */
-	public boolean setLocation(Coord newLocation) {
-		if (!isActive) {
-			return false;
-		}
-
-		this.location.set(newLocation);
-		setBlockLocations();
-
-		return true;
-	}
-
-	/**
-	 * Sets the rotation of this piece.
-	 * If the piece is flagged as inactive (<code>isActive()</code> returns
-	 * <code>false</code>), then this operation will fail.
-	 *
-	 * @param newRotation - The new rotation.
-	 * @return True if the piece was moved; otherwise false.
-	 */
-	public boolean setRotation(int newRotation) {
-		if (!isActive) {
-			return false;
-		}
-
-		this.rotationIndex = newRotation;
-		setBlockLocations();
-
-		return true;
 	}
 }
