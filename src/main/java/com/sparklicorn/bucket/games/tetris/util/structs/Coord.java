@@ -4,8 +4,11 @@ package com.sparklicorn.bucket.games.tetris.util.structs;
  * Contains row, column coordinates.
  */
 public class Coord {
+	/**
+	 * A Coord whose values cannot be changed.
+	 */
 	public static final class FinalCoord extends Coord {
-		public FinalCoord(int r, int c) { super(r, c); }
+		public FinalCoord(int row, int col) { super(row, col); }
 		public FinalCoord(Coord otherCoord) { super(otherCoord); }
 
 		@Override public void add(int r, int c) { throw new UnsupportedOperationException(); }
@@ -14,8 +17,44 @@ public class Coord {
 		@Override public void set(Coord other) { throw new UnsupportedOperationException(); }
 	}
 
+	/**
+	 * Creates a copy of the given array of Coords.
+	 */
+	public static Coord[] copyFrom(Coord[] source) {
+		Coord[] result = new Coord[source.length];
+		for (int i = 0; i < source.length; i++) {
+			result[i] = new Coord(source[i]);
+		}
+		return result;
+	}
+
+	/**
+	 * Sets all Coords in the given array to the given value.
+	 */
+	public static void setAll(Coord[] arr, Coord value) {
+		for (Coord coord : arr) {
+			coord.set(value);
+		}
+	}
+
+	/**
+	 * Adds the given offset to all Coords in the array.
+	 */
+	public static void addToAll(Coord[] arr, Coord offset) {
+		for (Coord coord : arr) {
+			coord.add(offset);
+		}
+	}
+
 	private int row;
 	private int col;
+
+	/**
+	 * Creates a new Coord, (0, 0).
+	 */
+	public Coord() {
+		this(0, 0);
+	}
 
 	/**
 	 * Creates a new Coord with the given row and column coordinates.
