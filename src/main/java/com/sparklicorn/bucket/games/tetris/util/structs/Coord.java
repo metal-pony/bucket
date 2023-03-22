@@ -126,8 +126,17 @@ public class Coord {
 	 * @param toCol - Number of columns to add.
 	 */
 	public void add(int toRow, int toCol) {
-		this.row += toRow;
-		this.col += toCol;
+		row += toRow;
+		col += toCol;
+	}
+
+	/**
+	 * Gets the square distance between these coordinates and another.
+	 */
+	public int sqrDist(Coord other) {
+		int rowDiff = row - other.row;
+		int colDiff = col - other.col;
+		return rowDiff*rowDiff + colDiff*colDiff;
 	}
 
 	@Override public boolean equals(Object obj) {
