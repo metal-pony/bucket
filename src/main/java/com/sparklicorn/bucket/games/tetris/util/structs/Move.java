@@ -13,10 +13,10 @@ public class Move {
 	public static final class FinalMove extends Move {
 		static final String NO_MODIFY = "Cannot modify final move";
 
-		FinalMove(FinalCoord offset, int rotation) {
-			super(offset, rotation);
+		private FinalMove(int row, int col, int rotation) {
+			offset = new FinalCoord(row, col);
+			this.rotation = rotation;
 		}
-
 		@Override
 		public Coord offset() {
 			return new Coord(super.offset());
@@ -48,16 +48,21 @@ public class Move {
 		}
 	}
 
-	public static final Move STAND = new FinalMove(new FinalCoord(0, 0), 0);
-	public static final Move UP = new FinalMove(new FinalCoord(-1, 0), 0);
-	public static final Move DOWN = new FinalMove(new FinalCoord(1, 0), 0);
-	public static final Move LEFT = new FinalMove(new FinalCoord(0, -1), 0);
-	public static final Move RIGHT = new FinalMove(new FinalCoord(0, 1), 0);
-	public static final Move CLOCKWISE = new FinalMove(new FinalCoord(0, 0), -1);
-	public static final Move COUNTERCLOCKWISE = new FinalMove(new FinalCoord(0, 0), 1);
+	public static final Move STAND = new FinalMove(0, 0, 0);
+	public static final Move UP = new FinalMove(-1, 0, 0);
+	public static final Move DOWN = new FinalMove(1, 0, 0);
+	public static final Move LEFT = new FinalMove(0, -1, 0);
+	public static final Move RIGHT = new FinalMove(0, 1, 0);
+	public static final Move CLOCKWISE = new FinalMove(0, 0, -1);
+	public static final Move COUNTERCLOCKWISE = new FinalMove(0, 0, 1);
 
-	private Coord offset;
-	private int rotation;
+	protected Coord offset;
+	protected int rotation;
+
+	public Move() {
+		this.offset = new Coord();
+		this.rotation = 0;
+	}
 
 	public Move(Coord offset, int rotation) {
 		this.offset = offset;
@@ -121,7 +126,10 @@ public class Move {
 
 		if (other instanceof Move) {
 			Move _other = (Move) other;
-			return (this.offset.equals(_other.offset) && this.rotation == _other.rotation);
+			return (
+				this.offset.equals(_other.offset) &&
+				this.rotation == _other.rotation
+			);
 		}
 
 		return false;
@@ -134,6 +142,10 @@ public class Move {
 
 	@Override
 	public String toString() {
-		return String.format("Move{offset: %s, rotation: %d}", offset.toString(), rotation);
+		return String.format(
+			"Move{offset: %s, rotation: %d}",
+			offset.toString(),
+			rotation
+		);
 	}
 }

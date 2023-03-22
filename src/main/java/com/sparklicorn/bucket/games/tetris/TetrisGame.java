@@ -747,60 +747,6 @@ public class TetrisGame implements ITetrisGame {
 		}
 	}
 
-	protected static class Position implements Comparable<Position> {
-		final Coord location;
-		final int rotation;
-		final int numR;
-		Position(Coord location, int r, Shape s) {
-			this.location = location;
-			this.numR = s.getNumRotations();
-			this.rotation = ((r % numR) + numR) % numR;
-		}
-		Position(Position other) {
-			this.location = new Coord(other.location);
-			this.numR = other.numR;
-			this.rotation = other.rotation;
-		}
-		Position(Position p, Move offset) {
-			this.location = new Coord(p.location);
-			this.location.add(offset.offset());
-			this.numR = p.numR;
-			this.rotation = ((p.rotation + offset.rotation() % numR) + numR) % numR;
-		}
-		@Override public boolean equals(Object obj) {
-			if (this == obj) {
-				return true;
-			}
-			if (obj == null) {
-				return false;
-			}
-
-			if (obj instanceof Position) {
-				Position o = (Position) obj;
-				return (
-					o.location.equals(location) &&
-					o.rotation == rotation &&
-					((rotation + numR) % numR) == ((o.rotation + o.numR) % o.numR));
-			}
-
-			return false;
-		}
-		@Override public int hashCode() {
-			return location.hashCode() + rotation * 31;
-		}
-		int sqrdist(Position p) {
-			int rowDiff = location.row() - p.location.row();
-			int colDiff = location.col() - p.location.col();
-			return rowDiff*rowDiff + colDiff*colDiff;
-		}
-		@Override public int compareTo(Position o) {
-			return sqrdist(o);
-		}
-		@Override public String toString() {
-			return String.format("{%s, rotation: %d}", location.toString(), rotation);
-		}
-	}
-
 	protected static class PQPositionEntry implements Comparable<PQPositionEntry>{
 		Position position;
 		int priority;
@@ -825,6 +771,7 @@ public class TetrisGame implements ITetrisGame {
 		Move.CLOCKWISE, Move.COUNTERCLOCKWISE
 	};
 
+	// TODO replace args with Position or Move
 	protected boolean doesPathExist(Coord location, int rotation) {
 		// Check if the piece or it's goal position has blocks in it.
 		for (Coord c : getBlockLocations()) {
@@ -834,9 +781,9 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		// Tetromino originalPieceCopy = new Tetromino(piece);
-		Position originalPosition = new Position(location, rotationIndex, shape);
+		Position originalPosition = new Position(location, rotationIndex, shape.getNumRotations());
 		Position curPosition = new Position(originalPosition);
-		Position goalPosition = new Position(location, rotation, shape);
+		Position goalPosition = new Position(location, rotation, shape.getNumRotations());
 
 		PriorityQueue<PQPositionEntry> frontier = new PriorityQueue<>();
 		HashSet<Position> visited = new HashSet<>();
@@ -846,17 +793,18 @@ public class TetrisGame implements ITetrisGame {
 
 		while (!frontier.isEmpty()) {
 			curPosition = frontier.poll().position;
-			location.set(curPosition.location);
-			rotationIndex = curPosition.rotation;
+			location.set(curPosition.location());
+			rotationIndex = curPosition.rotation();
 			setBlockLocations();
 
 			for (Move move : POSSIBLE_MOVES) {
 				if (canPieceMove(move)) {
-					Position nextPosition = new Position(curPosition, move);
+					Position nextPosition = new Position(curPosition);
+					nextPosition.add(move);
 
 					if (nextPosition.equals(goalPosition)) {
-						location = originalPosition.location;
-						rotationIndex = originalPosition.rotation;
+						location = originalPosition.location();
+						rotationIndex = originalPosition.rotation();
 						return true;
 					}
 
@@ -870,8 +818,8 @@ public class TetrisGame implements ITetrisGame {
 			}
 		}
 
-		location = originalPosition.location;
-		rotationIndex = originalPosition.rotation;
+		location = originalPosition.location();
+		rotationIndex = originalPosition.rotation();
 		return false;
 	}
 
