@@ -84,12 +84,13 @@ public enum Shape {
 	}
 
 	private int rotationIndex(int rotations) {
-		int len = rotationOffsets.length;
-		return ((rotations % len) + len) % len;
+		int numRotations = getNumRotations();
+		return ((rotations % numRotations) + numRotations) % numRotations;
 	}
 
 	/**
 	 * Returns the block offsets associated with the shape's rotation.
+	 *
 	 * @param rotations - An index that describes the rotation of the
 	 * shape. Increase to retrieve counter-clockwise offsets; decrease to
 	 * retrieve clockwise offsets.
@@ -99,16 +100,14 @@ public enum Shape {
 		return rotationOffsets[rotationIndex(rotations)];
 	}
 
-	public void calcBlockPositions(Coord[] arr, Move position) {
-		int rotationIndex = rotationIndex(position.rotation());
-		for (int i = 0; i < arr.length; i++) {
-			Coord blockPosition = arr[i];
-			if (blockPosition == null) {
-				blockPosition = arr[i] = new Coord();
-			}
-			blockPosition.set(position.offset());
-			blockPosition.add(rotationOffsets[rotationIndex][i]);
+	public Coord[] populateBlockPositions(Coord[] positions, Move move) {
+		int rotationIndex = rotationIndex(move.rotation());
+		for (int i = 0; i < positions.length; i++) {
+			positions[i].set(move.offset());
+			positions[i].add(rotationOffsets[rotationIndex][i]);
 		}
+
+		return positions;
 	}
 
 	public static final int NUM_SHAPES = Shape.values().length;

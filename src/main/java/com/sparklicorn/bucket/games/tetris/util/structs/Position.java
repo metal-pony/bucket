@@ -40,7 +40,7 @@ public class Position extends Move implements Comparable<Position> {
 	}
 
 	/**
-	 * Creates a new Position that is a copy of the given.
+	 * Creates a deep copy of the given Position.
 	 */
 	public Position(Position other) {
 		this.offset = new Coord(other.offset);

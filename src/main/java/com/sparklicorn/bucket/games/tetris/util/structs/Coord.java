@@ -18,7 +18,7 @@ public class Coord {
 	}
 
 	/**
-	 * Creates a copy of the given array of Coords.
+	 * Creates a deep copy of the given array.
 	 */
 	public static Coord[] copyFrom(Coord[] source) {
 		Coord[] result = new Coord[source.length];
@@ -97,9 +97,7 @@ public class Coord {
 	}
 
 	/**
-	 * Sets the coordinate to the ones specified.
-	 *
-	 * @param other - Another coordinate to copy from.
+	 * Copies the given coordinates.
 	 */
 	public void set(Coord other) {
 		this.row = other.row;
