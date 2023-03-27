@@ -1,5 +1,7 @@
 package com.sparklicorn.bucket.games.tetris.util.structs;
 
+import com.sparklicorn.bucket.games.tetris.util.structs.Coord.FinalCoord;
+
 /**
  * Represents the different shapes of pieces in Tetris. Each Shape is
  * associated with an integer value which can be retrieved with
@@ -15,32 +17,62 @@ package com.sparklicorn.bucket.games.tetris.util.structs;
  * Likewise, subtracting indices causes the shape to rotate clockwise.
  */
 public enum Shape {
-	O(1, new Coord[][]{	{new FinalCoord(0,-1),	new FinalCoord(0,0), 	new FinalCoord(1,-1),	new FinalCoord(1,0)},	}),
-	I(2, new Coord[][]{	{new FinalCoord(0,0),	new FinalCoord(0,-1), 	new FinalCoord(0,-2),	new FinalCoord(0,1)},		// I
-						{new FinalCoord(0,0),	new FinalCoord(-1,0), 	new FinalCoord(1,0),	new FinalCoord(2,0)}	}),
-	S(3, new Coord[][]{	{new FinalCoord(0,0),	new FinalCoord(0,1), 	new FinalCoord(1,-1), 	new FinalCoord(1,0)},		// S
-						{new FinalCoord(0,0), 	new FinalCoord(-1,0), 	new FinalCoord(0,1), 	new FinalCoord(1,1)}	}),
-	Z(4, new Coord[][]{	{new FinalCoord(0,0), 	new FinalCoord(0,-1), 	new FinalCoord(1,0), 	new FinalCoord(1,1)},		// Z
-						{new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(1,0), 	new FinalCoord(-1,1)}	}),
-	L(5, new Coord[][]{	{new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(1,-1)},	// L
-						{new FinalCoord(-1,0), 	new FinalCoord(0,0), 	new FinalCoord(1,0), 	new FinalCoord(1,1)},
-						{new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(-1,1)},
-						{new FinalCoord(-1,-1), new FinalCoord(-1,0), 	new FinalCoord(0,0), 	new FinalCoord(1,0)}	}),
-	J(6, new Coord[][]{	{new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(1,1)},		// J
-						{new FinalCoord(-1,0), 	new FinalCoord(-1,1), 	new FinalCoord(0,0), 	new FinalCoord(1,0)},
-						{new FinalCoord(-1,-1), new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1)},
-						{new FinalCoord(-1,0),	new FinalCoord(0,0),	new FinalCoord(1,-1), 	new FinalCoord(1,0)}	}),
-	T(7, new Coord[][]{	{new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(1,0)},		// T
-						{new FinalCoord(-1,0), 	new FinalCoord(0,0), 	new FinalCoord(0,1), 	new FinalCoord(1,0)},
-						{new FinalCoord(-1,0), 	new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(0,1)},
-						{new FinalCoord(-1,0), 	new FinalCoord(0,-1), 	new FinalCoord(0,0), 	new FinalCoord(1,0)}	});
+	O(1,
+		0,-1, 0,0, 1,-1, 1,0
+	),
+	I(2,
+		0,0, 0,-1, 0,-2, 0,1,
+		0,0, -1,0, 1,0, 2,0
+	),
+	S(3,
+		0,0, 0,1, 1,-1, 1,0,
+		0,0, -1,0, 0,1, 1,1
+	),
+	Z(4,
+		0,0, 0,-1, 1,0, 1,1,
+		0,0, 0,1, 1,0, -1,1
+	),
+	L(5,
+		0,-1, 0,0, 0,1, 1,-1,
+		-1,0, 0,0, 1,0, 1,1,
+		0,-1, 0,0, 0,1, -1,1,
+		-1,-1, -1,0, 0,0, 1,0
+	),
+	J(6,
+		0,-1, 0,0, 0,1, 1,1,
+		-1,0, -1,1, 0,0, 1,0,
+		-1,-1, 0,-1, 0,0, 0,1,
+		-1,0, 0,0, 1,-1, 1,0
+	),
+	T(7,
+		0,-1, 0,0, 0,1, 1,0,
+		-1,0, 0,0, 0,1, 1,0,
+		-1,0, 0,-1, 0,0, 0,1,
+		-1,0, 0,-1, 0,0, 1,0
+	);
+
+	private FinalCoord[][] buildOffsets(int... vals) {
+		int numRotations = vals.length / 8;
+		FinalCoord[][] result = new FinalCoord[numRotations][];
+		for (int rotationIndex = 0; rotationIndex < numRotations; rotationIndex++) {
+			result[rotationIndex] = new FinalCoord[4];
+			for (int blockIndex = 0; blockIndex < 4; blockIndex++) {
+				result[rotationIndex][blockIndex] = new FinalCoord(
+					vals[rotationIndex * 8 + blockIndex * 2],
+					vals[rotationIndex * 8 + blockIndex * 2 + 1]
+				);
+			}
+		}
+
+		return result;
+	}
 
 	public final int value;
-	public final Coord[][] rotationOffsets;
+	public final FinalCoord[][] rotationOffsets;
 
-	private Shape(int v, Coord[][] offsets) {
+	private Shape(int v, int... offsets) {
 		this.value = v;
-		this.rotationOffsets = offsets;
+		this.rotationOffsets = buildOffsets(offsets);
 	}
 
 	/**
@@ -51,16 +83,31 @@ public enum Shape {
 		return rotationOffsets.length;
 	}
 
+	private int rotationIndex(int rotations) {
+		int numRotations = getNumRotations();
+		return ((rotations % numRotations) + numRotations) % numRotations;
+	}
+
 	/**
 	 * Returns the block offsets associated with the shape's rotation.
-	 * @param rotationIndex - An index that describes the rotation of the
+	 *
+	 * @param rotations - An index that describes the rotation of the
 	 * shape. Increase to retrieve counter-clockwise offsets; decrease to
 	 * retrieve clockwise offsets.
 	 * @return The offset coordinates for the given rotation.
 	 */
-	public Coord[] getRotation(int rotationIndex) {
-		int len = rotationOffsets.length;
-		return rotationOffsets[((rotationIndex % len) + len) % len];
+	public Coord[] getRotation(int rotations) {
+		return rotationOffsets[rotationIndex(rotations)];
+	}
+
+	public Coord[] populateBlockPositions(Coord[] positions, Move move) {
+		int rotationIndex = rotationIndex(move.rotation());
+		for (int i = 0; i < positions.length; i++) {
+			positions[i].set(move.offset());
+			positions[i].add(rotationOffsets[rotationIndex][i]);
+		}
+
+		return positions;
 	}
 
 	public static final int NUM_SHAPES = Shape.values().length;

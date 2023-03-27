@@ -193,8 +193,8 @@ public class TetrisFrame extends JFrame {
 				2,0, 1,1, 0.0,0.0, GridBagConstraints.CENTER,
 				GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0,0));
 
-		this.setUndecorated(true);
-		this.setExtendedState(JFrame.MAXIMIZED_BOTH);
+		// this.setUndecorated(true);
+		// this.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		this.getContentPane().setBackground(Color.BLACK);
 		this.pack();
 		setLocationRelativeTo(null);
