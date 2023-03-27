@@ -3,4 +3,4 @@
 # Builds an executable jar.
 # Run this from the base project directory.
 
-mvn -f pom-tetris.xml package
+./mvnw -f pom-tetris.xml package

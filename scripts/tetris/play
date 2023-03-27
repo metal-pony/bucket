@@ -9,7 +9,7 @@ if [ "$#" -gt '0' ]; then
         echo 'Rebuilding...'
 
         # TODO check success of rebuild before trying to run jar
-        mvn -f pom-tetris.xml package
+        ./mvnw -f pom-tetris.xml package
     fi
 fi
 
