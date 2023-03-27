@@ -15,6 +15,7 @@ import com.sparklicorn.bucket.util.Shuffler;
  */
 public class ShapeQueue implements Queue<Shape> {
 
+	// TODO Change language as this concept is not a "buffer".
 	public static final int DEFAULT_BUFFER_SIZE = 7;
 
 	protected final int[] SHAPE_INDICES;
@@ -51,7 +52,11 @@ public class ShapeQueue implements Queue<Shape> {
 	 */
 	protected void populate() {
 		while (shapeIndexQueue.size() < bufferSize) {
-			generator.shuffle(SHAPE_INDICES);
+			// TODO Temporary shuffle fix.
+			// TODO generator.shuffle results in the same initial order (bug).
+			// TODO This may be because it's initialized at app start.
+			Shuffler.shuffleInts(SHAPE_INDICES);
+			// generator.shuffle(SHAPE_INDICES);
 			for (int i : SHAPE_INDICES) {
 				shapeIndexQueue.offer(i);
 			}
@@ -63,7 +68,7 @@ public class ShapeQueue implements Queue<Shape> {
 	 * calls populate() to generate more shapes.
 	 */
 	@Override
-	public final Shape poll() {
+	public Shape poll() {
 		if (shapeIndexQueue.isEmpty()) {
 			populate();
 		}
@@ -71,6 +76,10 @@ public class ShapeQueue implements Queue<Shape> {
 		return Shape.getShape(shapeIndexQueue.poll());
 	}
 
+	/**
+	 * Gets the next shape in the queue, but does not modify it.
+	 * If empty, will populate with more shapes.
+	 */
 	@Override public Shape peek() {
 		if (shapeIndexQueue.isEmpty()) {
 			populate();

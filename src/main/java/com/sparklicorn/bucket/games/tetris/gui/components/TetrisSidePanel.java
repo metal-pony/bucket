@@ -4,13 +4,10 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.FontFormatException;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Stroke;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.function.Consumer;
 
 import javax.swing.JPanel;
@@ -40,14 +37,7 @@ public class TetrisSidePanel extends JPanel {
 		this.drawStats = false;
 		this.drawNextPiece = false;
 
-		try {
-			InputStream fontfs = ClassLoader.getSystemClassLoader().getResourceAsStream("RobotoMono-Regular.ttf");
-			statsFont = Font.createFont(Font.TRUETYPE_FONT, fontfs);
-			fontfs.close();
-		} catch (FontFormatException | IOException e1) {
-			e1.printStackTrace();
-			statsFont = new Font("Consolas", Font.PLAIN, 16);
-		}
+		statsFont = new Font("Consolas", Font.PLAIN, 16);
 
 		setPreferredSize(new Dimension(blockSize * 10, game.getNumRows() * blockSize));
 		setBackground(Color.BLACK);

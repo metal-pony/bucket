@@ -1,14 +1,20 @@
 package com.sparklicorn.bucket.games.tetris;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import com.sparklicorn.bucket.games.tetris.util.Timer;
+import com.sparklicorn.bucket.util.Array;
+import com.sparklicorn.bucket.util.PriorityQueue;
 import com.sparklicorn.bucket.util.event.*;
 import com.sparklicorn.bucket.games.tetris.util.structs.*;
+import com.sparklicorn.bucket.games.tetris.util.structs.Coord.FinalCoord;
 
 // TODO Feature: Multiplayer co-op
 // Side-by-side boards, with light visual border between.
@@ -36,21 +42,34 @@ public class TetrisGame implements ITetrisGame {
 	public static final int MAXIMUM_COLS = 200;
 
 	public static final List<Long> POINTS_BY_LINES_CLEARED = Collections.unmodifiableList(
-		Arrays.asList(new Long[]{ 0L, 40L, 100L, 300L, 1200L })
+		Arrays.asList(0L, 40L, 100L, 300L, 1200L)
 	);
 
 	public static final long MIN_LEVEL = 0L;
 	public static final long MAX_LEVEL = 255L;
-	public static final Coord GRAVITY_OFFSET = Direction.DOWN.coordValue;
 	public static final int LINES_PER_LEVEL = 10;
+
+	/**
+	 * Calculates the column where pieces appear, which is the center column,
+	 * or just left of center if there are an even number of columns.
+	 *
+	 * @param cols Number of columns on the board.
+	 */
+	private static int calcEntryColumn(int cols) {
+		return (cols / 2) - ((cols % 2 == 0) ? 1 : 0);
+	}
 
 	/* ****************
 	 * STATE AND STATS
 	 ******************/
+	protected int[] board;
+
+	// TODO keep track of full rows as pieces are placed
+	protected boolean[] fullRows;
+
 	protected boolean isGameOver, isPaused, isClearingLines, hasStarted;
 	protected long level, score, linesCleared, numPiecesDropped;
-	protected int numRows, numCols, linesUntilNextLevel;
-	protected Coord entryPoint;
+	protected int rows, cols, linesUntilNextLevel;
 	protected long[] dist;
 
 	protected int numTimerPushbacks;
@@ -60,26 +79,13 @@ public class TetrisGame implements ITetrisGame {
 	/* ****************
 	 * GAME COMPONENTS
 	 ******************/
-	protected Board board;
-	protected Tetromino piece;
 	protected EventBus eventBus;
-
 	protected Timer gameTimer;
 
-	/**
-	 * Returns points rewarded for clearing lines at a given level.
-	 *
-	 * @param lines Number of lines cleared.
-	 * @param level Current level.
-	 * @return Points to reward.
-	 */
-	public static long calcPointsForClearing(int lines, long level) {
-		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
-	}
-
-	public static int calcEntryColumn(int numCols) {
-		return (numCols / 2) - ((numCols % 2 == 0) ? 1 : 0);
-	}
+	protected Shape shape;
+	protected Position position;
+	protected Coord[] blockLocations;
+	protected boolean isActive;
 
 	/**
 	 * Creates a new Tetris game with standard number of rows and columns.
@@ -90,21 +96,23 @@ public class TetrisGame implements ITetrisGame {
 
 	/**
 	 * Creates a new Tetris game with the given number of rows and columns.
-	 * The piece entry point will be automatically calculated.
+	 *
+	 * @param numRows - Number of rows on the game board.
+	 * @param numCols - Number of columns on the game board.
 	 */
 	public TetrisGame(int numRows, int numCols) {
-		this(numRows, numCols, calcEntryColumn(numCols), true);
+		this(numRows, numCols, true);
 	}
 
 	/**
-	 * Creates a new Tetris game object, including a game board with the given
-	 * number of rows and columns, and the entry point for pieces.
+	 * Creates a new Tetris game with the given number of rows, columns,
+	 * and whether to initialize a timer to control the gameloop.
 	 *
-	 * @param numRows - Number of rows for the game board.
-	 * @param numCols - Number of columns for the game board.
-	 * @param entryColumn - The coordinates at which the pieces start.
+	 * @param numRows - Number of rows on the game board.
+	 * @param numCols - Number of columns on the game board.
+	 * @param useGameloopTimer - Whether the game instance will use a gameloop timer.
 	 */
-	public TetrisGame(int numRows, int numCols, int entryColumn, boolean useGameloopTimer) {
+	public TetrisGame(int numRows, int numCols, boolean useGameloopTimer) {
 		if (numRows < MINIMUM_ROWS || numRows > MAXIMUM_ROWS) {
 			numRows = DEFAULT_NUM_ROWS;
 		}
@@ -113,18 +121,284 @@ public class TetrisGame implements ITetrisGame {
 			numCols = DEFAULT_NUM_COLS;
 		}
 
-		this.numRows = numRows;
-		this.numCols = numCols;
+		rows = numRows;
+		cols = numCols;
 
-		//? Should this be row 0 or 1? Seeing inconsistency
-		this.entryPoint = new Coord(1, entryColumn); // TODO validate before setting
-
-		this.nextShapes = new ShapeQueue();
-		this.eventBus = new EventBus();
+		nextShapes = new ShapeQueue();
+		eventBus = new EventBus();
 		if (useGameloopTimer) {
-			this.gameTimer = new Timer(this::gameloop, 1L, TimeUnit.SECONDS, true);
+			gameTimer = new Timer(this::gameloop, 1L, TimeUnit.SECONDS, true);
 		}
-		this.numTimerPushbacks = 0;
+		numTimerPushbacks = 0;
+
+		blockLocations = new Coord[4];
+		for (int i = 0; i < blockLocations.length; i++) {
+			blockLocations[i] = new Coord(DEFAULT_ENTRY_COORD);
+		}
+
+		newGame();
+	}
+
+	/**
+	 * Creates a new Tetris game as a copy of another.
+	 *
+	 * NOTE: The new game will not have an event bus or gameloop timer.
+	 */
+	public TetrisGame(TetrisGame other) {
+		rows = other.rows;
+		cols = other.cols;
+		board = Array.copy(other.board);
+		level = other.level;
+		linesCleared = other.linesCleared;
+		linesUntilNextLevel = other.linesUntilNextLevel;
+		score = other.score;
+		dist = Array.copy(other.dist);
+		hasStarted = other.hasStarted;
+		isGameOver = other.isGameOver;
+		isClearingLines = other.isClearingLines;
+		isPaused = other.isPaused;
+		numPiecesDropped = other.numPiecesDropped;
+		shape = other.shape;
+		position = new Position(other.position);
+		blockLocations = Coord.copyFrom(other.blockLocations);
+		isActive = other.isActive;
+	}
+
+	/**
+	 * Returns points rewarded for clearing lines at a given level.
+	 *
+	 * @param lines Number of lines cleared.
+	 * @param level Current level.
+	 * @return Points to reward.
+	 */
+	protected long calcPointsForClearing(int lines) {
+		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
+	}
+
+	/**
+	 * Checks whether the current piece can move with the given rotation.
+	 * If the piece cannot be rotated in place, it will check whether it can be shifted first.
+	 *
+	 * If shifting doesn't allow rotation, then this returns an adjusted move of STAND, indicating
+	 * the rotation is not possible.
+	 *
+	 * @param move CLOCKWISE or COUNTERCLOCKWISE
+	 * @return A Move representing the rotation, it may be adjusted to include a left
+	 * or right shift that is required to accomodate the rotation.
+	 * If the rotation is not possible, returns Move.STAND.
+	 */
+	protected Move validateRotation(Move move) {
+		if (!(move.equals(Move.CLOCKWISE) || move.equals(Move.COUNTERCLOCKWISE))) {
+			return new Move(Move.STAND);
+		}
+
+		if (canPieceMove(move)) {
+			return new Move(move);
+		}
+
+		// Attempt to "kick off" an edge or block if rotating too close.
+		Move kickLeft = new Move(move);
+		Move kickRight = new Move(move);
+		for (int colOffset = 1; colOffset < 3; colOffset++) {
+			if (canPieceMove(kickLeft.add(Move.LEFT))) {
+				return kickLeft;
+			}
+
+			if (canPieceMove(kickRight.add(Move.RIGHT))) {
+				return kickRight;
+			}
+		}
+
+		return new Move(Move.STAND);
+	}
+
+	/**
+	 * Checks whether the given coordinates are within bounds of the board.
+	 */
+	protected boolean validateBlockPosition(Coord coords) {
+		return (
+			coords.row() >= 0 && coords.row() < rows &&
+			coords.col() >= 0 && coords.col() < cols
+		);
+	}
+
+	/**
+	 * ! it's more like validation of the resulting location and does not imply that a path exists to it unless the
+	 * ! magnitude of the move is (exclusively) one unit of rotation or of offset.
+	 * ! however you wanna fit that into a name... is great
+	 * Checks that the given move is in bounds of the board, that there are no blocks occupying
+	 * the spaces, and that the resulting position does not end up higher on the board.
+	 *
+	 * @param move
+	 * @return True if the active piece can move to the specified position; otherwise false.
+	 */
+	protected boolean canPieceMove(Move move) {
+		if (move.rowOffset() < 0) {
+			return false;
+		}
+
+		Coord[] newBlockCoords = shape.populateBlockPositions(
+			Coord.copyFrom(blockLocations),
+			new Position(position).add(move)
+		);
+		int minCol = cols - 1;
+		int maxCol = 0;
+
+		for (Coord c : newBlockCoords) {
+			minCol = Math.min(minCol, c.col());
+			maxCol = Math.max(maxCol, c.col());
+
+			if (
+				!validateBlockPosition(c) ||
+				!isCellEmpty(c) ||
+
+				// A large gap between cell columns means the piece wrapped around the board.
+				(maxCol - minCol) > 4
+			) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Attempts to rotate the current piece clockwise.
+	 * The piece may be shifted left or right to accomodate the rotation.
+	 *
+	 * @return True if the piece was successfully rotated; otherwise false.
+	 */
+	protected boolean rotate(Move move) {
+		Move _move = validateRotation(move);
+
+		if (_move.equals(Move.STAND)) {
+			return false;
+		}
+
+		position.add(_move);
+		shape.populateBlockPositions(blockLocations, position);
+
+		return true;
+	}
+
+	/**
+	 * Attempts to shift the current piece with the given offset.
+	 *
+	 * @return True if the piece was successfully moved; otherwise false.
+	 */
+	//! NOTE: move.rotation is ignored
+	protected boolean shiftPiece(Move move) {
+		if (canPieceMove(move)) {
+			position.add(move);
+			shape.populateBlockPositions(blockLocations, position);
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Plots the piece's block data to the board.
+	 */
+	protected void plotPiece() {
+		for (Coord c : Coord.copyFrom(blockLocations)) {
+			board[c.row() * cols + c.col()] = shape.value;
+		}
+	}
+
+	/**
+	 * Gets whether the cell is empty at the given coordinates.
+	 */
+	protected boolean isCellEmpty(Coord location) {
+		return !containsBlock(location);
+	}
+
+	/**
+	 * Gets whether the cell is empty at the given coordinates.
+	 */
+	protected boolean isCellEmpty(int row, int col) {
+		return board[row * cols + col] == 0;
+	}
+
+	private boolean containsBlock(Coord location) {
+		return board[location.row() * cols + location.col()] != 0;
+	}
+
+	// TODO Removes full rows from the board, shifting remaining rows down.
+	protected void removeRows(int[] rows) {
+		// TODO implement and use below
+	}
+
+	/**
+	 * Clears full lines and shift remaining blocks down.
+	 *
+	 * @return List of cleared rows, or null if no rows were cleared.
+	 */
+	protected List<Integer> clearLines() {
+		List<Integer> fullRows = getFullRows();
+
+		if (!fullRows.isEmpty()) {
+			int numRowsToDrop = 1;
+			int i = fullRows.size() - 1;
+			//start above the last row in the clearing list
+			for (int row = fullRows.get(i--) - 1; row > 0; row--) {
+				//if this row is in the clearing list too...
+				if (i >= 0 && row == fullRows.get(i)) {
+					numRowsToDrop++;
+					i--;
+				} else {
+					//Row 'row' needs to be shifted down.
+					int k = row * cols; //starting index for blocks in row 'row'.
+
+					//j = starting index for blocks in row 'row + numRowsToDrop'.
+					//replace blocks in 'row + numRowsToDrop' with blocks in 'row'
+					for (int j = (row + numRowsToDrop) * cols; j < (row + numRowsToDrop + 1) * cols; j++) {
+						board[j] = board[k];
+						board[k++] = 0;
+					}
+				}
+			}
+		}
+
+		return (fullRows.isEmpty() ? null : fullRows);
+	}
+
+	/**
+	 * Determines whether the given row is full of blocks.
+	 */
+	protected boolean isRowFull(int row) {
+		for (int col = 0; col < cols; col++) {
+			if (isCellEmpty(row, col)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Returns a list of rows that are full of blocks, in ascending order.
+	 */
+	//todo Should only need to test rows that have changed since the last check.
+	protected List<Integer> getFullRows() {
+		List<Integer> lines = new ArrayList<>();
+
+		for (int row = 0; row < rows; row++) {
+			if (isRowFull(row)) {
+				lines.add(row);
+			}
+		}
+
+		return lines;
+	}
+
+	/**
+	 * Determines if the piece is sharing the same cell as any other block.
+	 *
+	 * @return True if the piece is overlapping with other blocks.
+	 */
+	protected boolean intersects(Coord[] positions) {
+		return Stream.of(positions).anyMatch(this::containsBlock);
 	}
 
 	/**
@@ -162,13 +436,18 @@ public class TetrisGame implements ITetrisGame {
 		return true;
 	}
 
+	/**
+	 * Attempts to clear full rows.
+	 *
+	 * @return True if any row was cleared; otherwise false.
+	 */
 	protected boolean attemptClearLines() {
-		// TODO refactor after board.clearLines() is refactored
-		List<Integer> lines = board.clearLines();
+		// TODO refactor after clearLines() is refactored
+		List<Integer> lines = clearLines();
 
 		if (lines != null) {	//lines were cleared!
 			linesCleared += lines.size();
-			score += calcPointsForClearing(lines.size(), level);
+			score += calcPointsForClearing(lines.size());
 			linesUntilNextLevel -= lines.size();
 
 			throwEvent(TetrisEvent.LINE_CLEAR);
@@ -191,30 +470,31 @@ public class TetrisGame implements ITetrisGame {
 
 		numTimerPushbacks = 0;
 
-		if (piece.isActive() && board.isPieceAtBottom()) {
+		if (isActive && !canPieceMove(Move.DOWN)) {
 			//*kerplunk*
 			//next loop should attempt to clear lines
-			board.plotPiece(); //kills 'piece'
+			plotPiece();
+			isActive = false;
 			numPiecesDropped++;
 			throwEvent(TetrisEvent.PIECE_PLACED);
 			throwEvent(TetrisEvent.BLOCKS);
 
-		} else if (!piece.isActive()) {	//the loop after piece kerplunks
+		} else if (!isActive) {	//the loop after piece kerplunks
 			if (!attemptClearLines()) {
 				//create next piece
-				piece.reset(nextShapes.poll(), entryPoint);
+				nextPiece();
 				throwEvent(TetrisEvent.PIECE_CREATE);
 
 				//Check for lose condition.
 				//(the now reset piece intersects with a block on board)
-				if (board.intersects()) {
+				if (intersects(blockLocations)) {
 					gameOver();
 					return;
 				}
 			}
 
 		} else {	//piece alive && not at bottom
-			board.shiftPiece(GRAVITY_OFFSET);
+			shiftPiece(Move.DOWN);
 			throwEvent(TetrisEvent.PIECE_SHIFT);
 		}
 
@@ -230,7 +510,7 @@ public class TetrisGame implements ITetrisGame {
 		throwEvent(TetrisEvent.NEW_GAME);
 	}
 
-	private void increaseLevel() {
+	protected void increaseLevel() {
 		level++;
 		linesUntilNextLevel += LINES_PER_LEVEL;
 		if (gameTimer != null) {
@@ -242,11 +522,11 @@ public class TetrisGame implements ITetrisGame {
 	}
 
 	//Returns the amount of time between gameloop ticks for the current level.
-	private long getTimerDelay() {
+	protected long getTimerDelay() {
 		return Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0);
 	}
 
-	private void reset() {
+	protected void reset() {
 		hasStarted = false;
 		isGameOver = false;
 		isClearingLines = false;
@@ -263,17 +543,9 @@ public class TetrisGame implements ITetrisGame {
 		//This will cause the queue to re-populate next time poll() is called.
 		nextShapes.clear();
 
-		board = new Board(numRows, numCols);
-		piece = new Tetromino(Shape.O, entryPoint);
-		setupNextPiece();
-		board.setPiece(piece);
-	}
+		board = new int[rows * cols];
 
-	//Draws the next shape from the shapeQueue and resets the player piece.
-	private void setupNextPiece() {
-		Shape s = nextShapes.poll();
-		piece.reset(s, entryPoint);
-		dist[s.value - 1]++;
+		nextPiece();
 	}
 
 	@Override public synchronized void start(long level) {
@@ -299,117 +571,118 @@ public class TetrisGame implements ITetrisGame {
 		isPaused = false;
 		isGameOver = true;
 		isClearingLines = false;
-		if (gameTimer != null) { gameTimer.stop(); }
+		if (gameTimer != null) {
+			gameTimer.stop();
+		}
 		throwEvent(TetrisEvent.STOP);
 	}
 
 	@Override public synchronized void pause() {
 		if (hasStarted && !isGameOver) {
 			isPaused = true;
-			if (gameTimer != null) { gameTimer.stop(); }
+			if (gameTimer != null) {
+				gameTimer.stop();
+			}
 			throwEvent(TetrisEvent.PAUSE);
 		}
 	}
 
-	private void gameOver() {
+	protected void gameOver() {
 		isGameOver = true;
 		isPaused = false;
 		isClearingLines = false;
-		if (gameTimer != null) { gameTimer.stop(); }
+		if (gameTimer != null) {
+			gameTimer.stop();
+		}
 		throwEvent(TetrisEvent.GAME_OVER);
 	}
 
 	@Override public synchronized void resume() {
 		if (hasStarted && !isGameOver) {
 			isPaused = false;
-			if (gameTimer != null) { gameTimer.start(); }
+			if (gameTimer != null) {
+				gameTimer.start();
+			}
 			throwEvent(TetrisEvent.RESUME);
 		}
 	}
 
 	// A bunch of Getters
 
+	@Override public int[] getBlocksOnBoard() {
+		return Array.copy(board);
+	}
+	@Override public int[] getBlocksOnBoard(int[] arr) {
+		if (arr == null || arr.length != rows * cols) {
+			return getBlocksOnBoard();
+		}
+		System.arraycopy(board, 0, arr, 0, board.length);
+		return arr;
+	}
 	@Override public boolean isGameOver() 			{return isGameOver;}
 	@Override public boolean hasStarted() 			{return hasStarted;}
 	@Override public boolean isPaused() 			{return isPaused;}
 	@Override public boolean isClearingLines() 		{return isClearingLines;}
-	@Override public int[] getBlocksOnBoard() 		{return board.blocks();}
-	@Override public int[] getBlocksOnBoard(int[] blocks) {
-		if (blocks == null || blocks.length != numRows * numCols) {
-			return getBlocksOnBoard();
-		}
-		return board.blocks(blocks);
-	}
 	@Override public long getLevel() 				{return level;}
 	@Override public long getScore() 				{return score;}
 	@Override public long getLinesCleared() 		{return linesCleared;}
 	@Override public int getLinesUntilNextLevel() 	{return linesUntilNextLevel;}
-	@Override public int getNumRows() 				{return numRows;}
-	@Override public int getNumCols() 				{return numCols;}
-	@Override public Coord[] getPieceBlocks() 		{return piece.getBlockLocations();}
+	@Override public int getNumRows() 				{return rows;}
+	@Override public int getNumCols() 				{return cols;}
+	@Override public Coord[] getPieceBlocks() 		{return Coord.copyFrom(blockLocations);}
 	@Override public Shape getNextShape() 			{return nextShapes.peek();}
-	@Override public Shape getCurrentShape() 		{return piece.getShape();}
-	@Override public Coord getLocation() 			{return piece.getLocation();}
-
-	@Override public long[] getDistribution() {
-		long[] result = new long[dist.length];
-		System.arraycopy(dist, 0, result, 0, dist.length);
-		return result;
-	}
+	@Override public Shape getCurrentShape() 		{return shape;}
+	@Override public Coord getLocation() 			{return new Coord(position.location());}
+	@Override public long[] getDistribution() 		{return Array.copy(dist);}
 
 	@Override public boolean isPieceActive() {
-		boolean result = false;
-		if (hasStarted && !isGameOver && !isClearingLines && !isPaused) {
-			result = piece.isActive();
+		return (hasStarted && !isGameOver && !isClearingLines && !isPaused && isActive);
+	}
+
+	private boolean handleRotation(Move direction) {
+		if (!isActive) {
+			return false;
 		}
-		return result;
+
+		if (rotate(direction)) {
+			// If next gravity tick will plop the piece, maybe rotation should delay that
+			// a little to give the user time to make final adjustments.
+			// This is an anti-frustration technique.
+			if (!canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
+				// if (gameTimer != null) {
+				// 	gameTimer.resetTickDelay();
+					// System.out.println(gameTimer.resetTickDelay());
+				// }
+				numTimerPushbacks++;
+			}
+
+			throwEvent(TetrisEvent.PIECE_ROTATE);
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override public synchronized boolean rotateClockwise() {
-		boolean result = board.rotatePieceClockwise();
-
-		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			// if (gameTimer != null) {
-			// 	gameTimer.resetTickDelay();
-			// 	System.out.println(gameTimer.resetTickDelay());
-			// }
-			numTimerPushbacks++;
-		}
-
-		if (result) {
-			throwEvent(TetrisEvent.PIECE_ROTATE);
-		}
-		return result;
+		return handleRotation(Move.CLOCKWISE);
 	}
 
 	@Override public synchronized boolean rotateCounterClockwise() {
-		boolean result = board.rotatePieceCounterClockwise();
-
-		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			// if (gameTimer != null) {
-			// 	gameTimer.resetTickDelay();
-			// 	System.out.println(gameTimer.resetTickDelay());
-			// }
-			numTimerPushbacks++;
-		}
-
-		if (result) {
-			throwEvent(TetrisEvent.PIECE_ROTATE);
-		}
-		return result;
+		return handleRotation(Move.COUNTERCLOCKWISE);
 	}
 
 	@Override public synchronized boolean shift(int rowOffset, int colOffset) {
-		boolean result = board.shiftPiece(new Coord(rowOffset, colOffset));
+		Move move = new Move(new Coord(rowOffset, colOffset), 0);
+		if (shiftPiece(move)) {
+			if (!canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
+				numTimerPushbacks++;
+			}
 
-		if (result && board.isPieceAtBottom() && numTimerPushbacks < 4) {
-			numTimerPushbacks++;
-		}
-
-		if (result) {
 			throwEvent(TetrisEvent.PIECE_SHIFT);
+			return true;
 		}
-		return result;
+
+		return false;
 	}
 
 	////////////////////////
@@ -426,14 +699,92 @@ public class TetrisGame implements ITetrisGame {
 		return eventBus.unregisterEventListener(event.name(), listener);
 	}
 
-	private void throwEvent(TetrisEvent event) {
+	protected void throwEvent(TetrisEvent event) {
 		eventBus.throwEvent(new Event(event.name()));
 	}
 
-	//Clean-up.  Free any used resources.
 	@Override public void shutdown() {
 		stop();
 		eventBus.dispose(false);
-		if (gameTimer != null) { gameTimer.shutdown(); }
+		if (gameTimer != null) {
+			gameTimer.shutdown();
+		}
+	}
+
+	protected static record PQPositionEntry(
+		Position position,
+		int priority
+	) implements Comparable<PQPositionEntry> {
+		@Override public int compareTo(PQPositionEntry o) {
+			return (priority - o.priority);
+		}
+	}
+
+	protected static final Move[] ATOMIC_MOVES = new Move[] {
+		Move.UP, Move.DOWN,
+		Move.LEFT, Move.RIGHT,
+		Move.CLOCKWISE, Move.COUNTERCLOCKWISE
+	};
+
+	protected boolean doesPathExist(Position toPosition) {
+		// Check if the piece or the goal position has blocks in it.
+		Coord[] toPositionBlocks = shape.populateBlockPositions(Coord.copyFrom(blockLocations), toPosition);
+		if (intersects(blockLocations) || intersects(toPositionBlocks)) {
+			return false;
+		}
+
+		Position originalPosition = new Position(position);
+		PriorityQueue<PQPositionEntry> frontier = new PriorityQueue<>();
+		HashSet<Position> visited = new HashSet<>();
+
+		frontier.offer(new PQPositionEntry(
+			new Position(position),
+			position.sqrdist(toPosition)
+		));
+		visited.add(originalPosition);
+
+		while (!frontier.isEmpty()) {
+			position = frontier.poll().position;
+			shape.populateBlockPositions(blockLocations, position);
+
+			for (Move move : ATOMIC_MOVES) {
+				if (canPieceMove(move)) {
+					Position nextPosition = new Position(position).add(move);
+
+					if (nextPosition.equals(toPosition)) {
+						position = originalPosition;
+						return true;
+					}
+
+					if (!visited.contains(nextPosition)) {
+						frontier.offer(
+							new PQPositionEntry(nextPosition, nextPosition.sqrdist(toPosition))
+						);
+						visited.add(nextPosition);
+					}
+				}
+			}
+		}
+
+		position = originalPosition;
+		return false;
+	}
+
+	/**
+	 * Resets this piece to the specified shape, location, and rotation.
+	 *
+	 * @param newShape - The new shape this should take.
+	 * @param newLocation - The location to reset to.
+	 * @param rotationIndex - The rotation of this piece.
+	 */
+	protected void nextPiece() {
+		shape = nextShapes.poll();
+		position = new Position(
+			new Coord(1, calcEntryColumn(cols)),
+			0,
+			shape.getNumRotations()
+		);
+		isActive = true;
+		shape.populateBlockPositions(blockLocations, position);
 	}
 }

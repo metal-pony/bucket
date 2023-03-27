@@ -1,40 +1,88 @@
 package com.sparklicorn.bucket.games.tetris.util.structs;
 
-/** A Coord represents (row, column) coordinates.*/
+/**
+ * Contains row, column coordinates.
+ */
 public class Coord {
+	/**
+	 * A Coord whose values cannot be changed.
+	 */
+	public static final class FinalCoord extends Coord {
+		public FinalCoord(int row, int col) { super(row, col); }
+		public FinalCoord(Coord otherCoord) { super(otherCoord); }
 
-	private int row, col;
+		@Override public Coord add(int r, int c) 		{ throw new UnsupportedOperationException(); }
+		@Override public Coord add(Coord...coords) 		{ throw new UnsupportedOperationException(); }
+		@Override public Coord set(int row, int col) 	{ throw new UnsupportedOperationException(); }
+		@Override public Coord set(Coord other) 		{ throw new UnsupportedOperationException(); }
+	}
+
+	/**
+	 * Creates a deep copy of the given array.
+	 */
+	public static Coord[] copyFrom(Coord[] source) {
+		Coord[] result = new Coord[source.length];
+		for (int i = 0; i < source.length; i++) {
+			result[i] = new Coord(source[i]);
+		}
+		return result;
+	}
+
+	/**
+	 * Sets all Coords in the given array to the given value.
+	 */
+	public static void setAll(Coord[] arr, Coord value) {
+		for (Coord coord : arr) {
+			coord.set(value);
+		}
+	}
+
+	/**
+	 * Adds the given offset to all Coords in the array.
+	 */
+	public static void addToAll(Coord[] arr, Coord offset) {
+		for (Coord coord : arr) {
+			coord.add(offset);
+		}
+	}
+
+	private int row;
+	private int col;
+
+	/**
+	 * Creates a new Coord, (0, 0).
+	 */
+	public Coord() {
+		this(0, 0);
+	}
 
 	/**
 	 * Creates a new Coord with the given row and column coordinates.
-	 * @param r - Row coordinate.
-	 * @param c - Column coordinate.
 	 */
-	public Coord(int r, int c) {
-		this.row = r;
-		this.col = c;
+	public Coord(int row, int col) {
+		this.row = row;
+		this.col = col;
 	}
 
 	/**
 	 * Creates a new Coord with coordinates copied from the one given.
-	 * @param otherCoord - Another Coord to copy from.
+	 *
+	 * @param other - Another Coord to copy from.
 	 */
-	public Coord(Coord otherCoord) {
-		this.row = otherCoord.row;
-		this.col = otherCoord.col;
+	public Coord(Coord other) {
+		this.row = other.row;
+		this.col = other.col;
 	}
 
 	/**
-	 * Returns the row coordinate.
-	 * @return The row.
+	 * Gets the row coordinate.
 	 */
 	public int row() {
 		return this.row;
 	}
 
 	/**
-	 * Returns the column coordinate.
-	 * @return The column.
+	 * Gets the column coordinate.
 	 */
 	public int col() {
 		return this.col;
@@ -42,55 +90,55 @@ public class Coord {
 
 	/**
 	 * Sets the coordinates to the ones specified.
-	 * @param row - The row.
-	 * @param col - The column.
-	 * @return Returns itself for convenience.
 	 */
 	public Coord set(int row, int col) {
 		this.row = row;
 		this.col = col;
-
 		return this;
 	}
 
 	/**
-	 * Sets the coordinate to the ones specified.
-	 * @param other - Another coordinate to copy from.
-	 * @return Returns itself for convenience.
+	 * Copies the given coordinates.
 	 */
 	public Coord set(Coord other) {
 		this.row = other.row;
 		this.col = other.col;
-
 		return this;
 	}
 
 	/**
 	 * Adds an arbitrary number of coordinates to this one.
+	 *
 	 * @param coords - Other coords whose positions should
 	 * be added to this one.
-	 * @return Returns itself for convenience.
 	 */
 	public Coord add(Coord... coords) {
 		for (Coord c : coords){
 			row += c.row;
 			col += c.col;
 		}
-
 		return this;
 	}
 
 	/**
 	 * Add the given coordinates to this one.
-	 * @param r - Number of rows to add.
-	 * @param c - Number of columns to add.
-	 * @return Returns itself for convenience.
+	 *
+	 * @param toRow - Number of rows to add.
+	 * @param toCol - Number of columns to add.
 	 */
-	public Coord add(int r, int c) {
-		this.row += r;
-		this.col += c;
-
+	public Coord add(int toRow, int toCol) {
+		row += toRow;
+		col += toCol;
 		return this;
+	}
+
+	/**
+	 * Gets the square distance between these coordinates and another.
+	 */
+	public int sqrDist(Coord other) {
+		int rowDiff = row - other.row;
+		int colDiff = col - other.col;
+		return rowDiff*rowDiff + colDiff*colDiff;
 	}
 
 	@Override public boolean equals(Object obj) {
@@ -108,7 +156,7 @@ public class Coord {
 	}
 
 	@Override public int hashCode() {
-		return row * 37 + col;
+		return 31 * row + col;
 	}
 
 	@Override public String toString() {

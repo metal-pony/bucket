@@ -4,11 +4,11 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.sparklicorn.bucket</groupId>
-  <artifactId>bucket</artifactId>
-  <version>1.2.0</version>
+  <artifactId>tetris</artifactId>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
-  <name>Bucket</name>
+  <name>Bucket - Tetris</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,7 +18,7 @@
     <maven.compiler.release>${java.version}</maven.compiler.release>
 
     <!-- Dependency versions -->
-    <gson>2.10.1</gson>
+    <gson>2.11.1</gson>
     <junit>5.6.2</junit>
 
     <!-- Plugin versions -->
@@ -91,6 +91,27 @@
           <goals>
             <goal>jar</goal>
           </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven.shade}</version>
+        <executions>
+          <!-- Run shade goal on package phase -->
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+              <!-- add Main-Class to manifest file -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                <mainClass>com.sparklicorn.bucket.games.tetris.gui.drivers.TetrisDriver</mainClass>
+              </transformer>
+              </transformers>
+            </configuration>
           </execution>
         </executions>
       </plugin>
