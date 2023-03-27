@@ -56,15 +56,38 @@ public class Position extends Move implements Comparable<Position> {
 	}
 
 	@Override
-	public void rotateClockwise() {
-		super.rotateClockwise();
+	public Position add(Move other) {
+		super.add(other);
 		normalizeRotation();
+		return this;
 	}
 
 	@Override
-	public void rotateCounterClockwise() {
+	public Position add(Coord offset, int rotation) {
+		super.add(offset, rotation);
+		normalizeRotation();
+		return this;
+	}
+
+	@Override
+	public Position rotateClockwise() {
+		super.rotateClockwise();
+		normalizeRotation();
+		return this;
+	}
+
+	@Override
+	public Position rotateCounterClockwise() {
 		super.rotateCounterClockwise();
 		normalizeRotation();
+		return this;
+	}
+
+	@Override
+	public Position rotate(Move direction) {
+		super.rotate(direction);
+		normalizeRotation();
+		return this;
 	}
 
 	@Override

@@ -200,13 +200,11 @@ public class TetrisGame implements ITetrisGame {
 		Move kickLeft = new Move(move);
 		Move kickRight = new Move(move);
 		for (int colOffset = 1; colOffset < 3; colOffset++) {
-			kickLeft.add(Move.LEFT);
-			if (canPieceMove(kickLeft)) {
+			if (canPieceMove(kickLeft.add(Move.LEFT))) {
 				return kickLeft;
 			}
 
-			kickRight.add(Move.RIGHT);
-			if (canPieceMove(kickRight)) {
+			if (canPieceMove(kickRight.add(Move.RIGHT))) {
 				return kickRight;
 			}
 		}
@@ -239,7 +237,10 @@ public class TetrisGame implements ITetrisGame {
 			return false;
 		}
 
-		Coord[] newBlockCoords = getNewPositions(move);
+		Coord[] newBlockCoords = shape.populateBlockPositions(
+			Coord.copyFrom(blockLocations),
+			new Position(position).add(move)
+		);
 		int minCol = cols - 1;
 		int maxCol = 0;
 
@@ -275,7 +276,7 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		position.add(_move);
-		setBlockLocations();
+		shape.populateBlockPositions(blockLocations, position);
 
 		return true;
 	}
@@ -289,7 +290,7 @@ public class TetrisGame implements ITetrisGame {
 	protected boolean shiftPiece(Move move) {
 		if (canPieceMove(move)) {
 			position.add(move);
-			setBlockLocations();
+			shape.populateBlockPositions(blockLocations, position);
 			return true;
 		}
 
@@ -300,7 +301,7 @@ public class TetrisGame implements ITetrisGame {
 	 * Plots the piece's block data to the board.
 	 */
 	protected void plotPiece() {
-		for (Coord c : getBlockLocations()) {
+		for (Coord c : Coord.copyFrom(blockLocations)) {
 			board[c.row() * cols + c.col()] = shape.value;
 		}
 	}
@@ -628,7 +629,7 @@ public class TetrisGame implements ITetrisGame {
 	@Override public int getLinesUntilNextLevel() 	{return linesUntilNextLevel;}
 	@Override public int getNumRows() 				{return rows;}
 	@Override public int getNumCols() 				{return cols;}
-	@Override public Coord[] getPieceBlocks() 		{return getBlockLocations();}
+	@Override public Coord[] getPieceBlocks() 		{return Coord.copyFrom(blockLocations);}
 	@Override public Shape getNextShape() 			{return nextShapes.peek();}
 	@Override public Shape getCurrentShape() 		{return shape;}
 	@Override public Coord getLocation() 			{return new Coord(position.location());}
@@ -733,7 +734,6 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		Position originalPosition = new Position(position);
-
 		PriorityQueue<PQPositionEntry> frontier = new PriorityQueue<>();
 		HashSet<Position> visited = new HashSet<>();
 
@@ -745,12 +745,11 @@ public class TetrisGame implements ITetrisGame {
 
 		while (!frontier.isEmpty()) {
 			position = frontier.poll().position;
-			setBlockLocations();
+			shape.populateBlockPositions(blockLocations, position);
 
 			for (Move move : ATOMIC_MOVES) {
 				if (canPieceMove(move)) {
-					Position nextPosition = new Position(position);
-					nextPosition.add(move);
+					Position nextPosition = new Position(position).add(move);
 
 					if (nextPosition.equals(toPosition)) {
 						position = originalPosition;
@@ -786,38 +785,6 @@ public class TetrisGame implements ITetrisGame {
 			shape.getNumRotations()
 		);
 		isActive = true;
-		setBlockLocations();
-	}
-
-	/**
-	 * Returns the current positions of the blocks that make up this piece.
-	 *
-	 * @return Coordinates of the blocks that make up this piece.
-	 */
-	protected Coord[] getBlockLocations() {
-		return Coord.copyFrom(blockLocations);
-	}
-
-	protected void setBlockLocations() {
-		if (blockLocations == null) {
-			blockLocations = new Coord[4];
-		}
-		if (Stream.of(blockLocations).anyMatch(coord -> coord == null)) {
-			System.out.println("block locations null");
-			Coord.setAll(blockLocations, position.location());
-		}
 		shape.populateBlockPositions(blockLocations, position);
-	}
-
-	/**
-	 * Returns the coordinates of where the piece would be if it were moved.
-	 */
-	protected Coord[] getNewPositions(Move move) {
-		Position newPosition = new Position(position);
-		newPosition.add(move);
-		return shape.populateBlockPositions(
-			Coord.copyFrom(blockLocations),
-			newPosition
-		);
 	}
 }

@@ -11,10 +11,10 @@ public class Coord {
 		public FinalCoord(int row, int col) { super(row, col); }
 		public FinalCoord(Coord otherCoord) { super(otherCoord); }
 
-		@Override public void add(int r, int c) { throw new UnsupportedOperationException(); }
-		@Override public void add(Coord...coords) { throw new UnsupportedOperationException(); }
-		@Override public void set(int row, int col) { throw new UnsupportedOperationException(); }
-		@Override public void set(Coord other) { throw new UnsupportedOperationException(); }
+		@Override public Coord add(int r, int c) 		{ throw new UnsupportedOperationException(); }
+		@Override public Coord add(Coord...coords) 		{ throw new UnsupportedOperationException(); }
+		@Override public Coord set(int row, int col) 	{ throw new UnsupportedOperationException(); }
+		@Override public Coord set(Coord other) 		{ throw new UnsupportedOperationException(); }
 	}
 
 	/**
@@ -91,17 +91,19 @@ public class Coord {
 	/**
 	 * Sets the coordinates to the ones specified.
 	 */
-	public void set(int row, int col) {
+	public Coord set(int row, int col) {
 		this.row = row;
 		this.col = col;
+		return this;
 	}
 
 	/**
 	 * Copies the given coordinates.
 	 */
-	public void set(Coord other) {
+	public Coord set(Coord other) {
 		this.row = other.row;
 		this.col = other.col;
+		return this;
 	}
 
 	/**
@@ -110,11 +112,12 @@ public class Coord {
 	 * @param coords - Other coords whose positions should
 	 * be added to this one.
 	 */
-	public void add(Coord... coords) {
+	public Coord add(Coord... coords) {
 		for (Coord c : coords){
 			row += c.row;
 			col += c.col;
 		}
+		return this;
 	}
 
 	/**
@@ -123,9 +126,10 @@ public class Coord {
 	 * @param toRow - Number of rows to add.
 	 * @param toCol - Number of columns to add.
 	 */
-	public void add(int toRow, int toCol) {
+	public Coord add(int toRow, int toCol) {
 		row += toRow;
 		col += toCol;
+		return this;
 	}
 
 	/**

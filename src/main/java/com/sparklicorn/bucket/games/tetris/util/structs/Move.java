@@ -17,35 +17,17 @@ public class Move {
 			offset = new FinalCoord(row, col);
 			this.rotation = rotation;
 		}
+
 		@Override
 		public Coord offset() {
 			return new Coord(super.offset());
 		}
 
-		@Override
-		public void rotate(Move direction) {
-			throw new UnsupportedOperationException(NO_MODIFY);
-		}
-
-		@Override
-		public void add(Move other) {
-			throw new UnsupportedOperationException(NO_MODIFY);
-		}
-
-		@Override
-		public void add(Coord offset, int rotation) {
-			throw new UnsupportedOperationException(NO_MODIFY);
-		}
-
-		@Override
-		public void rotateClockwise() {
-			throw new UnsupportedOperationException(NO_MODIFY);
-		}
-
-		@Override
-		public void rotateCounterClockwise() {
-			throw new UnsupportedOperationException(NO_MODIFY);
-		}
+		@Override public Move rotate(Move direction) 			{ throw new UnsupportedOperationException(NO_MODIFY); }
+		@Override public Move add(Move other) 					{ throw new UnsupportedOperationException(NO_MODIFY); }
+		@Override public Move add(Coord offset, int rotation) 	{ throw new UnsupportedOperationException(NO_MODIFY); }
+		@Override public Move rotateClockwise() 				{ throw new UnsupportedOperationException(NO_MODIFY); }
+		@Override public Move rotateCounterClockwise() 			{ throw new UnsupportedOperationException(NO_MODIFY); }
 	}
 
 	public static final Move STAND = new FinalMove(0, 0, 0);
@@ -90,24 +72,28 @@ public class Move {
 		return this.rotation;
 	}
 
-	public void add(Move other) {
+	public Move add(Move other) {
 		add(other.offset, other.rotation);
+		return this;
 	}
 
-	public void add(Coord offset, int rotation) {
+	public Move add(Coord offset, int rotation) {
 		this.offset.add(offset);
 		this.rotation += rotation;
+		return this;
 	}
 
-	public void rotateClockwise() {
+	public Move rotateClockwise() {
 		rotation--;
+		return this;
 	}
 
-	public void rotateCounterClockwise() {
+	public Move rotateCounterClockwise() {
 		rotation++;
+		return this;
 	}
 
-	public void rotate(Move direction) {
+	public Move rotate(Move direction) {
 		if (direction != Move.CLOCKWISE && direction != Move.COUNTERCLOCKWISE) {
 			throw new IllegalArgumentException(
 				"Direction must be CLOCKWISE or COUNTERCLOCKWISE"
@@ -115,6 +101,7 @@ public class Move {
 		}
 
 		this.rotation += direction.rotation;
+		return this;
 	}
 
 	@Override
