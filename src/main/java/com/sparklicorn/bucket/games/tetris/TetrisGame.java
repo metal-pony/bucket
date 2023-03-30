@@ -3,15 +3,15 @@ package com.sparklicorn.bucket.games.tetris;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import com.sparklicorn.bucket.games.tetris.util.Timer;
 import com.sparklicorn.bucket.util.Array;
-import com.sparklicorn.bucket.util.PriorityQueue;
+import com.sparklicorn.bucket.util.PrioritySearchQueue;
 import com.sparklicorn.bucket.util.event.*;
 import com.sparklicorn.bucket.games.tetris.util.structs.*;
 import com.sparklicorn.bucket.games.tetris.util.structs.Coord.FinalCoord;
@@ -21,11 +21,6 @@ import com.sparklicorn.bucket.games.tetris.util.structs.Coord.FinalCoord;
 // Standard tetris rules apply.
 // Players can place pieces anywhere.
 // How to handle collisions?
-
-// TODO Feature: Dynamic entry point option
-// Default entry point for first piece.
-// Each subsequent piece will enter row 1, at column of last placed piece.
-// May be useful for multiplayer
 
 //Implementation of Tetris that uses the 7-bag random piece generator.
 //The number of rows and columns can be specified by the user.
@@ -301,7 +296,7 @@ public class TetrisGame implements ITetrisGame {
 	 * Plots the piece's block data to the board.
 	 */
 	protected void plotPiece() {
-		for (Coord c : Coord.copyFrom(blockLocations)) {
+		for (Coord c : blockLocations) {
 			board[c.row() * cols + c.col()] = shape.value;
 		}
 	}
@@ -397,8 +392,8 @@ public class TetrisGame implements ITetrisGame {
 	 *
 	 * @return True if the piece is overlapping with other blocks.
 	 */
-	protected boolean intersects(Coord[] positions) {
-		return Stream.of(positions).anyMatch(this::containsBlock);
+	protected boolean intersects(Coord[] locations) {
+		return Stream.of(locations).anyMatch(this::containsBlock);
 	}
 
 	/**
@@ -711,62 +706,80 @@ public class TetrisGame implements ITetrisGame {
 		}
 	}
 
-	protected static record PQPositionEntry(
-		Position position,
-		int priority
-	) implements Comparable<PQPositionEntry> {
-		@Override public int compareTo(PQPositionEntry o) {
+	protected static record PQEntry<T>(T data, int priority) implements Comparable<PQEntry<T>> {
+		@Override
+		public int compareTo(PQEntry<T> o) {
 			return (priority - o.priority);
 		}
 	}
 
+	/**
+	 * Helper to create a new search queue entry.
+	 * The priority value is the sqrdist between given positions.
+	 *
+	 * @param newPosition Data value for the queue entry
+	 * @param goalPosition Used to calculate the priority value.
+	 * @return A new PQEntry with the given value and calculated priority.
+	 */
+	protected PQEntry<Position> positionSearchEntry(Position newPosition, Position goalPosition) {
+		return new PQEntry<Position>(
+			new Position(newPosition),
+			newPosition.sqrdist(goalPosition)
+		);
+	}
+
 	protected static final Move[] ATOMIC_MOVES = new Move[] {
-		Move.UP, Move.DOWN,
-		Move.LEFT, Move.RIGHT,
-		Move.CLOCKWISE, Move.COUNTERCLOCKWISE
+		Move.DOWN,
+		Move.LEFT,
+		Move.RIGHT,
+		Move.CLOCKWISE,
+		Move.COUNTERCLOCKWISE
 	};
 
-	protected boolean doesPathExist(Position toPosition) {
-		// Check if the piece or the goal position has blocks in it.
-		Coord[] toPositionBlocks = shape.populateBlockPositions(Coord.copyFrom(blockLocations), toPosition);
-		if (intersects(blockLocations) || intersects(toPositionBlocks)) {
+	/**
+	 * Determines whether there is a path of legal moves between the
+	 * current piece position and the given goal position.
+	 * Uses a breadth-first search of possible moves that result in the goal position,
+	 * optimized to prefer movements closer to the goal.
+	 *
+	 * @param goalPosition Goal position to check whether there is a path to.
+	 * @return True if a path exists; otherwise false.
+	 */
+	protected boolean doesPathExist(Position goalPosition) {
+		// Fail early if either:
+		// - board contains blocks at the piece's location
+		// - board contains blocks at the goal location
+		// - goal is positioned somewhere above the current piece (moving UP is illegal)
+		final int goalPositionRow = goalPosition.location().row();
+		Coord[] toPositionBlocks = shape.populateBlockPositions(Coord.copyFrom(blockLocations), goalPosition);
+		if (
+			intersects(blockLocations) ||
+			intersects(toPositionBlocks) ||
+			goalPositionRow < position.location().row()
+		) {
 			return false;
 		}
 
-		Position originalPosition = new Position(position);
-		PriorityQueue<PQPositionEntry> frontier = new PriorityQueue<>();
-		HashSet<Position> visited = new HashSet<>();
+		// Determines whether a given entry should be accepted into the queue.
+		Function<PQEntry<Position>,Boolean> acceptanceCriteria = (offered) -> (
+			offered.data().location().row() <= goalPositionRow && canPieceMove(offered.data())
+		);
+		PrioritySearchQueue<PQEntry<Position>> searchQueue = new PrioritySearchQueue<>(acceptanceCriteria);
+		searchQueue.offer(positionSearchEntry(position, goalPosition));
 
-		frontier.offer(new PQPositionEntry(
-			new Position(position),
-			position.sqrdist(toPosition)
-		));
-		visited.add(originalPosition);
+		while (!searchQueue.isEmpty()) {
+			Position currentPosition = searchQueue.poll().data();
 
-		while (!frontier.isEmpty()) {
-			position = frontier.poll().position;
-			shape.populateBlockPositions(blockLocations, position);
+			if (currentPosition.equals(goalPosition)) {
+				return true;
+			}
 
 			for (Move move : ATOMIC_MOVES) {
-				if (canPieceMove(move)) {
-					Position nextPosition = new Position(position).add(move);
-
-					if (nextPosition.equals(toPosition)) {
-						position = originalPosition;
-						return true;
-					}
-
-					if (!visited.contains(nextPosition)) {
-						frontier.offer(
-							new PQPositionEntry(nextPosition, nextPosition.sqrdist(toPosition))
-						);
-						visited.add(nextPosition);
-					}
-				}
+				Position nextPosition = new Position(currentPosition).add(move);
+				searchQueue.offer(positionSearchEntry(nextPosition, goalPosition));
 			}
 		}
 
-		position = originalPosition;
 		return false;
 	}
 
