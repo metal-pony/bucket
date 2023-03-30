@@ -22,12 +22,7 @@
     <junit>5.6.2</junit>
 
     <!-- Plugin versions -->
-    <maven.clean>3.2.0</maven.clean>
-    <maven.compiler>3.11.0</maven.compiler>
-    <maven.install>3.1.1</maven.install>
-    <maven.resources>3.3.1</maven.resources>
     <maven.surefire>3.0.0</maven.surefire>
-    <maven.jar>3.3.0</maven.jar>
     <maven.shade>3.4.1</maven.shade>
     <maven.source>3.2.1</maven.source>
   </properties>
@@ -42,19 +37,7 @@
     <!-- Testing dependencies-->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-      <version>${junit}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>${junit}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-params</artifactId>
       <version>${junit}</version>
       <scope>test</scope>
     </dependency>
@@ -63,34 +46,18 @@
   <build>
     <plugins>
       <plugin>
-        <artifactId>maven-clean-plugin</artifactId>
-        <version>${maven.clean}</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>${maven.resources}</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>${maven.compiler}</version>
-      </plugin>
-      <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire}</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-install-plugin</artifactId>
-        <version>${maven.install}</version>
       </plugin>
       <plugin>
         <artifactId>maven-source-plugin</artifactId>
         <version>${maven.source}</version>
         <executions>
           <execution>
-          <id>attach-sources</id>
-          <goals>
-            <goal>jar</goal>
-          </goals>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>
@@ -117,14 +84,6 @@
       </plugin>
     </plugins>
   </build>
-
-  <distributionManagement>
-    <repository>
-      <id>github</id>
-      <name>GH sparklicorn</name>
-      <url>https://maven.pkg.github.com/sparklicorn/bucket</url>
-    </repository>
-  </distributionManagement>
 
   <developers>
     <developer>
