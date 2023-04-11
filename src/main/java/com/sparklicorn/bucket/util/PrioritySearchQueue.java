@@ -16,8 +16,8 @@ public class PrioritySearchQueue<T extends Comparable<T>> extends PriorityQueue<
     protected Function<T,Boolean> acceptanceCriteria;
 
     /**
-     * Creates a new PrioritySearchQueue, waiving the entry acceptance function.
-     * i.e. all offerings not previously seen will be accepted into the queue.
+     * Creates a new PrioritySearchQueue, with no acceptance criteria function.
+     * All offered items that have not been previously seen will be accepted into the queue.
      */
     public PrioritySearchQueue() {
         this((obj) -> true);
@@ -38,20 +38,20 @@ public class PrioritySearchQueue<T extends Comparable<T>> extends PriorityQueue<
 
     @Override
     public boolean offer(T e) {
-        return acceptanceCriteria.apply(e) && seen.add(e) && super.offer(e);
+        return canAccept(e) && seen.add(e) && super.offer(e);
     }
 
     /**
      * Determines whether the given element would be accepted into the queue.
      */
     public boolean canAccept(T e) {
-        return acceptanceCriteria.apply(e) && !seen.contains(e);
+        return acceptanceCriteria.apply(e) && !hasSeen(e);
     }
 
     /**
      * Returns whether the given element has been seen by the queue.
      */
-    public boolean seen(T e) {
+    public boolean hasSeen(T e) {
         return seen.contains(e);
     }
 
