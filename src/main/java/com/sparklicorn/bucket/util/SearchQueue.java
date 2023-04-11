@@ -19,8 +19,8 @@ public class SearchQueue<T> extends AbstractQueue<T> {
     protected Function<T,Boolean> acceptanceCriteria;
 
     /**
-     * Creates a new SearchQueue, waiving the entry acceptance function.
-     * i.e. all offerings not previously seen will be accepted into the queue.
+     * Creates a new SearchQueue with no acceptance criteria function.
+     * All offered items that have not been previously seen will be accepted into the queue.
      */
     public SearchQueue() {
         this((obj) -> true);
@@ -35,13 +35,14 @@ public class SearchQueue<T> extends AbstractQueue<T> {
      * into the queue.
      */
     public SearchQueue(Function<T,Boolean> acceptanceCriteria) {
+        this.queue = new LinkedList<>();
         this.seen = new HashSet<>();
         this.acceptanceCriteria = acceptanceCriteria;
     }
 
     @Override
     public boolean offer(T e) {
-        return acceptanceCriteria.apply(e) && seen.add(e) && queue.add(e);
+        return canAccept(e) && seen.add(e) && queue.add(e);
     }
 
     @Override
@@ -68,13 +69,13 @@ public class SearchQueue<T> extends AbstractQueue<T> {
      * Determines whether the given element would be accepted into the queue.
      */
     public boolean canAccept(T e) {
-        return acceptanceCriteria.apply(e) && !seen.contains(e);
+        return acceptanceCriteria.apply(e) && !hasSeen(e);
     }
 
     /**
      * Returns whether the given element has been seen by the queue.
      */
-    public boolean seen(T e) {
+    public boolean hasSeen(T e) {
         return seen.contains(e);
     }
 
