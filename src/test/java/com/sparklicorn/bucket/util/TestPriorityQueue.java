@@ -1,10 +1,10 @@
 package com.sparklicorn.bucket.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
-import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +71,8 @@ public class TestPriorityQueue {
 
         assertEquals(0, pq.size());
         assertTrue(pq.isEmpty());
+        assertNull(pq.peek());
+        assertNull(pq.poll());
 
         print("Offering to queue... ");
         for (int i = 0; i < size; i++) {
