@@ -1,13 +1,81 @@
 package com.sparklicorn.bucket.util;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 import java.util.random.RandomGenerator;
 
 /**
  * A Shuffle utility that implements a version of the Fisher-Yates shuffling algorithm.
  */
 public final class Shuffler {
+
+	/**
+	 * Returns a list of ints in the range [0, to) (Note, `to` is exclusive).
+	 */
+	public static List<Integer> range(int to) {
+		return rangeFiltered(0, to, (n) -> true);
+	}
+
+	/**
+	 * Returns a list of ints in the range [0, to) that are accepted by the filter function.
+	 */
+	public static List<Integer> rangeFiltered(int from, int to, Function<Integer,Boolean> filter) {
+		List<Integer> result = new ArrayList<>();
+		for (int n = from; n < to; n++) {
+			if (filter.apply(n)) {
+				result.add(n);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns a Set of random ints with the given size.
+	 */
+	public static Set<Integer> randomSet(int size) {
+		return randomSet(new HashSet<>(), size, Integer.MIN_VALUE, Integer.MAX_VALUE, (n) -> true);
+	}
+
+	/*
+	 * Returns a Set with the given size, containing random ints from interval [origin, bound).
+	 */
+	public static Set<Integer> randomSet(int size, int origin, int bound) {
+		return randomSet(new HashSet<>(), size, origin, bound, (n) -> true);
+	}
+
+	/*
+	 * Returns a Set with the given size, containing random ints from interval [origin, bound)
+	 * that are accepted by the filter function.
+	 */
+	public static Set<Integer> randomSet(int size, int origin, int bound, Function<Integer, Boolean> filter) {
+		return randomSet(new HashSet<>(), size, origin, bound, filter);
+	}
+
+	/**
+	 * Clears the given Set, then repopulates it with random ints from the interval [origin, bound)
+	 * that are accepted by the filter function.
+	 *
+	 * @return The given set.
+	 */
+	public static Set<Integer> randomSet(Set<Integer> set, int size, int origin, int bound, Function<Integer, Boolean> filter) {
+		if ((long)size > (long)bound - (long)origin) {
+			throw new IllegalArgumentException("Requested size exceeds number of possibilities.");
+		}
+
+		ThreadLocalRandom generator = ThreadLocalRandom.current();
+		set.clear();
+		while (set.size() < size) {
+			int rand = generator.nextInt(origin, bound);
+			if (filter.apply(rand)) {
+				set.add(rand);
+			}
+		}
+		return set;
+	}
 
 	public static int[] random(int[] arr) {
 		return random(arr, 0, Integer.MAX_VALUE);
