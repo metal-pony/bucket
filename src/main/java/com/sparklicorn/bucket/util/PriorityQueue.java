@@ -101,19 +101,29 @@ public class PriorityQueue<T extends Comparable<T>> extends AbstractQueue<T> {
 	}
 
 	@Override public T poll() {
-		T result = null;
-		if (!heap.isEmpty()) {
-			result = heap.get(0);
-			heap.set(0, heap.get(heap.size() - 1));
-			heap.remove(heap.size() - 1);
-			if (heap.size() > 1) {
-				propogateDown(0);
-			}
+		if (isEmpty()) {
+			return null;
 		}
+
+		T result = heap.get(0);
+		heap.set(0, heap.get(size() - 1));
+		heap.remove(size() - 1);
+		if (size() > 1) {
+			propogateDown(0);
+		}
+
 		return result;
 	}
 
-	@Override public T peek() { return heap.get(0); }
-	@Override public Iterator<T> iterator() { return heap.iterator(); }
-	@Override public int size() { return heap.size(); }
+	@Override public T peek() {
+		return isEmpty() ? null : heap.get(0);
+	}
+
+	@Override public Iterator<T> iterator() {
+		return heap.iterator();
+	}
+
+	@Override public int size() {
+		return heap.size();
+	}
 }

@@ -47,12 +47,12 @@ public class SearchQueue<T> extends AbstractQueue<T> {
 
     @Override
     public T poll() {
-        return queue.removeFirst();
+        return isEmpty() ? null : queue.removeFirst();
     }
 
     @Override
     public T peek() {
-        return queue.getFirst();
+        return isEmpty() ? null : queue.getFirst();
     }
 
     @Override
