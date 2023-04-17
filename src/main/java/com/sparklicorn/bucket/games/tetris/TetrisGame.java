@@ -171,6 +171,25 @@ public class TetrisGame implements ITetrisGame {
 	}
 
 	/**
+	 * Calculates the coordinates of blocks that make up the current shape,
+	 * in the given position.
+	 *
+	 * @param blockCoords Contains block coordinates that make up the shape.
+	 * The newly calculated block positions will be written here.
+	 * @param position The location and rotation of the shape to calculate block positions for.
+	 * @return The modified blockCoords array (for convenience).
+	 */
+	public Coord[] populateBlockPositions(Coord[] blockCoords, Position position) {
+		int rotationIndex = shape.rotationIndex(position.rotation());
+		for (int i = 0; i < blockCoords.length; i++) {
+			blockCoords[i].set(position.offset());
+			blockCoords[i].add(shape.rotationOffsets[rotationIndex][i]);
+		}
+
+		return blockCoords;
+	}
+
+	/**
 	 * Checks whether the current piece can move with the given rotation.
 	 * If the piece cannot be rotated in place, it will check whether it can be shifted first.
 	 *
@@ -232,7 +251,7 @@ public class TetrisGame implements ITetrisGame {
 			return false;
 		}
 
-		Coord[] newBlockCoords = shape.populateBlockPositions(
+		Coord[] newBlockCoords = populateBlockPositions(
 			Coord.copyFrom(blockLocations),
 			new Position(position).add(move)
 		);
@@ -271,7 +290,7 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		position.add(_move);
-		shape.populateBlockPositions(blockLocations, position);
+		populateBlockPositions(blockLocations, position);
 
 		return true;
 	}
@@ -285,7 +304,7 @@ public class TetrisGame implements ITetrisGame {
 	protected boolean shiftPiece(Move move) {
 		if (canPieceMove(move)) {
 			position.add(move);
-			shape.populateBlockPositions(blockLocations, position);
+			populateBlockPositions(blockLocations, position);
 			return true;
 		}
 
@@ -751,7 +770,7 @@ public class TetrisGame implements ITetrisGame {
 		// - board contains blocks at the goal location
 		// - goal is positioned somewhere above the current piece (moving UP is illegal)
 		final int goalPositionRow = goalPosition.location().row();
-		Coord[] toPositionBlocks = shape.populateBlockPositions(Coord.copyFrom(blockLocations), goalPosition);
+		Coord[] toPositionBlocks = populateBlockPositions(Coord.copyFrom(blockLocations), goalPosition);
 		if (
 			intersects(blockLocations) ||
 			intersects(toPositionBlocks) ||
@@ -798,6 +817,6 @@ public class TetrisGame implements ITetrisGame {
 			shape.getNumRotations()
 		);
 		isActive = true;
-		shape.populateBlockPositions(blockLocations, position);
+		populateBlockPositions(blockLocations, position);
 	}
 }
