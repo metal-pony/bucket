@@ -154,6 +154,7 @@ public class TetrisGame implements ITetrisGame {
 		isPaused = other.isPaused;
 		numPiecesDropped = other.numPiecesDropped;
 		shape = other.shape;
+		nextShapes = new ShapeQueue(other.nextShapes);
 		position = new Position(other.position);
 		blockLocations = Coord.copyFrom(other.blockLocations);
 		isActive = other.isActive;
@@ -318,6 +319,8 @@ public class TetrisGame implements ITetrisGame {
 		for (Coord c : blockLocations) {
 			board[c.row() * cols + c.col()] = shape.value;
 		}
+		throwEvent(TetrisEvent.PIECE_PLACED);
+		throwEvent(TetrisEvent.BLOCKS);
 	}
 
 	/**
@@ -490,19 +493,11 @@ public class TetrisGame implements ITetrisGame {
 			plotPiece();
 			isActive = false;
 			numPiecesDropped++;
-			throwEvent(TetrisEvent.PIECE_PLACED);
-			throwEvent(TetrisEvent.BLOCKS);
 
-		} else if (!isActive) {	//the loop after piece kerplunks
+		} else if (!isActive) {	// The loop after piece kerplunks
 			if (!attemptClearLines()) {
-				//create next piece
 				nextPiece();
-				throwEvent(TetrisEvent.PIECE_CREATE);
-
-				//Check for lose condition.
-				//(the now reset piece intersects with a block on board)
-				if (intersects(blockLocations)) {
-					gameOver();
+				if (checkGameOver()) {
 					return;
 				}
 			}
@@ -513,6 +508,25 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		throwEvent(TetrisEvent.GAMELOOP);
+	}
+
+	/**
+	 * Determines whether the active piece is overlapped with any other blocks,
+	 * which is the lose condition. If detected, the gameOver handler is called.
+	 *
+	 * @return True if the game is over; otherwise false.
+	 */
+	protected boolean checkGameOver() {
+		if (isGameOver) {
+			return true;
+		}
+
+		if (intersects(blockLocations)) {
+			gameOver();
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override public long getNumPiecesDropped() {
@@ -818,5 +832,6 @@ public class TetrisGame implements ITetrisGame {
 		);
 		isActive = true;
 		populateBlockPositions(blockLocations, position);
+		throwEvent(TetrisEvent.PIECE_CREATE);
 	}
 }
