@@ -3,64 +3,18 @@
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.sparklicorn.bucket</groupId>
-  <artifactId>bucket</artifactId>
-  <version>1.0.0</version>
+  <parent>
+    <groupId>com.sparklicorn.bucket</groupId>
+    <artifactId>root</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <name>Sudoku</name>
+  <artifactId>sudoku</artifactId>
   <packaging>jar</packaging>
-
-  <name>Bucket</name>
-
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <java.version>17</java.version>
-    <maven.compiler.source>${java.version}</maven.compiler.source>
-    <maven.compiler.target>${java.version}</maven.compiler.target>
-    <maven.compiler.release>${java.version}</maven.compiler.release>
-
-    <!-- Dependency versions -->
-    <gson>2.10.1</gson>
-    <junit>5.6.2</junit>
-
-    <!-- Plugin versions -->
-    <maven.surefire>3.0.0</maven.surefire>
-    <maven.shade>3.4.1</maven.shade>
-    <maven.source>3.2.1</maven.source>
-  </properties>
-
-  <dependencies>
-    <dependency>
-      <groupId>com.google.code.gson</groupId>
-      <artifactId>gson</artifactId>
-      <version>${gson}</version>
-    </dependency>
-
-    <!-- Testing dependencies-->
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-      <version>${junit}</version>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
 
   <build>
     <plugins>
-      <plugin>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${maven.surefire}</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-source-plugin</artifactId>
-        <version>${maven.source}</version>
-        <executions>
-          <execution>
-            <id>attach-sources</id>
-            <goals>
-              <goal>jar-no-fork</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <artifactId>maven-shade-plugin</artifactId>
         <version>${maven.shade}</version>
@@ -84,14 +38,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <developers>
-    <developer>
-      <id>sparklicorn</id>
-      <name>Jeff</name>
-      <email>jeffymoose@gmail.com</email>
-      <url>https://sparklicorn.com/</url>
-      <timezone>America/Chicago</timezone>
-    </developer>
-  </developers>
 </project>
