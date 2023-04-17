@@ -14,10 +14,28 @@ import java.util.random.RandomGenerator;
 public final class Shuffler {
 
 	/**
-	 * Returns a list of ints in the range [0, to) (Note, `to` is exclusive).
+	 * Returns a list of ints in the range [0, to (exclusive)).
 	 */
 	public static List<Integer> range(int to) {
 		return rangeFiltered(0, to, (n) -> true);
+	}
+
+	/**
+	 * Returns a list of ints in the range [from, to (exclusive)).
+	 */
+	public static List<Integer> range(int from, int to) {
+		return range(from, to, 1);
+	}
+
+	/**
+	 * Returns a list of ints in the range [from, to (exclusive)).
+	 */
+	public static List<Integer> range(int from, int to, int increment) {
+		List<Integer> result = new ArrayList<>();
+		for (int n = from; n < to; n+=increment) {
+			result.add(n);
+		}
+		return result;
 	}
 
 	/**

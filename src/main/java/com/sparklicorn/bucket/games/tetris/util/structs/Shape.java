@@ -67,53 +67,10 @@ public enum Shape {
 		return result;
 	}
 
-	public final int value;
-	public final FinalCoord[][] rotationOffsets;
-
-	private Shape(int v, int... offsets) {
-		this.value = v;
-		this.rotationOffsets = buildOffsets(offsets);
-	}
-
-	/**
-	 * Returns the number of rotations for this shape.
-	 * @return Number of rotations.
-	 */
-	public int getNumRotations() {
-		return rotationOffsets.length;
-	}
-
-	private int rotationIndex(int rotations) {
-		int numRotations = getNumRotations();
-		return ((rotations % numRotations) + numRotations) % numRotations;
-	}
-
-	/**
-	 * Returns the block offsets associated with the shape's rotation.
-	 *
-	 * @param rotations - An index that describes the rotation of the
-	 * shape. Increase to retrieve counter-clockwise offsets; decrease to
-	 * retrieve clockwise offsets.
-	 * @return The offset coordinates for the given rotation.
-	 */
-	public Coord[] getRotation(int rotations) {
-		return rotationOffsets[rotationIndex(rotations)];
-	}
-
-	public Coord[] populateBlockPositions(Coord[] positions, Move move) {
-		int rotationIndex = rotationIndex(move.rotation());
-		for (int i = 0; i < positions.length; i++) {
-			positions[i].set(move.offset());
-			positions[i].add(rotationOffsets[rotationIndex][i]);
-		}
-
-		return positions;
-	}
-
 	public static final int NUM_SHAPES = Shape.values().length;
-	private static final Shape[] shapeMap;
+
+	private static final Shape[] shapeMap = new Shape[NUM_SHAPES + 1];
 	static {
-		shapeMap = new Shape[NUM_SHAPES + 1];
 		for (Shape s : Shape.values()) {
 			shapeMap[s.value] = s;
 		}
@@ -135,5 +92,37 @@ public enum Shape {
 	 */
 	public static int getNumRotations(Shape s) {
 		return s.rotationOffsets.length;
+	}
+
+	public final int value;
+	public final FinalCoord[][] rotationOffsets;
+
+	private Shape(int value, int... blockOffsetsPerRotation) {
+		this.value = value;
+		this.rotationOffsets = buildOffsets(blockOffsetsPerRotation);
+	}
+
+	/**
+	 * Returns the number of rotations for this shape.
+	 * @return Number of rotations.
+	 */
+	public int getNumRotations() {
+		return rotationOffsets.length;
+	}
+
+	public int rotationIndex(int rotations) {
+		int numRotations = getNumRotations();
+		return ((rotations % numRotations) + numRotations) % numRotations;
+	}
+
+	/**
+	 * Returns the block offsets associated with the shape's rotation.
+	 *
+	 * @param rotationIndex - An index of rotation of the shape.
+	 * Positive indices represent a counter-clockwise rotation, and negative are clockwise.
+	 * @return The block offsets for the given shape's rotation.
+	 */
+	public Coord[] getRotation(int rotationIndex) {
+		return rotationOffsets[rotationIndex(rotationIndex)];
 	}
 }

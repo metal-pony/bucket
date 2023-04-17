@@ -154,6 +154,7 @@ public class TetrisGame implements ITetrisGame {
 		isPaused = other.isPaused;
 		numPiecesDropped = other.numPiecesDropped;
 		shape = other.shape;
+		nextShapes = new ShapeQueue(other.nextShapes);
 		position = new Position(other.position);
 		blockLocations = Coord.copyFrom(other.blockLocations);
 		isActive = other.isActive;
@@ -168,6 +169,25 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	protected long calcPointsForClearing(int lines) {
 		return POINTS_BY_LINES_CLEARED.get(lines) * (level + 1L);
+	}
+
+	/**
+	 * Calculates the coordinates of blocks that make up the current shape,
+	 * in the given position.
+	 *
+	 * @param blockCoords Contains block coordinates that make up the shape.
+	 * The newly calculated block positions will be written here.
+	 * @param position The location and rotation of the shape to calculate block positions for.
+	 * @return The modified blockCoords array (for convenience).
+	 */
+	public Coord[] populateBlockPositions(Coord[] blockCoords, Position position) {
+		int rotationIndex = shape.rotationIndex(position.rotation());
+		for (int i = 0; i < blockCoords.length; i++) {
+			blockCoords[i].set(position.offset());
+			blockCoords[i].add(shape.rotationOffsets[rotationIndex][i]);
+		}
+
+		return blockCoords;
 	}
 
 	/**
@@ -232,7 +252,7 @@ public class TetrisGame implements ITetrisGame {
 			return false;
 		}
 
-		Coord[] newBlockCoords = shape.populateBlockPositions(
+		Coord[] newBlockCoords = populateBlockPositions(
 			Coord.copyFrom(blockLocations),
 			new Position(position).add(move)
 		);
@@ -271,7 +291,7 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		position.add(_move);
-		shape.populateBlockPositions(blockLocations, position);
+		populateBlockPositions(blockLocations, position);
 
 		return true;
 	}
@@ -285,7 +305,7 @@ public class TetrisGame implements ITetrisGame {
 	protected boolean shiftPiece(Move move) {
 		if (canPieceMove(move)) {
 			position.add(move);
-			shape.populateBlockPositions(blockLocations, position);
+			populateBlockPositions(blockLocations, position);
 			return true;
 		}
 
@@ -299,6 +319,8 @@ public class TetrisGame implements ITetrisGame {
 		for (Coord c : blockLocations) {
 			board[c.row() * cols + c.col()] = shape.value;
 		}
+		throwEvent(TetrisEvent.PIECE_PLACED);
+		throwEvent(TetrisEvent.BLOCKS);
 	}
 
 	/**
@@ -471,19 +493,11 @@ public class TetrisGame implements ITetrisGame {
 			plotPiece();
 			isActive = false;
 			numPiecesDropped++;
-			throwEvent(TetrisEvent.PIECE_PLACED);
-			throwEvent(TetrisEvent.BLOCKS);
 
-		} else if (!isActive) {	//the loop after piece kerplunks
+		} else if (!isActive) {	// The loop after piece kerplunks
 			if (!attemptClearLines()) {
-				//create next piece
 				nextPiece();
-				throwEvent(TetrisEvent.PIECE_CREATE);
-
-				//Check for lose condition.
-				//(the now reset piece intersects with a block on board)
-				if (intersects(blockLocations)) {
-					gameOver();
+				if (checkGameOver()) {
 					return;
 				}
 			}
@@ -494,6 +508,25 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		throwEvent(TetrisEvent.GAMELOOP);
+	}
+
+	/**
+	 * Determines whether the active piece is overlapped with any other blocks,
+	 * which is the lose condition. If detected, the gameOver handler is called.
+	 *
+	 * @return True if the game is over; otherwise false.
+	 */
+	protected boolean checkGameOver() {
+		if (isGameOver) {
+			return true;
+		}
+
+		if (intersects(blockLocations)) {
+			gameOver();
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override public long getNumPiecesDropped() {
@@ -751,7 +784,7 @@ public class TetrisGame implements ITetrisGame {
 		// - board contains blocks at the goal location
 		// - goal is positioned somewhere above the current piece (moving UP is illegal)
 		final int goalPositionRow = goalPosition.location().row();
-		Coord[] toPositionBlocks = shape.populateBlockPositions(Coord.copyFrom(blockLocations), goalPosition);
+		Coord[] toPositionBlocks = populateBlockPositions(Coord.copyFrom(blockLocations), goalPosition);
 		if (
 			intersects(blockLocations) ||
 			intersects(toPositionBlocks) ||
@@ -798,6 +831,7 @@ public class TetrisGame implements ITetrisGame {
 			shape.getNumRotations()
 		);
 		isActive = true;
-		shape.populateBlockPositions(blockLocations, position);
+		populateBlockPositions(blockLocations, position);
+		throwEvent(TetrisEvent.PIECE_CREATE);
 	}
 }

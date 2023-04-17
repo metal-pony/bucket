@@ -3,76 +3,79 @@ package com.sparklicorn.bucket.games.tetris.util.structs;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 
 import com.sparklicorn.bucket.util.Shuffler;
 
 /**
- * A self-populating queue of tetrominos.
- * The shuffling function can be specified, along with a buffer for how many
- * shapes the queue should contain internally before invoking the generator.
+ * A self-generating queue of tetromino Shapes in tetris.
+ * The shuffling function can be specified, along with a minimum queue size.
+ * When the number of elements falls below this minimum, new elements are
+ * automatically added.
  * This queue implements the 7-bag system.
  */
 public class ShapeQueue implements Queue<Shape> {
+	public static final int DEFAULT_MIN_SIZE = 14;
 
-	// TODO Change language as this concept is not a "buffer".
-	public static final int DEFAULT_BUFFER_SIZE = 7;
+	protected static final List<Integer> SHAPES = Shuffler.range(1, Shape.NUM_SHAPES + 1);
 
-	protected final int[] SHAPE_INDICES;
-	protected Shuffler generator;
-	protected final int bufferSize;
+	protected Shuffler shuffler;
+	protected final int minSize;
 	protected final LinkedList<Integer> shapeIndexQueue;
 
 	/**
-	 * Creates a new ShapeQueue using the SevenBagGenerator by default.
+	 * Creates a new ShapeQueue.
 	 */
 	public ShapeQueue() {
-		this(new Shuffler(), DEFAULT_BUFFER_SIZE);
+		this(new Shuffler(), DEFAULT_MIN_SIZE);
 	}
 
 	/**
-	 * Creates a new ShapeQueue using the specified Shape generator.
-	 * @param generator - Shuffler used to populate the queue.
-	 * @param bufferSize -
+	 * Creates a new ShapeQueue using the specified shuffler.
+	 * @param shuffler - Shuffler used to populate the queue.
+	 * @param minSize - The minimum number of elements in the queue at any given time.
+	 * When the number of elements falls below this threshold, new elements are
+	 * automatically added.
 	 */
-	public ShapeQueue(Shuffler generator, int bufferSize) {
-		this.generator = generator;
-		this.bufferSize = Math.max(DEFAULT_BUFFER_SIZE, bufferSize);
+	public ShapeQueue(Shuffler shuffler, int minSize) {
+		this.shuffler = shuffler;
+		this.minSize = Math.max(DEFAULT_MIN_SIZE, minSize);
 		this.shapeIndexQueue = new LinkedList<>();
-
-		this.SHAPE_INDICES = new int[Shape.NUM_SHAPES];
-		for (int n = 1; n <= SHAPE_INDICES.length; n++) {
-			SHAPE_INDICES[n-1] = n;
-		}
 	}
 
 	/**
-	 * Fills shapeIndexQueue with randomly shuffled shape indices
-	 * using the 7-bag system until the queue is >= bufferSize.
+	 * Creates a copy of the given queue.
+	 * Queue elements are shallow-copied into the new queue.
 	 */
-	protected void populate() {
-		while (shapeIndexQueue.size() < bufferSize) {
+	public ShapeQueue(ShapeQueue other) {
+		shuffler = other.shuffler;
+		minSize = other.minSize;
+		other.ensureCapacity(other.minSize);
+		this.shapeIndexQueue = new LinkedList<>(other.shapeIndexQueue);
+	}
+
+	/**
+	 * Generates new elements as necessary to ensure the queue contains the given capacity.
+	 */
+	public void ensureCapacity(int capacity) {
+		while (size() < capacity) {
 			// TODO Temporary shuffle fix.
 			// TODO generator.shuffle results in the same initial order (bug).
 			// TODO This may be because it's initialized at app start.
-			Shuffler.shuffleInts(SHAPE_INDICES);
 			// generator.shuffle(SHAPE_INDICES);
-			for (int i : SHAPE_INDICES) {
-				shapeIndexQueue.offer(i);
-			}
+
+			shapeIndexQueue.addAll(Shuffler.shuffleList(SHAPES));
 		}
 	}
 
 	/**
-	 * Gets the next shape in the queue. If the queue is empty,
-	 * calls populate() to generate more shapes.
+	 * Gets the next shape in the queue. New elements may be auto
 	 */
 	@Override
 	public Shape poll() {
-		if (shapeIndexQueue.isEmpty()) {
-			populate();
-		}
-
+		ensureCapacity(minSize);
 		return Shape.getShape(shapeIndexQueue.poll());
 	}
 
@@ -80,16 +83,30 @@ public class ShapeQueue implements Queue<Shape> {
 	 * Gets the next shape in the queue, but does not modify it.
 	 * If empty, will populate with more shapes.
 	 */
-	@Override public Shape peek() {
-		if (shapeIndexQueue.isEmpty()) {
-			populate();
-		}
-
+	@Override
+	public Shape peek() {
+		ensureCapacity(minSize);
 		return Shape.getShape(shapeIndexQueue.peek());
 	}
 
-	@Override public Shape remove() { return poll(); }
-	@Override public Shape element() { return peek(); }
+	@Override
+	public Shape remove() {
+		if (isEmpty()) {
+			throw new NoSuchElementException();
+		}
+
+		return poll();
+	}
+
+	@Override
+	public Shape element() {
+		if (isEmpty()) {
+			throw new NoSuchElementException();
+		}
+
+		return peek();
+	}
+
 	@Override public int size() { return shapeIndexQueue.size(); }
 	@Override public boolean isEmpty() { return shapeIndexQueue.isEmpty(); }
 	@Override public void clear() { shapeIndexQueue.clear(); }
