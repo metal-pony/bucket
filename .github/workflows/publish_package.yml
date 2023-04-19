@@ -17,6 +17,6 @@ jobs:
       - name: Install root pom
         run: ./mvnw install
       - name: Publish package
-        run: ./mvnw -B deploy -f pom-lib.xml
+        run: ./mvnw -B deploy
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
