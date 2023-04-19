@@ -3,4 +3,4 @@
 # Builds an executable jar of Sudoku utilities.
 # Run this from the base project directory.
 
-./mvnw install && ./mvnw -f pom-sudoku.xml package
+./mvnw package -f sudoku/pom-exe.xml

@@ -8,9 +8,9 @@ if [ "$#" -gt '0' ]; then
     if [ "$1" = '--rebuild' ]; then
         echo 'Rebuilding...'
 
-        ./mvnw install && ./mvnw -f pom-tetris.xml package && java -jar target/tetris-1.0.0.jar
+        ./mvnw package -f tetris/pom-tetris.xml && java -jar tetris/target/tetris-1.0.0.jar
         exit 0
     fi
 fi
 
-java -jar target/tetris-1.0.0.jar
+java -jar tetris/target/tetris-1.0.0.jar

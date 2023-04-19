@@ -3,4 +3,4 @@
 # Generates Sudoku configurations.
 # Run this from the base project directory.
 
-java -jar target/sudoku-1.0.0.jar generatePuzzles "$@"
+java -jar sudoku/target/sudoku-1.0.0.jar generatePuzzles "$@"

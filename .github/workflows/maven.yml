@@ -7,11 +7,9 @@ on:
   push:
     branches:
       - main
-      - release
   pull_request:
     branches:
       - main
-      - release
 
 jobs:
   build:
@@ -24,11 +22,5 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
-    - name: Install root pom
-      run: ./mvnw install
-    - name: Library build passes
-      run: ./mvnw -B package -f pom-lib.xml
-    - name: Sudoku build passes
-      run: ./mvnw -B package -f pom-sudoku.xml
-    - name: Tetris build passes
-      run: ./mvnw -B package -f pom-tetris.xml
+    - name: Builds pass
+      run: ./mvnw -B package
