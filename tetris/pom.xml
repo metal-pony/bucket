@@ -16,7 +16,7 @@
     <dependency>
       <artifactId>bucket</artifactId>
       <groupId>com.sparklicorn.bucket</groupId>
-      <version>1.4.0</version>
+      <version>1.4.1</version>
     </dependency>
   </dependencies>
 </project>
