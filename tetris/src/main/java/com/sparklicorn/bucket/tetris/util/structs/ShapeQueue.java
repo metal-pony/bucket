@@ -10,18 +10,16 @@ import java.util.Queue;
 import com.sparklicorn.bucket.util.Shuffler;
 
 /**
- * A self-generating queue of tetromino Shapes in tetris.
- * The shuffling function can be specified, along with a minimum queue size.
- * When the number of elements falls below this minimum, new elements are
- * automatically added.
- * This queue implements the 7-bag system.
+ * A self-generating queue of tetris shapes, using the 7-bag system.
+ * This structure only allows items to be polled, nothing may be offered to it.
+ * A minimum number of elements can be specified, and if the queue size falls below this
+ * threshold, it will automatically generate more as needed.
  */
 public class ShapeQueue implements Queue<Shape> {
 	public static final int DEFAULT_MIN_SIZE = 14;
 
 	protected static final List<Integer> SHAPES = Shuffler.range(1, Shape.NUM_SHAPES + 1);
 
-	protected Shuffler shuffler;
 	protected final int minSize;
 	protected final LinkedList<Integer> shapeIndexQueue;
 
@@ -29,18 +27,17 @@ public class ShapeQueue implements Queue<Shape> {
 	 * Creates a new ShapeQueue.
 	 */
 	public ShapeQueue() {
-		this(new Shuffler(), DEFAULT_MIN_SIZE);
+		this(DEFAULT_MIN_SIZE);
 	}
 
 	/**
 	 * Creates a new ShapeQueue using the specified shuffler.
-	 * @param shuffler - Shuffler used to populate the queue.
+	 *
 	 * @param minSize - The minimum number of elements in the queue at any given time.
 	 * When the number of elements falls below this threshold, new elements are
 	 * automatically added.
 	 */
-	public ShapeQueue(Shuffler shuffler, int minSize) {
-		this.shuffler = shuffler;
+	public ShapeQueue(int minSize) {
 		this.minSize = Math.max(DEFAULT_MIN_SIZE, minSize);
 		this.shapeIndexQueue = new LinkedList<>();
 	}
@@ -50,7 +47,6 @@ public class ShapeQueue implements Queue<Shape> {
 	 * Queue elements are shallow-copied into the new queue.
 	 */
 	public ShapeQueue(ShapeQueue other) {
-		shuffler = other.shuffler;
 		minSize = other.minSize;
 		other.ensureCapacity(other.minSize);
 		this.shapeIndexQueue = new LinkedList<>(other.shapeIndexQueue);
@@ -61,31 +57,27 @@ public class ShapeQueue implements Queue<Shape> {
 	 */
 	public void ensureCapacity(int capacity) {
 		while (size() < capacity) {
-			// TODO Temporary shuffle fix.
-			// TODO generator.shuffle results in the same initial order (bug).
-			// TODO This may be because it's initialized at app start.
-			// generator.shuffle(SHAPE_INDICES);
-
 			shapeIndexQueue.addAll(Shuffler.shuffleList(SHAPES));
 		}
 	}
 
 	/**
-	 * Gets the next shape in the queue. New elements may be auto
+	 * Gets the next shape in the queue.
+	 * More items may be added to the queue to ensure a minumum capcity.
 	 */
 	@Override
 	public Shape poll() {
-		ensureCapacity(minSize);
+		ensureCapacity(minSize + 1);
 		return Shape.getShape(shapeIndexQueue.poll());
 	}
 
 	/**
-	 * Gets the next shape in the queue, but does not modify it.
-	 * If empty, will populate with more shapes.
+	 * Gets the shape at the head of the queue, but does not remove it.
+	 * More items may be added to the queue to ensure a minumum capcity.
 	 */
 	@Override
 	public Shape peek() {
-		ensureCapacity(minSize);
+		ensureCapacity(minSize + 1);
 		return Shape.getShape(shapeIndexQueue.peek());
 	}
 
