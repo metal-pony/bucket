@@ -40,6 +40,13 @@ public class Position extends Move implements Comparable<Position> {
 	}
 
 	/**
+	 * Creates a new Position with the given location and rotation.
+	 */
+	public Position(int row, int col, int rotation, int maxRotation) {
+		this(new Coord(row, col), rotation, maxRotation);
+	}
+
+	/**
 	 * Creates a deep copy of the given Position.
 	 */
 	public Position(Position other) {
@@ -140,7 +147,7 @@ public class Position extends Move implements Comparable<Position> {
 	 * Constrains rotation between 0 and maxRotation if current value is out of bounds.
 	 */
 	private void normalizeRotation() {
-		if (rotation < 0 || rotation > maxRotation) {
+		if (rotation < 0 || rotation >= maxRotation) {
 			rotation = ((rotation % maxRotation) + maxRotation) % maxRotation;
 		}
 	}
