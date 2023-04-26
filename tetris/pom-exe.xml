@@ -10,6 +10,7 @@
   <name>Tetris</name>
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>tetris</artifactId>
+  <!-- This does not need to be up to date -->
   <version>1.0.0</version>
 
   <dependencies>
