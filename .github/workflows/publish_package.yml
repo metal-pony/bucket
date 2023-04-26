@@ -14,9 +14,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Install root pom
-        run: ./mvnw install
       - name: Publish package
-        run: ./mvnw -B deploy
+        run: ./mvnw -B clean deploy
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
