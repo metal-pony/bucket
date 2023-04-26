@@ -50,7 +50,7 @@ public class TetrisGame implements ITetrisGame {
 	 *
 	 * @param cols Number of columns on the board.
 	 */
-	private static int calcEntryColumn(int cols) {
+	protected static int calcEntryColumn(int cols) {
 		return (cols / 2) - ((cols % 2 == 0) ? 1 : 0);
 	}
 
@@ -252,9 +252,13 @@ public class TetrisGame implements ITetrisGame {
 			return false;
 		}
 
+		return isPositionValid(new Position(position).add(move));
+	}
+
+	protected boolean isPositionValid(Position position) {
 		Coord[] newBlockCoords = populateBlockPositions(
 			Coord.copyFrom(blockLocations),
-			new Position(position).add(move)
+			position
 		);
 		int minCol = cols - 1;
 		int maxCol = 0;
