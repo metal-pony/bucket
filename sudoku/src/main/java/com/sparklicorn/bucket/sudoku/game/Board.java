@@ -346,7 +346,7 @@ public class Board implements ISudokuBoard, Serializable {
 		board = new int[NUM_CELLS];
 		for (int i = 0; i < NUM_CELLS; i++) {
 			int v = values.charAt(i) - '0';
-			// TODO should this be initializing non-digits to ALL?? I would expect 0 candidates instead.
+			// TODO #14 Should this be initializing non-digits to ALL?? I would expect 0 candidates instead.
 			board[i] = (v > 0) ? (1 << (v - 1)) : ALL;
 		}
 
@@ -555,7 +555,7 @@ public class Board implements ISudokuBoard, Serializable {
 		return str;
 	}
 
-	// TODO - Build Board from compressed string
+	// TODO #14 Build Board from compressed string
 
 	@Override
 	public String toString() {

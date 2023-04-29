@@ -97,6 +97,7 @@ public class TetrisBoardPanel extends JPanel {
 	public void setGame(ITetrisGame newGame) {
 		//unregister old events if necessary
 		if (game != null) {
+			// TODO #69 game.unregisterAllEventListeners();
 			game.unregisterEventListener(TetrisEvent.LINE_CLEAR, boardListener);
 			game.unregisterEventListener(TetrisEvent.BLOCKS, boardListener);
 			game.unregisterEventListener(TetrisEvent.PIECE_CREATE, pieceListener);

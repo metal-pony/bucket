@@ -23,7 +23,6 @@ import javax.swing.JPanel;
 import com.sparklicorn.bucket.sudoku.game.Board;
 import static com.sparklicorn.bucket.sudoku.game.Board.*;
 
-@SuppressWarnings("serial")
 public class SudokuBoard extends JPanel implements ComponentListener {
 
 	private static Color[] COLORS = new Color[] {

@@ -57,7 +57,7 @@ public class GeneratePuzzles {
     );
   }
 
-  // TODO Move this to Generator, then delete this whole class.
+  // TODO #24 Move this to Generator, then delete this whole class.
   public static void generatePuzzles(int amount, int clues, int threads) {
     if (threads == 1) {
       for (int n = 0; n < amount; n++) {

@@ -270,11 +270,11 @@ public class TestSolver {
     // }
   }
 
-  // TODO test all methods with int[] param when int[].length != NUM_CELLS
+  // TODO #23 test all methods with int[] param when int[].length != NUM_CELLS
 
   // @Test
   void testGetSolutions() {
-    // TODO More test fixtures needed.
+    // TODO #23 More test fixtures needed.
     fail("NYI");
   }
 
@@ -492,7 +492,7 @@ public class TestSolver {
 
   // @Test
   void testReduce_whenBoardIsPartiallyEmpty() {
-    // TODO Create new test fixtures first
+    // TODO #23 Create new test fixtures first
     fail("NYI");
   }
 
@@ -550,7 +550,7 @@ public class TestSolver {
 
   @Test
   void testSearchForSolutions_whenASolutionIsFound_invokesTheCallbackWithSolution() {
-    // TODO Amend with new test fixtures later
+    // TODO #23 Amend with new test fixtures later
 
     AtomicInteger callbackCounter = new AtomicInteger();
     forEach(VALID_COMPLETE_BOARDS).doIt((boardInput) -> {
@@ -586,19 +586,19 @@ public class TestSolver {
       (solution) -> false
     ));
 
-    // TODO Add test with puzzle that has multiple solutions,
+    // TODO #23 Add test with puzzle that has multiple solutions,
     // that the callback is only called once.
   }
 
   // @Test
   void testSearchForSolutions_whenBoardHasMultipleSolutions_whenCallbackReturnsTrue_invokesCallbackForEachSolutionAndReturnsTrue() {
-    // TODO More test fixtures needed.
+    // TODO #23 More test fixtures needed.
     fail("NYI");
   }
 
   // @Test
   void testSearchForSolutions_whenBoardHasMultipleSolutions_whenCallbackReturnsFalse_invokesCallbackOnceAndReturnsFalse() {
-    // TODO More test fixtures needed.
+    // TODO #23 More test fixtures needed.
     fail("NYI");
   }
 }

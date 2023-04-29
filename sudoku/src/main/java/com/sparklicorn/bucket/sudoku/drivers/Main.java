@@ -321,7 +321,7 @@ public class Main {
     COMMANDS.get(command).accept(argMap);
   }
 
-  // TODO generalize REPL
+  // TODO #67 Create general REPL tool
   // public static void repl() {
   //   Scanner scanner = new Scanner(System.in);
   //   System.out.println("Sudoku. \"help\" to list commands, \"exit\" or Ctrl+C to exit.");
