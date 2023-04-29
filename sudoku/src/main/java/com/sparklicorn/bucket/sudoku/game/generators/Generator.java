@@ -221,9 +221,10 @@ public class Generator {
         puzzleStack.pop();
         puzzleNode.dispose();
 
-        // TODO explore whether it's possible to keep a history for each node,
-        // TODO i.e. track which cells were attempted to be removed.
-        // TODO Then, this won't need any sort of restart fail-safe.
+        // TODO #24 explore whether it's possible to keep a history for each node,
+        //  i.e. track which cells were attempted to be removed.
+        //  Then, this won't need any sort of restart fail-safe.
+
         // After a certain number of pops, restart the search. This ensures that
         // that the algorithm won't continue to try to remove cells when there is
         // no path to a valid puzzle.
@@ -266,7 +267,7 @@ public class Generator {
 
   /**
    * Populates the given list with a random permutation of numbers 1 - n.
-   * TODO move to some other utility
+   * TODO #68 move to some other utility
    *
    * @param n
    * @param list
@@ -288,7 +289,7 @@ public class Generator {
     return list;
   }
 
-  // TODO move to some other utility
+  // TODO #68 move to some other utility
   // Utility to generate array containing range of integers [start, start + n].
   private static int[] getSeries(int n, int start) {
     int[] series = new int[n];

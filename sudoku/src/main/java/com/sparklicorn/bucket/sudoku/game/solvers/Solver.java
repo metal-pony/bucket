@@ -237,7 +237,7 @@ public class Solver {
 	 * Decodes Sudoku candidate bits into a representation easier consumed by humans.
 	 * Eg, <code>d(0b011011001) => 14578</code>, and each digit in the result
 	 * corresponds to a candidate for the associated cell.
-	 * TODO Remove this after debugging
+	 * TODO #23 If this is not used anywhere else, remove after writing tests / debugging
 	 *
 	 * @param encoded
 	 * @return
@@ -301,7 +301,7 @@ public class Solver {
 
 	static int searchForUniqueCandidate(int[] board, int cellIndex) {
 		final int candidates = board[cellIndex];
-		// // TODO for debug, delete later
+		// TODO #23 for debug, delete later
 		// System.out.printf(
 		// 	"Unique check on %d for [%d]: ",
 		// 	cellIndex,
@@ -370,7 +370,7 @@ public class Solver {
 		// );
 
 		// ? If candidate constraints reduces to 0, then the board is likely invalid.
-		// TODO Reason out and test what happens when the board is invalid.
+		// TODO #23 Reason out and test what happens when the board is invalid.
 		int reducedCandidates = _board[cellIndex] &= ~board.constraints.getForCell(cellIndex);
 		if (reducedCandidates <= 0) {
 			// System.out.printf(
@@ -384,7 +384,7 @@ public class Solver {
 			return false;
 		}
 
-		// // TODO for debug, delete later
+		// TODO #23 for debug, delete later
 		// if (reducedCandidates < candidates) {
 		// 	System.out.printf(
 		// 		"reduce %d (%d,%d): [%d]",
@@ -572,7 +572,7 @@ public class Solver {
 		if (
 			unsolvedIndex >= 0 // &&
 			// empty cell actually has candidates (if cell is 0 -> board is invalid)
-			// TODO This doesn't seem possible - may be able to remove
+			// TODO #23 This doesn't seem possible - may be able to remove
 			// candidateBoard[emptyCellIndex] > 0
 		) {
 			forEachCellCandidate(currentSolution.board, unsolvedIndex, (candidateDigit) -> {

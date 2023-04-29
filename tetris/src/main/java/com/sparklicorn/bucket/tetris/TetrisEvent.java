@@ -1,7 +1,7 @@
 package com.sparklicorn.bucket.tetris;
 
+// TODO #70 Document event meanings
 public enum TetrisEvent {
-	// TODO add descriptions
 	NEW_GAME,
 	START,
 	STOP,
@@ -14,7 +14,7 @@ public enum TetrisEvent {
 	LEVEL_CHANGE,
 	LINE_CLEAR,
 
-	BLOCKS, // TODO what is this used for?
+	BLOCKS,
 	PIECE_SHIFT,
 	PIECE_ROTATE,
 	PIECE_CREATE,

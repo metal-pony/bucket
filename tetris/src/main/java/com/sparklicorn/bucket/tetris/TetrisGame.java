@@ -16,7 +16,7 @@ import com.sparklicorn.bucket.util.event.*;
 import com.sparklicorn.bucket.tetris.util.structs.*;
 import com.sparklicorn.bucket.tetris.util.structs.Coord.FinalCoord;
 
-// TODO Feature: Multiplayer co-op
+// TODO #43 Design new feature: Multiplayer co-op
 // Side-by-side boards, with light visual border between.
 // Standard tetris rules apply.
 // Players can place pieces anywhere.
@@ -59,7 +59,7 @@ public class TetrisGame implements ITetrisGame {
 	 ******************/
 	protected int[] board;
 
-	// TODO keep track of full rows as pieces are placed
+	// TODO #44 keep track of full rows as pieces are placed
 	protected boolean[] fullRows;
 
 	protected boolean isGameOver, isPaused, isClearingLines, hasStarted;
@@ -345,9 +345,9 @@ public class TetrisGame implements ITetrisGame {
 		return board[location.row() * cols + location.col()] != 0;
 	}
 
-	// TODO Removes full rows from the board, shifting remaining rows down.
+	// TODO #44 Removes full rows from the board, shifting remaining rows down.
 	protected void removeRows(int[] rows) {
-		// TODO implement and use below
+		// TODO #44 implement and use below
 	}
 
 	/**
@@ -463,7 +463,7 @@ public class TetrisGame implements ITetrisGame {
 	 * @return True if any row was cleared; otherwise false.
 	 */
 	protected boolean attemptClearLines() {
-		// TODO refactor after clearLines() is refactored
+		// TODO #44 refactor after clearLines() is refactored
 		List<Integer> lines = clearLines();
 
 		if (lines != null) {	//lines were cleared!
@@ -572,7 +572,7 @@ public class TetrisGame implements ITetrisGame {
 		linesUntilNextLevel = LINES_PER_LEVEL;
 		dist = new long[NUM_SHAPES];
 
-		//This will cause the queue to re-populate next time poll() is called.
+		// This will cause the queue to re-populate next time poll() is called.
 		nextShapes.clear();
 
 		board = new int[rows * cols];
