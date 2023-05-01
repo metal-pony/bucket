@@ -18,8 +18,7 @@ import com.sparklicorn.bucket.util.Shuffler;
 public class ShapeQueue implements Queue<Shape> {
 	public static final int DEFAULT_MIN_SIZE = 14;
 
-	protected static final List<Integer> SHAPES = Shuffler.range(1, Shape.NUM_SHAPES + 1);
-
+	protected final List<Integer> SHAPES = Shuffler.range(1, Shape.NUM_SHAPES + 1);
 	protected final int minSize;
 	protected final LinkedList<Integer> shapeIndexQueue;
 
