@@ -11,10 +11,10 @@
   <packaging>pom</packaging>
 
   <properties>
-    <revision>1.0.0</revision>
-    <bucket.version>1.4.1</bucket.version>
-    <sudoku.version>1.0.0</sudoku.version>
-    <tetris.version>1.0.1</tetris.version>
+    <revision>1.0.1</revision>
+    <bucket.version>1.4.2</bucket.version>
+    <sudoku.version>1.0.1</sudoku.version>
+    <tetris.version>1.0.2</tetris.version>
 
     <!-- Environment -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
