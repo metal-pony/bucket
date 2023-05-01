@@ -25,5 +25,4 @@ jobs:
             ./mvnw -B deploy
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
