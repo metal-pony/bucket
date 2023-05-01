@@ -4,19 +4,19 @@
   <parent>
     <artifactId>root</artifactId>
     <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.0</version>
+    <version>${revision}</version>
   </parent>
 
   <name>Tetris</name>
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>tetris</artifactId>
-  <version>1.0.1</version>
+  <version>${tetris.version}</version>
 
   <dependencies>
     <dependency>
       <artifactId>bucket</artifactId>
       <groupId>com.sparklicorn.bucket</groupId>
-      <version>1.4.1</version>
+      <version>${bucket.version}</version>
     </dependency>
   </dependencies>
 </project>

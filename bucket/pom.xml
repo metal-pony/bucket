@@ -4,11 +4,23 @@
   <parent>
     <artifactId>root</artifactId>
     <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.0</version>
+    <version>${revision}</version>
   </parent>
 
   <name>Bucket</name>
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>bucket</artifactId>
-  <version>1.4.1</version>
+  <version>${bucket.version}</version>
+
+  <properties>
+    <gson>2.10.1</gson>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>${gson}</version>
+    </dependency>
+  </dependencies>
 </project>
