@@ -16,13 +16,33 @@ jobs:
           distribution: 'temurin'
       - name: Publish package
         run: |
-          SUBMODULE=$(echo "$TAG_NAME" | cut -d '-' -f 2)
-          if [ -n "$SUBMODULE" ]; then
-            echo "Deploying submodule $SUBMODULE"
-            ./mvnw -B deploy -pl "$SUBMODULE"
+          # If tag is "v.X.X.X" only, deploy everything.
+          if [[ "$TAG_NAME" =~ v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Deploying all modules";
+            ./mvnw -B deploy;
+
+          # If tag is "v.X.X.X-modulename..."
+          elif [[ "$TAG_NAME" =~ v[0-9]+\.[0-9]+\.[0-9]+\-[a-z]+ ]]; then
+            VALID_MODULES=(bucket tetris sudoku);
+            MODULE=$(echo "$TAG_NAME" | cut -d '-' -f 2);
+            mod_found=false;
+
+            # Try to match against hard-coded list of current modules.
+            for valid_mod in "$VALID_MODULES"; do
+              if [ "$valid_mod" == "$MODULE" ]; then
+                mod_found=true;
+                echo "Deploying module: $MODULE";
+                ./mvnw -B deploy -pl "$MODULE";
+                break;
+              fi
+            done
+
+            if [ "$mod_found" = false ]; then
+              echo "MALFORMED TAG OR UNRECOGNIZED MODULE: $MODULE"
+            fi
           else
-            echo "Deploying all modules"
-            ./mvnw -B deploy
+            echo "MALFORMED TAG: $TAG_NAME"
           fi
+
         env:
           TAG_NAME: ${{ github.ref_name }}
