@@ -8,13 +8,15 @@ public class Coord {
 	 * A Coord whose values cannot be changed.
 	 */
 	public static final class FinalCoord extends Coord {
+		public static final String UNMODIFIABLE_ERR = "Cannot modify FinalCoord";
+
 		public FinalCoord(int row, int col) { super(row, col); }
 		public FinalCoord(Coord otherCoord) { super(otherCoord); }
 
-		@Override public Coord add(int r, int c) 		{ throw new UnsupportedOperationException(); }
-		@Override public Coord add(Coord...coords) 		{ throw new UnsupportedOperationException(); }
-		@Override public Coord set(int row, int col) 	{ throw new UnsupportedOperationException(); }
-		@Override public Coord set(Coord other) 		{ throw new UnsupportedOperationException(); }
+		@Override public Coord add(int r, int c) 		{ throw new UnsupportedOperationException(UNMODIFIABLE_ERR); }
+		@Override public Coord add(Coord...coords) 		{ throw new UnsupportedOperationException(UNMODIFIABLE_ERR); }
+		@Override public Coord set(int row, int col) 	{ throw new UnsupportedOperationException(UNMODIFIABLE_ERR); }
+		@Override public Coord set(Coord other) 		{ throw new UnsupportedOperationException(UNMODIFIABLE_ERR); }
 	}
 
 	/**
