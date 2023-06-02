@@ -15,6 +15,7 @@
     <bucket.version>1.5.0</bucket.version>
     <sudoku.version>1.0.1</sudoku.version>
     <tetris.version>1.0.3</tetris.version>
+    <tetris-ai.version>3.0.0</tetris-ai.version>
 
     <!-- Environment -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -96,5 +97,6 @@
     <module>bucket</module>
     <module>sudoku</module>
     <module>tetris</module>
+    <module>tetris-ai</module>
   </modules>
 </project>
