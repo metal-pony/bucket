@@ -1,8 +1,10 @@
 package com.sparklicorn.bucket.util;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
@@ -12,6 +14,67 @@ import java.util.random.RandomGenerator;
  * A Shuffle utility that implements a version of the Fisher-Yates shuffling algorithm.
  */
 public final class Shuffler {
+
+	public static BigInteger factorial(long n) {
+		BigInteger result = (n < 1L) ? BigInteger.ONE : BigInteger.valueOf(n);
+		for (long i = n - 1L; i > 1L; i--) {
+			result = result.multiply(BigInteger.valueOf(i));
+		}
+		return result;
+	}
+
+	public static BigInteger random(BigInteger bound, Random rand) {
+		if (bound.compareTo(BigInteger.ZERO) <= 0) {
+			throw new IllegalArgumentException("bound must be positive");
+		}
+
+		BigInteger result = new BigInteger(bound.bitLength(), rand);
+		while (result.compareTo(bound) >= 0) {
+			result = new BigInteger(bound.bitLength(), rand);
+		}
+		return result;
+	}
+
+	public static int[] randomPermutation(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		BigInteger r = random(factorial(n), ThreadLocalRandom.current());
+
+		return permutation(n, r);
+	}
+
+	public static int[] permutation(int n, BigInteger r) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		int[] result = new int[n];
+		int[] items = rangeArr(n);
+
+		for (int i = 0; i < n; i++) {
+			r = r.mod(factorial(n - i));
+			BigInteger dividend = factorial(n - i - 1);
+			int q = r.divide(dividend).intValue();
+			result[i] = items[q];
+
+			// Shift items whose index > q to the left one place
+			for (int j = q + 1; j < n - i; j++) {
+				items[j - 1] = items[j];
+			}
+		}
+
+		return result;
+	}
+
+	public static int[] rangeArr(int n) {
+		int[] result = new int[n];
+		for (int i = 0; i < n; i++) {
+			result[i] = i;
+		}
+		return result;
+	}
 
 	/**
 	 * Returns a list of ints in the range [0, to (exclusive)).
