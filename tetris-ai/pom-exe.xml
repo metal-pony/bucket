@@ -7,9 +7,9 @@
     <version>1.0.2</version>
   </parent>
 
-  <name>Tetris</name>
+  <name>Tetris AI</name>
   <groupId>com.sparklicorn.bucket</groupId>
-  <artifactId>tetris</artifactId>
+  <artifactId>tetris-ai</artifactId>
   <!-- This does not need to be up to date -->
   <version>1.0.0</version>
 
@@ -19,22 +19,27 @@
       <groupId>com.sparklicorn.bucket</groupId>
       <version>${bucket.version}</version>
     </dependency>
+    <dependency>
+      <groupId>com.sparklicorn.bucket</groupId>
+      <artifactId>tetris</artifactId>
+      <version>${tetris.version}</version>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-            <version>${spring.boot.maven.plugin}</version>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>repackage</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring.boot.maven.plugin}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>

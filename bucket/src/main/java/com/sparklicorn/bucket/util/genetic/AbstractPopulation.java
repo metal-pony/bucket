@@ -63,18 +63,14 @@ public abstract class AbstractPopulation<G extends IGenes<G>> {
 	 * Sorts the population collection by member fitness in ascending order.
 	 */
 	public void sortAsc() {
-		members.sort((G g1, G g2) -> {
-			return (g1.getFitness() < g2.getFitness()) ? -1 : 1;
-		});
+		members.sort((G g1, G g2) -> Double.compare(g1.getFitness(), g2.getFitness()));
 	}
 
 	/**
 	 * Sorts the population collection by member fitness in descending order.
 	 */
 	public void sortDesc() {
-		members.sort((G g1, G g2) -> {
-			return (g1.getFitness() < g2.getFitness()) ? 1 : -1;
-		});
+		members.sort((G g1, G g2) -> Double.compare(g2.getFitness(), g1.getFitness()));
 	}
 
 	/**

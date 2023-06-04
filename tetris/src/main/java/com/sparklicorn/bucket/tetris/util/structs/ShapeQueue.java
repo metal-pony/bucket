@@ -2,10 +2,10 @@ package com.sparklicorn.bucket.tetris.util.structs;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
+import java.util.Vector;
 
 import com.sparklicorn.bucket.util.Shuffler;
 
@@ -18,9 +18,9 @@ import com.sparklicorn.bucket.util.Shuffler;
 public class ShapeQueue implements Queue<Shape> {
 	public static final int DEFAULT_MIN_SIZE = 14;
 
-	protected final List<Integer> SHAPES = Shuffler.range(1, Shape.NUM_SHAPES + 1);
+	protected int[] SHAPES = { 1, 2, 3, 4, 5, 6, 7 };
 	protected final int minSize;
-	protected final LinkedList<Integer> shapeIndexQueue;
+	protected final List<Integer> shapeIndexQueue;
 
 	/**
 	 * Creates a new ShapeQueue.
@@ -38,7 +38,7 @@ public class ShapeQueue implements Queue<Shape> {
 	 */
 	public ShapeQueue(int minSize) {
 		this.minSize = Math.max(DEFAULT_MIN_SIZE, minSize);
-		this.shapeIndexQueue = new LinkedList<>();
+		this.shapeIndexQueue = new Vector<>(this.minSize);
 	}
 
 	/**
@@ -48,7 +48,7 @@ public class ShapeQueue implements Queue<Shape> {
 	public ShapeQueue(ShapeQueue other) {
 		minSize = other.minSize;
 		other.ensureCapacity(other.minSize);
-		this.shapeIndexQueue = new LinkedList<>(other.shapeIndexQueue);
+		this.shapeIndexQueue = new Vector<>(other.shapeIndexQueue);
 	}
 
 	/**
@@ -56,7 +56,10 @@ public class ShapeQueue implements Queue<Shape> {
 	 */
 	public void ensureCapacity(int capacity) {
 		while (size() < capacity) {
-			shapeIndexQueue.addAll(Shuffler.shuffleList(SHAPES));
+			Shuffler.shuffleInts(SHAPES);
+			for (int shape : SHAPES) {
+				shapeIndexQueue.add(shape);
+			}
 		}
 	}
 
@@ -67,7 +70,7 @@ public class ShapeQueue implements Queue<Shape> {
 	@Override
 	public Shape poll() {
 		ensureCapacity(minSize + 1);
-		return Shape.getShape(shapeIndexQueue.poll());
+		return Shape.getShape(shapeIndexQueue.remove(0));
 	}
 
 	/**
@@ -77,7 +80,7 @@ public class ShapeQueue implements Queue<Shape> {
 	@Override
 	public Shape peek() {
 		ensureCapacity(minSize + 1);
-		return Shape.getShape(shapeIndexQueue.peek());
+		return Shape.getShape(shapeIndexQueue.get(0));
 	}
 
 	@Override
@@ -101,6 +104,11 @@ public class ShapeQueue implements Queue<Shape> {
 	@Override public int size() { return shapeIndexQueue.size(); }
 	@Override public boolean isEmpty() { return shapeIndexQueue.isEmpty(); }
 	@Override public void clear() { shapeIndexQueue.clear(); }
+
+	@Override
+	public String toString() {
+		return shapeIndexQueue.toString();
+	}
 
 	/** Throws UnsupportedOperationException */
 	@Override public boolean contains(Object o) { throw new UnsupportedOperationException(); }
