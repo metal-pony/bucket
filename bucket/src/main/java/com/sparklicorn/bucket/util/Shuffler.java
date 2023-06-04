@@ -2,6 +2,7 @@ package com.sparklicorn.bucket.util;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -15,12 +16,86 @@ import java.util.random.RandomGenerator;
  */
 public final class Shuffler {
 
+	static void testNChooseK(long n, long k, String expected) {
+		BigInteger actual = null;
+		String status = null;
+
+		try {
+			actual = Shuffler.nChooseK(n, k);
+			BigInteger _expected = new BigInteger(expected);
+			if (actual.equals(_expected)) {
+				status = "TRUE";
+			} else {
+				status = "FALSE " + actual.toString();
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+
+		System.out.printf(
+			"(%d,%d) = %s [%s]\n",
+			n, k, expected, status
+		);
+	}
+
+	static void testComboGeneration(int n, int k, BigInteger r, int[] expected) {
+		int[] actual = null;
+		String status = null;
+
+		try {
+			actual = Shuffler.combo(n, k, r);
+			boolean passed = Arrays.equals(actual, 0, k, expected, 0, k);
+			status = Boolean.toString(passed).toUpperCase();
+			if (!passed) {
+				status += Arrays.toString(actual);
+			}
+		} catch (Exception ex) {
+			status = "ERROR";
+			ex.printStackTrace();
+		}
+
+		System.out.printf(
+			"(%d,%d) = %s [%s]\n",
+			n, k, Arrays.toString(expected), status
+		);
+	}
+
+	public static void main(String[] args) {
+		// testNChooseK(0, 0, "1");
+		// testNChooseK(1, 0, "1");
+		// testNChooseK(1, 1, "1");
+		// testNChooseK(2, 0, "1");
+		// testNChooseK(2, 1, "2");
+		// testNChooseK(2, 2, "1");
+		// testNChooseK(3, 0, "1");
+		// testNChooseK(3, 1, "3");
+		// testNChooseK(3, 2, "3");
+		// testNChooseK(3, 3, "1");
+		// testNChooseK(7, 5, "21");
+
+		testComboGeneration(6, 3, BigInteger.valueOf(12), new int[] {1,2,5});
+	}
+
 	public static BigInteger factorial(long n) {
-		BigInteger result = (n < 1L) ? BigInteger.ONE : BigInteger.valueOf(n);
+		BigInteger result = (n < 1L) ? BigInteger.valueOf(1L) : BigInteger.valueOf(n);
 		for (long i = n - 1L; i > 1L; i--) {
 			result = result.multiply(BigInteger.valueOf(i));
 		}
 		return result;
+	}
+
+	public static BigInteger nChooseK(long n, long k) {
+		if (n < 0L || k < 0L) {
+			throw new ArithmeticException("n Choose k: both n and k must be nonnegative");
+		}
+
+		if (k == 0L || n == k) {
+			return BigInteger.valueOf(1L);
+		}
+
+		return factorial(n).divide(factorial(k)).divide(factorial(n - k));
+
+		// return factorialDiv(factorialDiv(n, k), n - k);
 	}
 
 	public static BigInteger random(BigInteger bound, Random rand) {
@@ -32,6 +107,63 @@ public final class Shuffler {
 		while (result.compareTo(bound) >= 0) {
 			result = new BigInteger(bound.bitLength(), rand);
 		}
+		return result;
+	}
+
+	public static int[] randomCombo(int n, int k) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		BigInteger r = random(factorial(n), ThreadLocalRandom.current());
+
+		return combo(n, k, r);
+	}
+
+	public static int[] combo(int n, int k, BigInteger r) {
+		System.out.printf("combo(n: %d, k: %d, r: %s)\n", n, k, r.toString());
+		int[] result = new int[k];
+		int[] items = rangeArr(n);
+		BigInteger _r = new BigInteger(r.toString());
+
+		for (int i = 0; i < k; i++) {
+			System.out.println("items: " + Arrays.toString(items));
+			System.out.println("result: " + Arrays.toString(result));
+			BigInteger s = _r;
+			BigInteger sum = BigInteger.valueOf(0L);
+			int _n = n - 1 - i;
+			int _k = k - 1 - i;
+			for (int a = 0; a < n - i; a++) {
+				BigInteger j = nChooseK(_n - a, _k);
+				sum = sum.add(j);
+				System.out.printf("i=%d; j(%d choose %d)=%s;\n", i, _n - a, _k, j.toString());
+				if (_r.compareTo(sum) >= 0) {
+					System.out.printf("Removing items[0] %d\n", items[0]);
+					items = Arrays.copyOfRange(items, 1, items.length);
+					s = s.subtract(j);
+
+				} else {
+					System.out.printf("i=%d region found: %d\n", i, a);
+					System.out.printf("result[%d] = %d\n", i, items[0]);
+					result[i] = items[0];
+					if (items.length > 1) {
+						System.out.printf("Removing items[0] %d\n", items[0]);
+						items = Arrays.copyOfRange(items, 1, items.length);
+					}
+					System.out.println();
+					break;
+				}
+			}
+
+			// if (items.length > 1) {
+			// 	System.out.printf("Removing items[0] %d\n", items[0]);
+			// 	items = Arrays.copyOfRange(items, 1, items.length);
+			// }
+
+			System.out.println("New _r: " + s.toString());
+			_r = s;
+		}
+
 		return result;
 	}
 

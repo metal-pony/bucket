@@ -200,4 +200,8 @@ public class TetrisFrame extends JFrame {
 		setLocationRelativeTo(null);
 		setVisible(true);
 	}
+
+	public TetrisBoardPanel getPanel() {
+		return panel;
+	}
 }

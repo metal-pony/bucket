@@ -19,9 +19,9 @@ public class TetrisBoardPanel extends JPanel {
 
 	protected static final int DEFAULT_BLOCK_SIZE = 24;
 
-	//O = 1, I = 2, S = 3, Z = 4, L = 5, J = 6, T = 7;
+	// O = 1, I = 2, S = 3, Z = 4, L = 5, J = 6, T = 7;
 	protected static final Color[] COLORS_BY_SHAPE = {
-		Color.WHITE,
+		new Color(1f, 1f, 1f, 0.5f),
 		Color.YELLOW,
 		Color.CYAN,
 		Color.GREEN,
@@ -180,9 +180,10 @@ public class TetrisBoardPanel extends JPanel {
 			if (!hidingBlocks) {
 				for (int i = 0; i < blockData.length; i++) {
 					if (blockData[i] > 0) {
+						int colorIndex = blockData[i] % COLORS_BY_SHAPE.length;
 						int x = (i % numCols) * blockSize;
 						int y = (i / numCols) * blockSize;
-						g.setColor(COLORS_BY_SHAPE[blockData[i]]);
+						g.setColor(COLORS_BY_SHAPE[colorIndex]);
 						g.fill3DRect(x, y, blockSize, blockSize, true);
 					}
 				}

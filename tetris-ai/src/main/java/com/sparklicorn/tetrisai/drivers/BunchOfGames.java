@@ -183,29 +183,31 @@ public class BunchOfGames {
 		frame.pack();
 		frame.setVisible(true);
 
-		System.out.println("Ranker population initialized.");
-		System.out.println("Calculating initial fitness values...");
-		pop.updateFitnesses();
-		System.out.println("Fitness values finished calculating.");
-		System.out.println("Here's the initial population:");
-		System.out.println(pop.json());
+		ThreadPool.submit(() -> {
+			System.out.println("Ranker population initialized.");
+			System.out.println("Calculating initial fitness values...");
+			pop.updateFitnesses();
+			System.out.println("Fitness values finished calculating.");
+			System.out.println("Here's the initial population:");
+			System.out.println(pop.json());
 
-		// pop.select(); //cuts the population in half
-		//because the first step in nextGeneration() is crossover, which doubles population.
-		for (int gen = 1; gen <= numGenerations; gen++) {
-			if (!frame.isVisible()) {
-				break;
+			// pop.select(); //cuts the population in half
+			//because the first step in nextGeneration() is crossover, which doubles population.
+			for (int gen = 1; gen <= numGenerations; gen++) {
+				if (!frame.isVisible()) {
+					break;
+				}
+
+				System.out.println("Generation " + gen);
+				pop.nextGeneration();
+				pop.updateFitnesses();
+				System.out.println(pop.json());
 			}
 
-			System.out.println("Generation " + gen);
-			pop.nextGeneration();
-			pop.updateFitnesses();
-			System.out.println(pop.json());
-		}
-
-		System.out.println("Finished");
-		// GenericRanker.shutdown();
-		// ThreadPool.shutdown();
+			System.out.println("Finished");
+			// GenericRanker.shutdown();
+			// ThreadPool.shutdown();
+		});
 	}
 
 	//lower inclusive, upper exclusive
