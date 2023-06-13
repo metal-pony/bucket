@@ -20,6 +20,8 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.google.gson.Gson;
+
 @DisplayName("Shuffler")
 public class TestShuffler {
     @Nested
@@ -42,6 +44,78 @@ public class TestShuffler {
     }
 
     @Nested
+    @DisplayName("combination")
+    class Combination {
+        @Test
+        @DisplayName("nChooseK throws exception on negative input")
+        void nChooseK_negativeInputs() {
+            assertThrows(ArithmeticException.class, () -> Shuffler.nChooseK(-1, 0));
+            assertThrows(ArithmeticException.class, () -> Shuffler.nChooseK(-10, 0));
+            assertThrows(ArithmeticException.class, () -> Shuffler.nChooseK(0, -1));
+            assertThrows(ArithmeticException.class, () -> Shuffler.nChooseK(0, -10));
+            assertThrows(ArithmeticException.class, () -> Shuffler.nChooseK(-10, -10));
+        }
+
+        @Test
+        @DisplayName("nChooseK returns 0 whenever k is 0")
+        void nChooseK_whenKIsZero_returnsOne() {
+            for (long n = 0L; n < 100L; n++) {
+                assertEquals(BigInteger.ONE, Shuffler.nChooseK(n, 0L));
+            }
+        }
+
+        @ParameterizedTest(name = "n = {0}")
+        @CsvFileSource(resources = "/NChooseK.csv", numLinesToSkip = 1, delimiter = '|', maxCharsPerColumn = 1<<24)
+        void nChooseK(long n, String nChooseKArr) {
+            Gson gson = new Gson();
+            String[] expectedStrs = gson.fromJson(nChooseKArr, String[].class);
+
+            for (int k = 0; k < expectedStrs.length; k++) {
+                assertEquals(new BigInteger(expectedStrs[k]), Shuffler.nChooseK(n, k));
+            }
+        }
+
+        @Test
+        void combo_whenRIsNegative_throwsException() {
+            assertThrows(IllegalArgumentException.class,
+                () -> Shuffler.combo(0, 0, BigInteger.valueOf(-1)));
+            assertThrows(IllegalArgumentException.class,
+                () -> Shuffler.combo(0, 0, BigInteger.valueOf(-10)));
+            assertThrows(IllegalArgumentException.class,
+                () -> Shuffler.combo(0, 0, BigInteger.valueOf(-100)));
+        }
+
+        @ParameterizedTest
+        @CsvSource(textBlock = """
+            1,1,2
+            2,1,3
+            3,2,19
+            7,5,22
+            10,5,253
+
+        """)
+        void combo_whenRIsTooLarge_throwsException(int n, int k, String r) {
+            assertThrows(IllegalArgumentException.class, () -> Shuffler.combo(n, k, new BigInteger(r)));
+        }
+
+        @ParameterizedTest(name = "({0} choose {1}) = {2}")
+        @CsvSource(textBlock = """
+            -10,0
+            -1,0
+            0,-1
+            0,-10
+            -1,-2
+            -87456,-2384
+        """)
+        void combo_negativeInputs(int n, int k) {
+            assertThrows(
+                ArithmeticException.class,
+                () -> Shuffler.combo(n, k, BigInteger.ZERO)
+            );
+        }
+    }
+
+    @Nested
     @DisplayName("permutation")
     class Permutation {
         @ParameterizedTest(name = "n = {0}, throws exception")
@@ -59,53 +133,17 @@ public class TestShuffler {
             );
         }
 
-        @Test
-        @DisplayName("n = 1")
-        void testInput1() {
-            assertArrayEquals(
-                new int[]{ 0 },
-                Shuffler.randomPermutation(1)
-            );
-        }
+        @ParameterizedTest(name = "n = {0}")
+        @CsvFileSource(resources = "/Perms.csv", numLinesToSkip = 1, delimiter = ';', maxCharsPerColumn = 1<<24)
+        void permutationsFromFile(int n, String permsArrStr) {
+            Gson gson = new Gson();
+            int[][] expectedPerms = gson.fromJson(permsArrStr, int[][].class);
 
-        @ParameterizedTest(name = "n = 2")
-        @CsvSource(textBlock = """
-            0,  0,  1
-            1,  1,  0
-        """)
-        void testN2(int r, int i0, int i1) {
-            int[] result = Shuffler.permutation(2, BigInteger.valueOf(r));
-            assertArrayEquals(
-                new int[]{ i0, i1 },
-                result
-            );
-        }
-
-        @ParameterizedTest(name = "n = 3")
-        @CsvSource(textBlock = """
-            0, 0, 1, 2
-            1, 0, 2, 1
-            2, 1, 0, 2
-            3, 1, 2, 0
-            4, 2, 0, 1
-            5, 2, 1, 0
-        """)
-        void testN3(int r, int i0, int i1, int i2) {
-            int[] result = Shuffler.permutation(3, BigInteger.valueOf(r));
-            assertArrayEquals(
-                new int[] { i0, i1, i2 },
-                result
-            );
-        }
-
-        @ParameterizedTest(name = "n = 4; r = {0}")
-        @CsvFileSource(resources = "/RandomPermsN4.csv", numLinesToSkip = 1)
-        void testN4(int r, int i0, int i1, int i2, int i3) {
-            int[] result = Shuffler.permutation(4, BigInteger.valueOf(r));
-            assertArrayEquals(
-                new int[] { i0, i1, i2, i3 },
-                result
-            );
+            for (int r = 0; r < expectedPerms.length; r++) {
+                int[] expected = expectedPerms[r];
+                int[] actual = Shuffler.permutation(n, BigInteger.valueOf(r));
+                assertArrayEquals(expected, actual);
+            }
         }
 
         @RepeatedTest(value = 8, name = "total perms when n = {currentRepetition}")
