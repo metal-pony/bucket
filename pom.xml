@@ -7,15 +7,15 @@
 
   <groupId>com.sparklicorn.bucket</groupId>
   <artifactId>root</artifactId>
-  <version>1.0.2</version>
+  <version>1.0.3</version>
   <packaging>pom</packaging>
 
   <properties>
-    <revision>1.0.2</revision>
+    <revision>1.0.3</revision>
     <bucket.version>1.6.0</bucket.version>
-    <sudoku.version>1.0.1</sudoku.version>
-    <tetris.version>1.0.3</tetris.version>
-    <tetris-ai.version>3.0.0</tetris-ai.version>
+    <sudoku.version>1.0.2</sudoku.version>
+    <tetris.version>1.0.4</tetris.version>
+    <tetris-ai.version>3.0.1</tetris-ai.version>
 
     <!-- Environment -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
