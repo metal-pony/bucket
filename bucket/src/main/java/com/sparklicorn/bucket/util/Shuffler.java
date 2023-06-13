@@ -10,17 +10,67 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
 
+import com.google.gson.Gson;
+
 /**
  * A Shuffle utility that implements a version of the Fisher-Yates shuffling algorithm.
  */
 public final class Shuffler {
 
+	static int[][] allPermutations(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+        int nFact = Counting.factorial(n);
+		int[][] result = new int[nFact][n];
+        for (int i = 0; i < nFact; i++) {
+            result[i] = permutation(n, BigInteger.valueOf(i));
+        }
+
+		return result;
+	}
+
+	static void main(String[] args) {
+		Gson gson = new Gson();
+
+		// Generate table for nChooseK tests
+		for (int n = 0; n < 200; n++) {
+			String[] nChooseK = new String[n + 1];
+
+			for (int k = 0; k <= n; k++) {
+				nChooseK[k] = nChooseK(n, k).toString();
+			}
+
+			System.out.printf("%d|%s\n", n, gson.toJson(nChooseK));
+		}
+
+		// Generate table for permutations test
+		// System.out.println("n,array_of_expected_perms_json");
+		// for (int n = 1; n < 10; n++) {
+		// 	int[][] perms = allPermutations(n);
+		// 	System.out.println(n + ";" + gson.toJson(perms));
+		// }
+	}
+
 	public static BigInteger factorial(long n) {
-		BigInteger result = (n < 1L) ? BigInteger.ONE : BigInteger.valueOf(n);
+		BigInteger result = (n < 1L) ? BigInteger.valueOf(1L) : BigInteger.valueOf(n);
 		for (long i = n - 1L; i > 1L; i--) {
 			result = result.multiply(BigInteger.valueOf(i));
 		}
 		return result;
+	}
+
+	public static BigInteger nChooseK(long n, long k) {
+		if (n < 0L || k < 0L) {
+			throw new ArithmeticException("n Choose k: both n and k must be nonnegative");
+		}
+
+		if (k == 0L || n == k) {
+			return BigInteger.valueOf(1L);
+		}
+
+		return factorial(n).divide(factorial(k)).divide(factorial(n - k));
 	}
 
 	public static BigInteger random(BigInteger bound, Random rand) {
@@ -32,6 +82,59 @@ public final class Shuffler {
 		while (result.compareTo(bound) >= 0) {
 			result = new BigInteger(bound.bitLength(), rand);
 		}
+		return result;
+	}
+
+	public static int[] randomCombo(int n, int k) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		BigInteger r = random(factorial(n), ThreadLocalRandom.current());
+
+		return combo(n, k, r);
+	}
+
+	public static int[] combo(int n, int k, BigInteger r) {
+		// validate r
+		if (r.compareTo(BigInteger.ZERO) < 0) {
+			throw new IllegalArgumentException("r must be nonnegative");
+		}
+		BigInteger nChooseK = nChooseK(n, k);
+		if (r.compareTo(nChooseK) >= 0) {
+			throw new IllegalArgumentException(
+				String.format("r must be in interval [0, n choose k (%s))", nChooseK.toString())
+			);
+		}
+
+		int[] result = new int[k];
+
+		// Anything choose 0 is 1. There's only one way to choose nothing, i.e. the empty set.
+		if (k == 0) {
+			return result;
+		}
+
+		int _n = n - 1;
+		int _k = k - 1;
+		BigInteger _r = new BigInteger(r.toString());
+
+		int index = 0;
+		for (int i = 0; i < n; i++) {
+			BigInteger _nChoose_k = nChooseK(_n, _k);
+			if (_r.compareTo(_nChoose_k) < 0) {
+				result[index++] = i;
+				_k--;
+
+				if (index == k) {
+					break;
+				}
+			} else {
+				_r = _r.subtract(_nChoose_k);
+			}
+			_n--;
+
+		}
+
 		return result;
 	}
 
