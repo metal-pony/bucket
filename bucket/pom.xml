@@ -4,7 +4,7 @@
   <parent>
     <artifactId>root</artifactId>
     <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
   </parent>
 
   <name>Bucket</name>
