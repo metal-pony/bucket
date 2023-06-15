@@ -22,7 +22,7 @@ public class FixedShapeGenerator extends ShapeQueue {
 	public static void init() {
 		while (SHARED_ITEMS.size() < LENGTH) {
 			int[] SHAPES = { 1, 2, 3, 4, 5, 6, 7 };
-			Shuffler.shuffleInts(SHAPES);
+			Shuffler.shuffle(SHAPES);
 			for (int shape : SHAPES) {
 				SHARED_ITEMS.add(shape);
 			}

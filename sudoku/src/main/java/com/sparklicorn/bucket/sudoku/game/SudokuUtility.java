@@ -195,7 +195,7 @@ public class SudokuUtility {
 		for (int i = 0; i < cellIndices.length; i++) {
 			cellIndices[i] = i;
 		}
-		Shuffler.shuffleInts(cellIndices);
+		Shuffler.shuffle(cellIndices);
 
 		for (int index : cellIndices) {
 			int cellValue = board[index];

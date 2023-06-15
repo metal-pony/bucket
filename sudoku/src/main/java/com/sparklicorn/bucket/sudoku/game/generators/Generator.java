@@ -305,7 +305,7 @@ public class Generator {
     int[] list = getSeries(Board.NUM_DIGITS, 1);
     for (int m = 0; m < Board.NUM_DIGITS; m++) {
       if ((mask & (1 << (8 - m))) > 0) {
-        Shuffler.shuffleInts(list);
+        Shuffler.shuffle(list);
         int gr = m/3;
         int gc = m%3;
         for (int i = 0; i < Board.NUM_DIGITS; i++) {

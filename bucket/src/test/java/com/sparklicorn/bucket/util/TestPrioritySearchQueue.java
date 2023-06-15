@@ -170,7 +170,7 @@ public class TestPrioritySearchQueue {
         println("Done.");
 
         print("Shuffling list... ");
-        Shuffler.shuffleList(offered);
+        Shuffler.shuffle(offered);
         println("Done.");
 
         println("Testing queue... ");

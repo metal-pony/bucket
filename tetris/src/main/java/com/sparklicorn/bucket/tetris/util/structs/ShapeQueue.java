@@ -56,7 +56,7 @@ public class ShapeQueue implements Queue<Shape> {
 	 */
 	public void ensureCapacity(int capacity) {
 		while (size() < capacity) {
-			Shuffler.shuffleInts(SHAPES);
+			Shuffler.shuffle(SHAPES);
 			for (int shape : SHAPES) {
 				shapeIndexQueue.add(shape);
 			}
