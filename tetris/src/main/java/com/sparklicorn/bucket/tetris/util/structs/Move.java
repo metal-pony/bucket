@@ -94,12 +94,6 @@ public class Move {
 	}
 
 	public Move rotate(Move direction) {
-		if (direction != Move.CLOCKWISE && direction != Move.COUNTERCLOCKWISE) {
-			throw new IllegalArgumentException(
-				"Direction must be CLOCKWISE or COUNTERCLOCKWISE"
-			);
-		}
-
 		this.rotation += direction.rotation;
 		return this;
 	}
