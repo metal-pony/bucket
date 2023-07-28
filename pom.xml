@@ -16,6 +16,7 @@
     <sudoku.version>1.0.2</sudoku.version>
     <tetris.version>1.0.4</tetris.version>
     <tetris-ai.version>3.0.1</tetris-ai.version>
+    <gamer>0.0.1</gamer>
 
     <!-- Environment -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -98,5 +99,6 @@
     <module>sudoku</module>
     <module>tetris</module>
     <module>tetris-ai</module>
+    <module>gamer</module>
   </modules>
 </project>
