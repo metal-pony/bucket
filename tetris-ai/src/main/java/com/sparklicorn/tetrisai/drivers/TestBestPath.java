@@ -185,7 +185,7 @@ public class TestBestPath extends TetrisBoardPanel {
 	@Override public void paintComponent(Graphics g) {
 		super.paintComponent(g);
 
-		updateBlocks(state);
+		// updateBlocks(state);
 		// updatePiece(piece);
 
 		if (mousePointerBlock != null) {
@@ -213,19 +213,8 @@ public class TestBestPath extends TetrisBoardPanel {
 	 * Runs the Tetris training algorithm.
 	 */
 	public static void showFrame() {
-		// ITetrisStateRanker ranker = new GenericRanker(
-		//     new double[]{ -0.016478, -0.046655, -0.519912, -0.453756, -0.945709 }
-		// );
-
-		GenericRanker ranker2 = new GenericRanker(
-			new double[] {
-				0.221009946,
-				-0.15497386,
-				-3.2856708,
-				-0.7510359,
-				-5.81206
-			}
-		);
+		// GenericRanker ranker = new GenericRanker();
+		GenericRanker ranker2 = new GenericRanker();
 
 		PolyFuncRanker polyRanker = new PolyFuncRanker(
 			new MutatingPolyFunc[] {
