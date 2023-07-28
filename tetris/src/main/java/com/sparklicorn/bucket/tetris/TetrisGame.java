@@ -175,19 +175,19 @@ public class TetrisGame implements ITetrisGame {
 	 * Calculates the coordinates of blocks that make up the current shape,
 	 * in the given position.
 	 *
-	 * @param blockCoords Contains block coordinates that make up the shape.
+	 * @param coords Contains block coordinates that make up the shape.
 	 * The newly calculated block positions will be written here.
-	 * @param position The location and rotation of the shape to calculate block positions for.
+	 * @param pos The location and rotation of the shape to calculate block positions for.
 	 * @return The modified blockCoords array (for convenience).
 	 */
-	public Coord[] populateBlockPositions(Coord[] blockCoords, Position position) {
-		int rotationIndex = shape.rotationIndex(position.rotation());
-		for (int i = 0; i < blockCoords.length; i++) {
-			blockCoords[i].set(position.offset());
-			blockCoords[i].add(shape.rotationOffsets[rotationIndex][i]);
+	public Coord[] populateBlockPositions(Coord[] coords, Position pos) {
+		int rotationIndex = shape.rotationIndex(pos.rotation());
+		for (int i = 0; i < coords.length; i++) {
+			coords[i].set(pos.offset());
+			coords[i].add(shape.rotationOffsets[rotationIndex][i]);
 		}
 
-		return blockCoords;
+		return coords;
 	}
 
 	/**
@@ -321,7 +321,8 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	protected void plotPiece() {
 		for (Coord c : blockLocations) {
-			board[c.row() * cols + c.col()] = shape.value;
+			int index = c.row() * cols + c.col();
+			board[index] = shape.value;
 		}
 		throwEvent(TetrisEvent.PIECE_PLACED);
 		throwEvent(TetrisEvent.BLOCKS);
@@ -533,11 +534,13 @@ public class TetrisGame implements ITetrisGame {
 		return false;
 	}
 
-	@Override public long getNumPiecesDropped() {
+	@Override
+	public long getNumPiecesDropped() {
 		return numPiecesDropped;
 	}
 
-	@Override public synchronized void newGame() {
+	@Override
+	public synchronized void newGame() {
 		reset();
 		throwEvent(TetrisEvent.NEW_GAME);
 	}
@@ -563,6 +566,7 @@ public class TetrisGame implements ITetrisGame {
 		isGameOver = false;
 		isClearingLines = false;
 		isPaused = false;
+		isActive = false;
 
 		level = MIN_LEVEL;
 		linesCleared = 0;
@@ -572,64 +576,77 @@ public class TetrisGame implements ITetrisGame {
 		linesUntilNextLevel = LINES_PER_LEVEL;
 		dist = new long[NUM_SHAPES];
 
-		// This will cause the queue to re-populate next time poll() is called.
 		nextShapes.clear();
 
 		board = new int[rows * cols];
-
-		nextPiece();
 	}
 
-	@Override public synchronized void start(long level) {
-		if (!hasStarted) {
-			reset();
-			this.level = (level >= 0) ? level : MIN_LEVEL;
-			this.level = (level <= MAX_LEVEL) ? level : MAX_LEVEL;
-			hasStarted = true;
+	@Override
+	public synchronized void start(long level) {
+		if (hasStarted) {
+			return;
+		}
 
-			if (gameTimer != null) {
-				gameTimer.setDelay(
-					Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0),
-					TimeUnit.MILLISECONDS
-				);
-				gameTimer.start();
-			}
+		this.level = (level >= 0) ? level : MIN_LEVEL;
+		this.level = (level <= MAX_LEVEL) ? level : MAX_LEVEL;
+		hasStarted = true;
 
-			throwEvent(TetrisEvent.START);
+		throwEvent(TetrisEvent.START);
+		nextPiece();
+
+		if (gameTimer != null) {
+			gameTimer.setDelay(
+				Math.round((Math.pow(0.8 - (level) * 0.007, level)) * 1000.0),
+				TimeUnit.MILLISECONDS
+			);
+			gameTimer.start();
 		}
 	}
 
-	@Override public synchronized void stop() {
+	@Override
+	public synchronized void stop() {
 		isPaused = false;
 		isGameOver = true;
 		isClearingLines = false;
+		isActive = false;
+
 		if (gameTimer != null) {
 			gameTimer.stop();
 		}
+
 		throwEvent(TetrisEvent.STOP);
 	}
 
-	@Override public synchronized void pause() {
-		if (hasStarted && !isGameOver) {
-			isPaused = true;
-			if (gameTimer != null) {
-				gameTimer.stop();
-			}
-			throwEvent(TetrisEvent.PAUSE);
+	@Override
+	public synchronized void pause() {
+		if (isGameOver || isPaused || !hasStarted) {
+			return;
 		}
+
+		isPaused = true;
+
+		if (gameTimer != null) {
+			gameTimer.stop();
+		}
+
+		throwEvent(TetrisEvent.PAUSE);
 	}
 
 	protected void gameOver() {
 		isGameOver = true;
 		isPaused = false;
 		isClearingLines = false;
+		isActive = false;
+
 		if (gameTimer != null) {
 			gameTimer.stop();
 		}
+
 		throwEvent(TetrisEvent.GAME_OVER);
 	}
 
-	@Override public synchronized void resume() {
+	@Override
+	public synchronized void resume() {
 		if (hasStarted && !isGameOver) {
 			isPaused = false;
 			if (gameTimer != null) {
@@ -639,18 +656,20 @@ public class TetrisGame implements ITetrisGame {
 		}
 	}
 
-	// A bunch of Getters
-
-	@Override public int[] getBlocksOnBoard() {
+	@Override
+	public int[] getBlocksOnBoard() {
 		return Array.copy(board);
 	}
-	@Override public int[] getBlocksOnBoard(int[] arr) {
+
+	@Override
+	public int[] getBlocksOnBoard(int[] arr) {
 		if (arr == null || arr.length != rows * cols) {
 			return getBlocksOnBoard();
 		}
 		System.arraycopy(board, 0, arr, 0, board.length);
 		return arr;
 	}
+
 	@Override public boolean isGameOver() 			{return isGameOver;}
 	@Override public boolean hasStarted() 			{return hasStarted;}
 	@Override public boolean isPaused() 			{return isPaused;}
@@ -695,15 +714,18 @@ public class TetrisGame implements ITetrisGame {
 		return false;
 	}
 
-	@Override public synchronized boolean rotateClockwise() {
+	@Override
+	public synchronized boolean rotateClockwise() {
 		return handleRotation(Move.CLOCKWISE);
 	}
 
-	@Override public synchronized boolean rotateCounterClockwise() {
+	@Override
+	public synchronized boolean rotateCounterClockwise() {
 		return handleRotation(Move.COUNTERCLOCKWISE);
 	}
 
-	@Override public synchronized boolean shift(int rowOffset, int colOffset) {
+	@Override
+	public synchronized boolean shift(int rowOffset, int colOffset) {
 		Move move = new Move(new Coord(rowOffset, colOffset), 0);
 		if (shiftPiece(move)) {
 			if (!canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
@@ -747,7 +769,8 @@ public class TetrisGame implements ITetrisGame {
 		eventBus.throwEvent(new Event(event.name()));
 	}
 
-	@Override public void shutdown() {
+	@Override
+	public void shutdown() {
 		stop();
 
 		if (eventBus != null) {
