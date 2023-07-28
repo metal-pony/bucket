@@ -1,23 +1,105 @@
 package com.sparklicorn.tetrisai.game;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.sparklicorn.bucket.tetris.ITetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisGame;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 
 public class GenericRanker extends AbstractRankerGene<GenericRanker> {
-	/**
-	 * A default GenericRanker with established ranking weights.
-	 */
-	public static GenericRanker DEFAULT_RANKER = new GenericRanker(
-		new double[] { 3.589, -1.374, -17.409, -12.835, -10.748 }
-	);
+	public static class HeuristicWeight {
+		private float weight;
+		private RankingHeuristic heuristic;
+
+		HeuristicWeight(RankingHeuristic heuristic, float weight) {
+			this.heuristic = heuristic;
+			this.weight = weight;
+		}
+
+		public float weight() {
+			return weight;
+		}
+
+		public void setWeight(float newWeight) {
+			this.weight = newWeight;
+		}
+
+		public void adjust(float amount) {
+			this.weight += amount;
+		}
+
+		public RankingHeuristic heuristic() {
+			return heuristic;
+		}
+
+		public String name() {
+			return heuristic.name;
+		}
+
+		public double quantify(ITetrisGame game) {
+			return (double)heuristic.quantify(game) * (double)weight;
+		}
+
+		HeuristicWeight copy() {
+			return new HeuristicWeight(heuristic, weight);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null || !(obj instanceof HeuristicWeight))
+				return false;
+
+			HeuristicWeight _obj = (HeuristicWeight) obj;
+			return name().equals(_obj.name()) && weight == _obj.weight;
+		}
+
+		@Override
+		public int hashCode() {
+			return Float.hashCode(weight) + heuristic.name.hashCode();
+		}
+
+		@Override
+		public String toString() {
+			return String.format("{ \"%s\": %.2f }", name(), weight());
+		}
+	}
+
+	private static final HeuristicWeight[] DEFAULT_RANKERS = new HeuristicWeight[] {
+		new HeuristicWeight(new CompleteLinesRankingHeuristic(), 3.56f),
+		new HeuristicWeight(new BlockHeightSumRankingHeuristic(), -1.37f),
+		new HeuristicWeight(new BlockedSpacesRankingHeuristic(), -17.40f),
+		// new HeuristicWeight(new DeepPocketsRankingHeuristic(), -12.83f),
+		// new HeuristicWeight(new DeepSidePocketsRankingHeuristic(), -10.74f)
+	};
+
+	public static List<HeuristicWeight> getDefaultHeuristicWeights() {
+		ArrayList<HeuristicWeight> list = new ArrayList<>();
+		for (HeuristicWeight hw : DEFAULT_RANKERS) {
+			list.add(hw.copy());
+		}
+		return list;
+	}
+
+	public static List<HeuristicWeight> getRandomHeuristicWeights(float origin, float bound) {
+		List<HeuristicWeight> weights = getDefaultHeuristicWeights();
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
+		for (HeuristicWeight hw : weights) {
+			hw.setWeight(rand.nextFloat(origin, bound));
+		}
+
+		return weights;
+	}
 
 	/** Number of weights used by this ranker algorithm.*/
 	public static final int NUM_WEIGHTS = 5;
 
-	private static double mutationAmplifier = 10.0;
+	private static float mutationAmplifier = 10f;
 
 	/** The rate at which weights will cross.*/
 	protected double crossRate = 0.25;
@@ -40,7 +122,11 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	// 2 number of blocked in spaces
 	// 3 existence of a line block hole
 	// 4 number of excess line block holes (holes > 3 blocks deep)
-	private double[] weights;
+	// private double[] weights;
+
+	// TODO wire these up in constructor. Adds method to set/get weight by heuristic name.
+	// TODO update rest of methods to use this instead of `weights` array.
+	private List<HeuristicWeight> heuristicWeights;
 
 	protected AtomicBoolean hasChanged;
 
@@ -48,7 +134,7 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	 * Creates a new GapFinder Ranker with a default reduction value.
 	 */
 	public GenericRanker() {
-		this(DEFAULT_RANKER);
+		this(getDefaultHeuristicWeights());
 	}
 
 	/**
@@ -58,13 +144,12 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	 * @throws IllegalArgumentException if given weights array is null or
 	 *     not of {@link GenericRanker#NUM_WEIGHTS} length.
 	 */
-	public GenericRanker(double[] weights) {
-		if (weights == null || weights.length != NUM_WEIGHTS) {
+	public GenericRanker(List<HeuristicWeight> weights) {
+		if (weights == null) {
 			throw new IllegalArgumentException();
 		}
 
-		this.weights = new double[NUM_WEIGHTS];
-		System.arraycopy(weights, 0, this.weights, 0, NUM_WEIGHTS);
+		this.heuristicWeights = weights;
 		this.fitness = 0.0;
 		this.hasChanged = new AtomicBoolean(true);
 	}
@@ -72,44 +157,36 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	/**
 	 * Copy constructor.
 	 */
-	public GenericRanker(GenericRanker r) {
-		this.weights = new double[NUM_WEIGHTS];
-		System.arraycopy(r.weights, 0, weights, 0, NUM_WEIGHTS);
-		this.fitness = r.fitness;
-		this.hasChanged = new AtomicBoolean(r.hasChanged());
+	public GenericRanker(GenericRanker other) {
+		this.heuristicWeights = new ArrayList<>();
+		for (HeuristicWeight otherHw : other.heuristicWeights) {
+			this.heuristicWeights.add(otherHw.copy());
+		}
+		this.fitness = other.fitness;
+		this.hasChanged = new AtomicBoolean(other.hasChanged());
 	}
 
-	/**
-	 * Sets the weights of this ranker.
-	 *
-	 * @param newWeights New weights to set.
-	 */
-	public void setWeights(double[] newWeights) {
-		for (int i = 0; i < NUM_WEIGHTS && i < weights.length; i++) {
-			weights[i] = newWeights[i];
+	public HeuristicWeight getWeightByName(String name) {
+		for (HeuristicWeight hw : heuristicWeights) {
+			if (hw.heuristic().name.equals(name)) {
+				return hw;
+			}
 		}
-
-		hasChanged.set(true);
+		return null;
 	}
 
 	@Override public boolean equals(Object obj) {
-		boolean result = false;
+		if (this == obj)
+			return true;
+		if (obj == null || !(obj instanceof GenericRanker))
+			return false;
 
-		if (this == obj) {
-			result = true;
-
-		} else {
-			if (obj instanceof GenericRanker) {
-				GenericRanker ranker = (GenericRanker) obj;
-				result = Arrays.equals(weights, ranker.weights);
-			}
-		}
-
-		return result;
+		GenericRanker _obj = (GenericRanker) obj;
+		return heuristicWeights.equals(_obj.heuristicWeights);
 	}
 
 	@Override public int hashCode() {
-		return Arrays.hashCode(weights);
+		return heuristicWeights.hashCode();
 	}
 
 	@Override public void mutate() {
@@ -120,45 +197,51 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	}
 
 	private boolean mut() {
-		boolean result = false;
+		AtomicBoolean anyChanged = new AtomicBoolean();
 		ThreadLocalRandom rand = ThreadLocalRandom.current();
 
-		for (int i = 0; i < weights.length; i++) {
+		heuristicWeights.forEach((hw) -> {
 			if (rand.nextDouble() < mutateRate) {
-				weights[i] += (rand.nextDouble() * 2.0 - 1.0) * mutationAmplifier;
-				result = true;
+				hw.adjust((rand.nextFloat() * 2f - 1f) * mutationAmplifier);
+				anyChanged.set(true);
+			}
+		});
+
+		return anyChanged.get();
+	}
+
+	private boolean containsSameWeight(HeuristicWeight weight) {
+		for (HeuristicWeight hw : heuristicWeights) {
+			if (hw.equals(weight)) {
+				return true;
 			}
 		}
-
-		return result;
+		return false;
 	}
 
 	@Override public GenericRanker[] cross(GenericRanker other) {
-		if (!(other instanceof GenericRanker)) {
-			throw new IllegalArgumentException();
-		}
-
-		GenericRanker otherCopy = (GenericRanker) other;
-
 		GenericRanker[] result = new GenericRanker[] {
 			new GenericRanker(this),
-			new GenericRanker(otherCopy)
+			new GenericRanker(other)
 		};
 
-		if (!this.equals(otherCopy)) {
-			ThreadLocalRandom rand = ThreadLocalRandom.current();
+		if (equals(other)) {
+			return result;
+		}
 
-			for (int i = 0; i < NUM_WEIGHTS; i++) {
-				if (rand.nextDouble() < crossRate) {
-					if (result[0].weights[i] != result[1].weights[i]) {
-						double temp = result[0].weights[i];
-						result[0].weights[i] = result[1].weights[i];
-						result[1].weights[i] = temp;
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
 
-						result[0].hasChanged.set(true);
-						result[1].hasChanged.set(true);
-					}
-				}
+		for (HeuristicWeight r0Weight : result[0].heuristicWeights) {
+			if (rand.nextDouble() >= crossRate)
+				continue;
+
+			HeuristicWeight r1Weight = result[1].getWeightByName(r0Weight.name());
+			if (!result[1].containsSameWeight(r0Weight)) {
+				float temp = r0Weight.weight();
+				r0Weight.setWeight(r1Weight.weight());
+				result[0].hasChanged.set(true);
+				r1Weight.setWeight(temp);
+				result[1].hasChanged.set(true);
 			}
 		}
 
@@ -195,15 +278,15 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 		StringBuilder strb = new StringBuilder();
 
 		strb.append("[");
-
-		for (int i = 0; i < NUM_WEIGHTS; i++) {
-			strb.append(String.format("%.3f", weights[i]));
-
-			if (i < NUM_WEIGHTS - 1) {
+		strb.append(System.lineSeparator());
+		for (int i = 0; i < heuristicWeights.size(); i++) {
+			strb.append("  ");
+			strb.append(heuristicWeights.get(i).toString());
+			if (i < heuristicWeights.size() - 1) {
 				strb.append(", ");
 			}
+			strb.append(System.lineSeparator());
 		}
-
 		strb.append("]");
 
 		return strb.toString();
@@ -213,17 +296,35 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 		return json();
 	}
 
-	@Override protected double rankImpl(int[] features) {
-		double result = 0.0;
-
-		for (int i = 0; i < features.length; i++) {
-			result += ((double) features[i]) * weights[i];
+	@Override
+	public double rank(TetrisGame game) {
+		double rank = 0.0;
+		// System.out.print("Rank = ");
+		for (HeuristicWeight hw : heuristicWeights) {
+			// double quantify = hw.quantify(game);
+			double quantity = hw.heuristic.quantify(game);
+			double weight = hw.weight;
+			rank += quantity * weight;
+			// System.out.printf("%.2f(%.2f) + ", weight, quantity);
 		}
+		// System.out.printf("=> %.2f\n", rank);
+		return rank;
+	}
 
-		return result;
+	@Override protected double rankImpl(int[] features) {
+		// TODO delete this method from abstract class
+		throw new UnsupportedOperationException();
 	}
 
 	@Override public GenericRanker copy() {
 		return new GenericRanker(this);
+	}
+
+    public List<HeuristicWeight> getHeuristicWeights() {
+        return this.heuristicWeights;
+    }
+
+	public String addr() {
+		return super.toString();
 	}
 }

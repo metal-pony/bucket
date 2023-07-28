@@ -1,9 +1,193 @@
 package com.sparklicorn.tetrisai.game;
 
+import com.sparklicorn.bucket.tetris.ITetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisGame;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 
+// TODO Move Heuristics to separate files, then recycle bin this class.
+
 public abstract class AbstractRanker implements ITetrisStateRanker {
+	public static class CompleteLinesRankingHeuristic extends RankingHeuristic {
+		static final String NAME = "Complete Lines";
+
+		public CompleteLinesRankingHeuristic() {
+			super(NAME);
+		}
+
+		@Override protected float quantifyImpl(ITetrisGame game) {
+			final int rows = game.getNumRows();
+			final int cols = game.getNumCols();
+
+			int[] board = game.getBlocksOnBoard(new int[rows * cols]);
+			int completeLines = 0;
+
+			for (int r = 0; r < rows; r++) {
+				boolean line = true;
+				for (int c = 0; c < cols; c++) {
+					if (board[r * cols + c] <= 0) {
+						line = false;
+						break;
+					}
+				}
+				if (line) {
+					completeLines++;
+				}
+			}
+
+			return completeLines;
+		}
+	}
+
+	public static class BlockHeightSumRankingHeuristic extends RankingHeuristic {
+		static final String NAME = "Block Height Sum";
+
+		public BlockHeightSumRankingHeuristic() {
+			super(NAME);
+		}
+
+		@Override
+		protected float quantifyImpl(ITetrisGame game) {
+			final int rows = game.getNumRows();
+			final int cols = game.getNumCols();
+			int[] board = game.getBlocksOnBoard(new int[rows * cols]);
+
+			int sumBlockHeights = 0; //sum of block heights
+
+			for (int r = 0; r < rows; r++) {
+				for (int c = 0; c < cols; c++) {
+					if (board[r * cols + c] > 0) {
+						sumBlockHeights += rows - r;
+					}
+				}
+			}
+
+			return sumBlockHeights;
+		}
+	}
+
+	public static class BlockedSpacesRankingHeuristic extends RankingHeuristic {
+		static final String NAME = "Blocked Spaces";
+
+		public BlockedSpacesRankingHeuristic() {
+			super(NAME);
+		}
+
+		@Override protected float quantifyImpl(ITetrisGame game) {
+			final int rows = game.getNumRows();
+			final int cols = game.getNumCols();
+			int[] board = game.getBlocksOnBoard(new int[rows * cols]);
+			for (int c = 0; c < cols; c++) {
+				for (int r = 0; r < rows; r++) {
+					if (board[r * cols + c] == 0) {
+						board[r * cols + c] = -1;
+					} else {
+						break;
+					}
+				}
+			}
+
+			int sumBlockedSpaces = 0; //number of empty cells without LOS to ceiling
+
+			for (int r = 0; r < rows; r++) {
+				for (int c = 0; c < cols; c++) {
+					if (board[r * cols + c] == 0) {
+						sumBlockedSpaces++;
+					}
+				}
+			}
+
+			return sumBlockedSpaces;
+		}
+	}
+
+	public static class DeepPocketsRankingHeuristic extends RankingHeuristic {
+		static final String NAME = "Deep Pockets";
+
+		public DeepPocketsRankingHeuristic() {
+			super(NAME);
+		}
+
+		@Override protected float quantifyImpl(ITetrisGame game) {
+			final int rows = game.getNumRows();
+			final int cols = game.getNumCols();
+			int[] board = game.getBlocksOnBoard(new int[rows * cols]);
+
+			int deepHoles = 0;   //number of gaps that are > 2 blocks deep AND NOT ON LEFT OR RIHT SIDES
+
+			int[] topBlocks = new int[cols]; //height in each column
+
+			for (int r = 0; r < rows; r++) {
+				for (int c = 0; c < cols; c++) {
+					if (board[r * cols + c] > 0) {
+						if (topBlocks[c] == 0) {
+							topBlocks[c] = rows - r;
+						}
+					}
+				}
+			}
+
+			for (int c = 1; c < cols - 1; c++) {
+				if ((topBlocks[c - 1] - topBlocks[c] > 2) && (topBlocks[c + 1] - topBlocks[c] > 2)) {
+					deepHoles++;
+				}
+			}
+
+			return deepHoles;
+		}
+	}
+
+	public static class DeepSidePocketsRankingHeuristic extends RankingHeuristic {
+		static final String NAME = "Deep Side Pockets";
+
+		public DeepSidePocketsRankingHeuristic() {
+			super(NAME);
+		}
+
+		@Override protected float quantifyImpl(ITetrisGame game) {
+			final int rows = game.getNumRows();
+			final int cols = game.getNumCols();
+			int[] board = game.getBlocksOnBoard(new int[rows * cols]);
+			for (int c = 0; c < cols; c++) {
+				for (int r = 0; r < rows; r++) {
+					if (board[r * cols + c] == 0) {
+						board[r * cols + c] = -1;
+					} else {
+						break;
+					}
+				}
+			}
+
+			int deepHolesOnSides = 0;  //number of > 2 block gaps on LEFT or RIGHT sides only
+
+			int[] topBlocks = new int[cols]; //height in each column
+
+			for (int r = 0; r < rows; r++) {
+				for (int c = 0; c < cols; c++) {
+					if (board[r * cols + c] > 0) {
+						if (topBlocks[c] == 0) {
+							topBlocks[c] = rows - r;
+						}
+					}
+				}
+			}
+
+			if (topBlocks[1] - topBlocks[0] > 2) {
+				deepHolesOnSides++;
+			}
+			if (topBlocks[cols - 2] - topBlocks[cols - 1] > 2) {
+				deepHolesOnSides++;
+			}
+
+
+			return deepHolesOnSides;
+		}
+	}
+
+	// public static record HeuristicWeight(float weight, RankingHeuristic heuristic) {}
+
+
+	// protected
+
 	/**
 	 * Ranks a game state according to how desirable the state is.
 	 * A higher value indicates a higher desirability for the given state.
@@ -18,11 +202,9 @@ public abstract class AbstractRanker implements ITetrisStateRanker {
 	 * @return A value representing the desirability of the givens game state.
 	 */
 	@Override public double rank(TetrisGame game) {
-		int[] board = game.getBlocksOnBoard();
-
-		//set all top row empty spaces to -1
 		final int rows = game.getNumRows();
 		final int cols = game.getNumCols();
+		int[] board = game.getBlocksOnBoard(new int[rows * cols]);
 		for (int c = 0; c < cols; c++) {
 			for (int r = 0; r < rows; r++) {
 				if (board[r * cols + c] == 0) {

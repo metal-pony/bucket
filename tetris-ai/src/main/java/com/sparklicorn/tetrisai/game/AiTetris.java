@@ -1,6 +1,6 @@
 package com.sparklicorn.tetrisai.game;
 
-import com.sparklicorn.bucket.tetris.TetrisEvent;
+// import com.sparklicorn.bucket.tetris.TetrisEvent;
 import com.sparklicorn.bucket.tetris.TetrisGame;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
@@ -9,17 +9,18 @@ import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.tetris.util.structs.ShapeQueue;
 import com.sparklicorn.bucket.util.SearchQueue;
-import com.sparklicorn.bucket.util.event.Event;
-import com.sparklicorn.bucket.util.event.EventBus;
+// import com.sparklicorn.bucket.util.event.Event;
+// import com.sparklicorn.bucket.util.event.EventBus;
 import com.sparklicorn.tetrisai.structs.GameConfig;
 import com.sparklicorn.tetrisai.structs.GameStats;
 import com.sparklicorn.tetrisai.structs.PlacementRank;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
+// import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -34,6 +35,8 @@ public class AiTetris extends TetrisGame {
 	* GAME COMPONENTS
 	******************/
 	protected ITetrisStateRanker ranker;
+
+	protected double[] rank;
 
 	/**
 	 * Creates a new Tetris game with a default configuration.
@@ -84,11 +87,27 @@ public class AiTetris extends TetrisGame {
 
 		this.nextShapes = (shapeQueue == null) ? new ShapeQueue(256) : shapeQueue;
 		this.ranker = ranker;
+		this.rank = new double[rows * cols];
+		resetRank();
 	}
 
 	public AiTetris(AiTetris other) {
 		super(other);
 		this.ranker = other.ranker;
+		this.rank = new double[rows * cols];
+		resetRank();
+	}
+
+	public double[] getRanks(double[] arr) {
+		if (arr == null) {
+			arr = new double[rows * cols];
+		}
+		System.arraycopy(rank, 0, arr, 0, rank.length);
+		return arr;
+	}
+
+	private void resetRank() {
+		Arrays.fill(rank, Double.MIN_VALUE);
 	}
 
 	// TODO sparklicorn/bucket#49 make shape queue more flexible
@@ -113,42 +132,43 @@ public class AiTetris extends TetrisGame {
 	 *
 	 * @param newConfig Configuration used to set the game properties.
 	 */
-	public void reset(GameConfig newConfig) {
-		if (newConfig.rows() != rows || newConfig.cols() != cols) {
-			rows = newConfig.rows();
-			cols = newConfig.cols();
+	// public void reset(GameConfig newConfig) {
+	// 	if (newConfig.rows() != rows || newConfig.cols() != cols) {
+	// 		rows = newConfig.rows();
+	// 		cols = newConfig.cols();
 
-			if (rows < MINIMUM_ROWS || rows > MAXIMUM_ROWS) {
-				rows = DEFAULT_NUM_ROWS;
-			}
+	// 		if (rows < MINIMUM_ROWS || rows > MAXIMUM_ROWS) {
+	// 			rows = DEFAULT_NUM_ROWS;
+	// 		}
 
-			if (cols < MINIMUM_COLS || cols > MAXIMUM_COLS) {
-				cols = DEFAULT_NUM_COLS;
-			}
-		}
+	// 		if (cols < MINIMUM_COLS || cols > MAXIMUM_COLS) {
+	// 			cols = DEFAULT_NUM_COLS;
+	// 		}
+	// 	}
 
-		if (newConfig.useEvents()) {
-			if (eventBus == null) {
-				eventBus = new EventBus();
-			}
+	// 	if (newConfig.useEvents()) {
+	// 		if (eventBus == null) {
+	// 			eventBus = new EventBus();
+	// 		}
 
-			eventBus.unregisterAll();
+	// 		eventBus.unregisterAll();
 
-			for (TetrisEvent e : newConfig.eventListeners().keySet()) {
-				List<Consumer<Event>> list = newConfig.eventListeners().get(e);
-				for (Consumer<Event> listener : list) {
-					registerEventListener(e, listener);
-				}
-			}
-		} else {
-			if (eventBus != null) {
-				eventBus.dispose(false);
-				eventBus = null;
-			}
-		}
+	// 		for (TetrisEvent e : newConfig.eventListeners().keySet()) {
+	// 			List<Consumer<Event>> list = newConfig.eventListeners().get(e);
+	// 			for (Consumer<Event> listener : list) {
+	// 				registerEventListener(e, listener);
+	// 			}
+	// 		}
+	// 	} else {
+	// 		if (eventBus != null) {
+	// 			eventBus.dispose(false);
+	// 			eventBus = null;
+	// 		}
+	// 	}
 
-		ranker = newConfig.stateRanker();
-	}
+	// 	// ranker = newConfig.stateRanker();
+	// 	resetRank();
+	// }
 
 	// Exposes gameloop() publicly.
 	@Override
@@ -159,6 +179,15 @@ public class AiTetris extends TetrisGame {
 	////////////////////////
 	// AI playstyle  methods
 	////////////////////////
+
+	@Override
+	protected void nextPiece() {
+		super.nextPiece();
+
+		// Calculates and stores terminal position ranks
+		// resetRank();
+		getTopPlacements(this, new ArrayList<>(), 1f);
+	}
 
 	/**
 	 * Sets the game state ranker to the one given. The ranker is used to automate gameplay.
@@ -226,37 +255,48 @@ public class AiTetris extends TetrisGame {
 	 * flash by too quickly.
 	 */
 	public GameStats run(long sleepTime, LookAheadOptions options) {
+		System.out.println("Game stopping");
 		stop();
+		System.out.println("Configuring new game");
 		newGame();
+		System.out.println("Starting new game");
 		start(0L);
+
+		System.out.println("Running game using ranker: " + ((GenericRanker) ranker).addr() + "\n" + ranker.toString());
 
 		// TODO #13 Remove this and the print-outs after debugging.
 		// This could be a stat that TetrisGame tracks, but it's unclear what it could be useful for.
 		// Turn it into a stat if a use case is found.
 		// int ticks = 0;
 
-		while (!isGameOver) {
-			if (isActive) {
-				position = findBestPlacement(options);
-				populateBlockPositions(blockLocations, position);
-			}
+		try {
+			while (!isGameOver) {
+				if (isActive) {
+					position = findBestPlacement(options);
+					populateBlockPositions(blockLocations, position);
+				}
 
-			// System.out.print('.');
-			// if (ticks > 80) {
-			// 	System.out.println();
-			// 	ticks = 0;
-			// }
-			gameloop();
+				// System.out.print('.');
+				// if (ticks > 80) {
+				// 	System.out.println();
+				// 	ticks = 0;
+				// }
+				gameloop();
 
-			if (sleepTime > 0L) {
-				try {
-					Thread.sleep(sleepTime);
-				} catch (InterruptedException e) {
-					// fail silently
+				if (sleepTime > 0L) {
+					try {
+						Thread.sleep(sleepTime);
+					} catch (InterruptedException e) {
+						// fail silently
+						System.err.println("Game run thread sleep interrupted?");
+					}
 				}
 			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
 
+		System.out.println("Game run finished.");
 		return new GameStats(this);
 	}
 
@@ -271,15 +311,13 @@ public class AiTetris extends TetrisGame {
 
 	/**
 	 * Attempts to place the current piece in whichever position the ranker calculates is best.
-	 * Has no effect is the game is over or if the piece is inactive.
+	 * Has no effect if the game is over or if the piece is inactive.
 	 */
 	public void placeBest(boolean useLookAhead) {
-		if (!isGameOver) {
-			if (isActive) {
-				LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
-				position = findBestPlacement(options);
-				populateBlockPositions(blockLocations, position);
-			}
+		if (!isGameOver && isActive) {
+			LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
+			position = findBestPlacement(options);
+			populateBlockPositions(blockLocations, position);
 		}
 	}
 
@@ -292,7 +330,8 @@ public class AiTetris extends TetrisGame {
 	protected void unplotPiece() {
 		populateBlockPositions(blockLocations, position);
 		for (Coord c : blockLocations) {
-			board[c.row() * cols + c.col()] = 0;
+			int index = c.row() * cols + c.col();
+			board[index] = 0;
 		}
 		// TODO #13 Does this need to throw events (possibly new event)?
 		// throwEvent(TetrisEvent.PIECE_PLACED);
@@ -327,6 +366,7 @@ public class AiTetris extends TetrisGame {
 		// System.out.println("getTopPlacements:");
 		List<PlacementRank> placements = new ArrayList<>();
 		Set<Position> possiblePlacements = game.getPossiblePlacements();
+		game.resetRank();
 		for (Position placement : possiblePlacements) {
 			// System.out.printf(
 			// 	"Looking at %s @ %s\n",
@@ -337,15 +377,20 @@ public class AiTetris extends TetrisGame {
 			AiTetris copy = new AiTetris(game);
 			copy.position = placement;
 			copy.plotPiece();
-			copy.attemptClearLines(); // TODO #13 Not sure it is correct to clear lines?
-			copy.nextPiece();
+			// copy.attemptClearLines(); // TODO #13 Not sure it is correct to clear lines?
+			// copy.nextPiece();
 
 			List<Position> prevPositionsCopy = new ArrayList<>(prevPositions);
 			prevPositionsCopy.add(placement);
 
 			// double rank = copy.getPlacementRank(placement);
-			double rank = copy.ranker.rank(copy);
+			double rank = game.ranker.rank(copy);
 			// System.out.println("Rank: " + rank);
+
+			// calculate cell index from placement row and column
+			// record rank at that index if it is more than the current rank
+			int index = placement.rowOffset() * copy.cols + placement.colOffset();
+			game.rank[index] = Math.max(game.rank[index], rank);
 
 			placements.add(new PlacementRank(
 				copy,
@@ -360,7 +405,15 @@ public class AiTetris extends TetrisGame {
 			numToKeep = 1;
 		}
 
-		return placements.subList(0, numToKeep);
+		List<PlacementRank> sublist = placements.subList(0, numToKeep);
+		// System.out.printf(
+		// 	"TopPlacements ([%d], [%d] possible, [%.2f] keepPercentage): %s\n",
+		// 	sublist.size(),
+		// 	possiblePlacements.size(),
+		// 	percentage,
+		// 	sublist
+		// );
+		return sublist;
 	}
 
 	/**
@@ -376,12 +429,17 @@ public class AiTetris extends TetrisGame {
 			percentageToKeep
 		);
 
-		for (int n = 0; n < options.lookAhead(); n++) {
-			topPlacements.stream().flatMap((p) -> getTopPlacements(
-				p.game(),
-				p.placements(),
-				percentageToKeep
-			).stream());
+		// TODO temp turn off
+		// for (int n = 0; n < options.lookAhead(); n++) {
+		// 	topPlacements.stream().flatMap((p) -> getTopPlacements(
+		// 		p.game(),
+		// 		p.placements(),
+		// 		percentageToKeep
+		// 	).stream());
+		// }
+
+		if (topPlacements.size() == 0) {
+			return null;
 		}
 
 		topPlacements.sort((a, b) -> Double.compare(a.rank(), b.rank()));
@@ -397,6 +455,7 @@ public class AiTetris extends TetrisGame {
 	 * @return
 	 */
 	public Set<Position> getPossiblePlacements() {
+		System.out.print("getPossiblePlacements()");
 		HashSet<Position> placements = new HashSet<>();
 		Function<Position,Boolean> acceptance = (position) -> isPositionValid(position);
 		SearchQueue<Position> q = new SearchQueue<>(acceptance);
@@ -424,6 +483,7 @@ public class AiTetris extends TetrisGame {
 			if (!isPositionValid(new Position(currentPosition).add(Move.DOWN))) {
 				// System.out.println("Terminal position! Adding to result set.");
 				placements.add(currentPosition);
+				System.out.print(".");
 			}
 
 			for (Move move : ATOMIC_MOVES) {
@@ -441,6 +501,7 @@ public class AiTetris extends TetrisGame {
 			}
 		}
 
+		System.out.println();
 		return placements;
 	}
 
