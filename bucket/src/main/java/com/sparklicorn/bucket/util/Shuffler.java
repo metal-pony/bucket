@@ -1,176 +1,16 @@
 package com.sparklicorn.bucket.util;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
-import java.util.random.RandomGenerator;
-
-import com.google.gson.Gson;
 
 /**
- * A Shuffle utility that implements a version of the Fisher-Yates shuffling algorithm.
+ * A Shuffling utility that implements a version of the Fisher-Yates shuffling algorithm.
  */
-public final class Shuffler {
-
-	static int[][] allPermutations(int n) {
-		if (n < 0) {
-			throw new IllegalArgumentException("n must be nonnegative");
-		}
-
-        int nFact = Counting.factorial(n);
-		int[][] result = new int[nFact][n];
-        for (int i = 0; i < nFact; i++) {
-            result[i] = permutation(n, BigInteger.valueOf(i));
-        }
-
-		return result;
-	}
-
-	static void main(String[] args) {
-		Gson gson = new Gson();
-
-		// Generate table for nChooseK tests
-		for (int n = 0; n < 200; n++) {
-			String[] nChooseK = new String[n + 1];
-
-			for (int k = 0; k <= n; k++) {
-				nChooseK[k] = nChooseK(n, k).toString();
-			}
-
-			System.out.printf("%d|%s\n", n, gson.toJson(nChooseK));
-		}
-
-		// Generate table for permutations test
-		// System.out.println("n,array_of_expected_perms_json");
-		// for (int n = 1; n < 10; n++) {
-		// 	int[][] perms = allPermutations(n);
-		// 	System.out.println(n + ";" + gson.toJson(perms));
-		// }
-	}
-
-	public static BigInteger factorial(long n) {
-		BigInteger result = (n < 1L) ? BigInteger.valueOf(1L) : BigInteger.valueOf(n);
-		for (long i = n - 1L; i > 1L; i--) {
-			result = result.multiply(BigInteger.valueOf(i));
-		}
-		return result;
-	}
-
-	public static BigInteger nChooseK(long n, long k) {
-		if (n < 0L || k < 0L) {
-			throw new ArithmeticException("n Choose k: both n and k must be nonnegative");
-		}
-
-		if (k == 0L || n == k) {
-			return BigInteger.valueOf(1L);
-		}
-
-		return factorial(n).divide(factorial(k)).divide(factorial(n - k));
-	}
-
-	public static BigInteger random(BigInteger bound, Random rand) {
-		if (bound.compareTo(BigInteger.ZERO) <= 0) {
-			throw new IllegalArgumentException("bound must be positive");
-		}
-
-		BigInteger result = new BigInteger(bound.bitLength(), rand);
-		while (result.compareTo(bound) >= 0) {
-			result = new BigInteger(bound.bitLength(), rand);
-		}
-		return result;
-	}
-
-	public static int[] randomCombo(int n, int k) {
-		if (n < 0) {
-			throw new IllegalArgumentException("n must be nonnegative");
-		}
-
-		BigInteger r = random(factorial(n), ThreadLocalRandom.current());
-
-		return combo(n, k, r);
-	}
-
-	public static int[] combo(int n, int k, BigInteger r) {
-		// validate r
-		if (r.compareTo(BigInteger.ZERO) < 0) {
-			throw new IllegalArgumentException("r must be nonnegative");
-		}
-		BigInteger nChooseK = nChooseK(n, k);
-		if (r.compareTo(nChooseK) >= 0) {
-			throw new IllegalArgumentException(
-				String.format("r must be in interval [0, n choose k (%s))", nChooseK.toString())
-			);
-		}
-
-		int[] result = new int[k];
-
-		// Anything choose 0 is 1. There's only one way to choose nothing, i.e. the empty set.
-		if (k == 0) {
-			return result;
-		}
-
-		int _n = n - 1;
-		int _k = k - 1;
-		BigInteger _r = new BigInteger(r.toString());
-
-		int index = 0;
-		for (int i = 0; i < n; i++) {
-			BigInteger _nChoose_k = nChooseK(_n, _k);
-			if (_r.compareTo(_nChoose_k) < 0) {
-				result[index++] = i;
-				_k--;
-
-				if (index == k) {
-					break;
-				}
-			} else {
-				_r = _r.subtract(_nChoose_k);
-			}
-			_n--;
-
-		}
-
-		return result;
-	}
-
-	public static int[] randomPermutation(int n) {
-		if (n < 0) {
-			throw new IllegalArgumentException("n must be nonnegative");
-		}
-
-		BigInteger r = random(factorial(n), ThreadLocalRandom.current());
-
-		return permutation(n, r);
-	}
-
-	public static int[] permutation(int n, BigInteger r) {
-		if (n < 0) {
-			throw new IllegalArgumentException("n must be nonnegative");
-		}
-
-		int[] result = new int[n];
-		int[] items = rangeArr(n);
-
-		for (int i = 0; i < n; i++) {
-			r = r.mod(factorial(n - i));
-			BigInteger dividend = factorial(n - i - 1);
-			int q = r.divide(dividend).intValue();
-			result[i] = items[q];
-
-			// Shift items whose index > q to the left one place
-			for (int j = q + 1; j < n - i; j++) {
-				items[j - 1] = items[j];
-			}
-		}
-
-		return result;
-	}
-
+public class Shuffler {
 	public static int[] rangeArr(int n) {
 		int[] result = new int[n];
 		for (int i = 0; i < n; i++) {
@@ -277,49 +117,14 @@ public final class Shuffler {
 		return arr;
 	}
 
-	public static <T> List<T> shuffleList(final List<T> list) {
-		ThreadLocalRandom rand = ThreadLocalRandom.current();
-
-		for(int i = list.size() - 1; i > 0; i--) {
-			swapList(list, i, rand.nextInt(i + 1));
-		}
-
-		return list;
-	}
-
-	public static int[] shuffleInts(final int[] arr) {
-		ThreadLocalRandom rand = ThreadLocalRandom.current();
-
-		for(int i = arr.length - 1; i > 0; i--) {
-			swap(arr, i, rand.nextInt(i + 1));
-		}
-
-		return arr;
-	}
-
-	private final RandomGenerator rand;
-
-	/**
-	 * Creates a new Shuffler with ThreadLocalRandom as random class.
-	 */
-	public Shuffler() {
-		this(ThreadLocalRandom.current());
-	}
-
-	/**
-	 * Creates a new Shuffles with the given RandomGenerator.
-	 * @param rand
-	 */
-	public Shuffler(RandomGenerator rand) {
-		this.rand = rand;
-	}
-
 	/**
 	 * Shuffles the given list in-place.
 	 * @param list
 	 * @return the same List, for convenience
 	 */
-	public <T> List<T> shuffle(final List<T> list) {
+	public static <T> List<T> shuffle(List<T> list) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = list.size() - 1; i > 0; i--) {
 			swapList(list, i, rand.nextInt(i + 1));
 		}
@@ -331,7 +136,9 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public <T> T[] shuffle(final T[] arr) {
+	public static <T> T[] shuffle(T[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
@@ -343,7 +150,9 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public int[] shuffle(final int[] arr) {
+	public static int[] shuffle(int[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
@@ -355,7 +164,9 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public long[] shuffle(final long[] arr) {
+	public static long[] shuffle(long[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
@@ -367,7 +178,9 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public float[] shuffle(final float[] arr) {
+	public static float[] shuffle(float[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
@@ -379,7 +192,9 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public double[] shuffle(final double[] arr) {
+	public static double[] shuffle(double[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
@@ -391,20 +206,22 @@ public final class Shuffler {
 	 * @param arr
 	 * @return the same array, for convenience
 	 */
-	public char[] shuffle(final char[] arr) {
+	public static char[] shuffle(char[] arr) {
+		ThreadLocalRandom rand = ThreadLocalRandom.current();
+
 		for(int i = arr.length - 1; i > 0; i--) {
 			swap(arr, i, rand.nextInt(i + 1));
 		}
 		return arr;
 	}
 
-	public static <T> void swapList(final List<T> list, int a, int b) {
-		final T temp = list.get(a);
+	public static <T> void swapList(List<T> list, int a, int b) {
+		T temp = list.get(a);
 		list.set(a, list.get(b));
 		list.set(b, temp);
 	}
 
-	public static <T> void swap(final T[] arr, int a, int b) {
+	public static <T> void swap(T[] arr, int a, int b) {
 		T temp = arr[a];
 		arr[a] = arr[b];
 		arr[b] = temp;

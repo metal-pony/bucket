@@ -1,8 +1,11 @@
 package com.sparklicorn.bucket.util;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 /**
@@ -11,129 +14,196 @@ import java.util.Set;
  * given collections of objects.
  */
 public class Counting {
-    // factorial(FACTORIAL_MAX) produces the largest value that will fit in 64-bits (signed).
-    public static final long FACTORIAL_MAX_LONG;
-    public static final int FACTORIAL_MAX;
-    static {
-        long n = Long.MAX_VALUE;
-        long max = 1;
-        while (n / max > 1) {
-            n /= max++;
-        }
-        FACTORIAL_MAX_LONG = max - 1;
+	private static List<BigInteger> factMap = new ArrayList<>(Arrays.asList(BigInteger.ONE));
 
-        int n2 = Integer.MAX_VALUE;
-        int max2 = 1;
-        while (n2 / max2 > 1) {
-            n2 /= max2++;
-        }
-        FACTORIAL_MAX = max2 - 1;
-    }
+	/**
+	 * Computes the factorial of the given number.
+	 * Just a reminder because many forget: <code>0! = 1</code>.
+	 *
+	 * @param n - Number to compute the factorial of.
+	 * @return <code>n!</code> as a BigInteger.
+	 */
+	public static BigInteger factorial(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
 
-    /**
-     * Computes the factorial of the given number.
-     * Must be in the interval <code>[1, FACTORIAL_MAX_LONG]</code>.
-     * @param n - Number to compute the factorial of.
-     * @return <code>n!</code>
-     */
-    public static long factorial(long n) {
-        if (n == 0L) {
-            return 1L;
-        }
+		if (n < factMap.size()) {
+			return factMap.get(n);
+		}
 
-        if (n < 0L || n > FACTORIAL_MAX_LONG) {
-            throw new IllegalArgumentException(
-                String.format("n must be in interval [1, %d]", FACTORIAL_MAX_LONG)
-            );
-        }
+		int i = factMap.size() - 1;
+		BigInteger result = factMap.get(i);
 
-        long result = n;
-        for (long i = n - 1L; i > 0L; i--) {
-            result *= i;
-        }
-        return result;
-    }
+		for (i++; i <= n; i++) {
+			result = result.multiply(BigInteger.valueOf(i));
+			factMap.add(result);
+		}
 
-    /**
-     * Computes the factorial of the given number.
-     * Must be in the interval <code>[1, FACTORIAL_MAX]</code>.
-     * @param n - Number to compute the factorial of.
-     * @return <code>n!</code>
-     */
-    public static int factorial(int n) {
-        if (n == 0) {
-            return 1;
-        }
+		return result;
+	}
 
-        if (n < 1 || n > FACTORIAL_MAX) {
-            throw new IllegalArgumentException(
-                String.format("n must be in interval [1, %d]", FACTORIAL_MAX)
-            );
-        }
+	/**
+	 * Generates a random BigInteger in the interval [0, bound) with the given random generator.
+	 */
+	public static BigInteger random(BigInteger bound, Random rand) {
+		if (bound.compareTo(BigInteger.ZERO) <= 0) {
+			throw new IllegalArgumentException("bound must be positive");
+		}
 
-        int result = n;
-        for (int i = n - 1; i > 0; i--) {
-            result *= i;
-        }
-        return result;
-    }
+		BigInteger result = new BigInteger(bound.bitLength(), rand);
+		while (result.compareTo(bound) >= 0) {
+			result = new BigInteger(bound.bitLength(), rand);
+		}
+		return result;
+	}
 
-    /**
-     * Computes all permutations of the given list.
-     * @param <T> Type of object that the list contains.
-     * @param list - Contains items to compute permutations of.
-     * @return Set containing all permutations of the given list of items.
-     */
-    public static <T> Set<List<T>> perms(List<T> list) {
-        HashSet<List<T>> resultSet = new HashSet<>();
-        if (list.size() == 1) {
-            resultSet.add(list);
-        } else if (list.size() > 1) {
-            for (T e : list) {
-                List<T> sublist = new ArrayList<>(list);
-                sublist.remove(e);
-                Set<List<T>> r = perms(sublist);
-                for (List<T> x : r) {
-                    x.add(e);
-                    resultSet.add(x);
-                }
-            }
-        }
-        return resultSet;
-    }
+	/**
+	 * Computes all permutations of the given list.
+	 *
+	 * @param <T> Type of object that the list contains.
+	 * @param list - Contains items to compute permutations of.
+	 * @return Set containing all permutations of the given list of items.
+	 */
+	public static <T> Set<List<T>> allPermutations(List<T> list) {
+		HashSet<List<T>> resultSet = new HashSet<>();
+		if (list.size() == 1) {
+			resultSet.add(list);
+		} else if (list.size() > 1) {
+			for (T e : list) {
+				List<T> sublist = new ArrayList<>(list);
+				sublist.remove(e);
+				Set<List<T>> r = allPermutations(sublist);
+				for (List<T> x : r) {
+					x.add(e);
+					resultSet.add(x);
+				}
+			}
+		}
+		return resultSet;
+	}
 
-    // Inserts <code>n</code> at <code>index</code> in the given array.
-    // Shifts all elements at <code>index</code> and greater to the right.
-    private static int[] insert(int[] arr, int index, int n) {
-        int[] result = new int[arr.length + 1];
-        System.arraycopy(arr, 0, result, 0, index);
-        result[index] = n;
-        System.arraycopy(arr, index, result, index + 1, arr.length - index);
-        return result;
-    }
+	/**
+	 * Computes n choose k.
+	 */
+	public static BigInteger nChooseK(int n, int k) {
+		if (n < 0 || k < 0 || n < k) {
+			throw new IllegalArgumentException("n and k must both be >= 0 and n must be >= k.");
+		}
 
-    /**
-     * Computes all permutation of the numbers from 1 to n (inclusive).
-     * @param n - Amount of numbers to compute permutations of.
-     * @return Array containing all permutations of the numbers 1 through n.
-     */
-    public static int[][] perms(int n) {
-        if (n < 1) {
-            throw new IllegalArgumentException("n must be greater than 1");
-        }
+		if (k == 0 || n == k) {
+			return BigInteger.ONE;
+		}
 
-        int[][] perms = new int[][]{ new int[]{1} };
+		return factorial(n).divide(factorial(k)).divide(factorial(n - k));
+	}
 
-        for (int i = 2; i <= n; i++) {
-            int[][] newPerms = new int[perms.length * i][];
-            for (int j = 0; j < perms.length; j++) {
-                for (int k = 0; k < i; k++) {
-                    newPerms[(i*j) + k] = insert(perms[j], k, i);
-                }
-            }
-            perms = newPerms;
-        }
+	/**
+	 * Generates a random combination, choosing k numbers randomly from the interval [0,n).
+	 * The following must be true: <code>n >= k >= 0</code>.
+	 */
+	public static int[] randomCombo(int n, int k) {
+		if (n < 0 || k < 0 || n < k) {
+			throw new IllegalArgumentException("n and k must both be >= 0 and n must be >= k.");
+		}
 
-        return perms;
-    }
+		if (k == 0) {
+			return new int[0];
+		}
+
+		int[] items = Shuffler.rangeArr(n);
+		Shuffler.shuffle(items);
+		return Arrays.copyOfRange(items, 0, k);
+
+		// This is an alternate approach in which a combination is generated via an index r.
+		// BigInteger r = random(factorial(n), ThreadLocalRandom.current());
+		// return combo(n, k, r);
+	}
+
+	/**
+	 * Generates a subset of k numbers from the interval [0,n), given a number r from [0, n choose k).
+	 */
+	public static int[] combo(int n, int k, BigInteger r) {
+		// validate r
+		if (r.compareTo(BigInteger.ZERO) < 0) {
+			throw new IllegalArgumentException("r must be nonnegative");
+		}
+		BigInteger nChooseK = nChooseK(n, k);
+		if (r.compareTo(nChooseK) >= 0) {
+			throw new IllegalArgumentException(
+				String.format("r must be in interval [0, n choose k (%s))", nChooseK.toString())
+			);
+		}
+
+		int[] result = new int[k];
+
+		// Anything choose 0 is 1. There's only one way to choose nothing, i.e. the empty set.
+		if (k == 0) {
+			return result;
+		}
+
+		int _n = n - 1;
+		int _k = k - 1;
+		BigInteger _r = new BigInteger(r.toString());
+
+		int index = 0;
+		for (int i = 0; i < n; i++) {
+			BigInteger _nChoose_k = nChooseK(_n, _k);
+			if (_r.compareTo(_nChoose_k) < 0) {
+				result[index++] = i;
+				_k--;
+
+				if (index == k) {
+					break;
+				}
+			} else {
+				_r = _r.subtract(_nChoose_k);
+			}
+			_n--;
+
+		}
+
+		return result;
+	}
+
+	/**
+	 * Generates a random permutation of the numbers 0 to n.
+	 */
+	public static int[] randomPermutation(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		return Shuffler.shuffle(Shuffler.rangeArr(n));
+
+		// This is an alternate approach in which a permutation is generated via an index r.
+		// BigInteger r = random(factorial(n), ThreadLocalRandom.current());
+		// return permutation(n, r);
+	}
+
+	/**
+	 * Generates a permutation of the numbers [0,n), given a number r from [0, n!).
+	 */
+	public static int[] permutation(int n, BigInteger r) {
+		if (n < 0) {
+			throw new IllegalArgumentException("n must be nonnegative");
+		}
+
+		int[] result = new int[n];
+		int[] items = Shuffler.rangeArr(n);
+
+		for (int i = 0; i < n; i++) {
+			r = r.mod(factorial(n - i));
+			BigInteger dividend = factorial(n - i - 1);
+			int q = r.divide(dividend).intValue();
+			result[i] = items[q];
+
+			// Shift items whose index > q to the left one place
+			for (int j = q + 1; j < n - i; j++) {
+				items[j - 1] = items[j];
+			}
+		}
+
+		return result;
+	}
 }
