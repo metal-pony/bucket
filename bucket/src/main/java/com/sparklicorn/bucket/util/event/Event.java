@@ -54,17 +54,6 @@ public class Event {
 	 * @param name - Name of the event. Cannot be null or empty.
 	 */
 	public Event(String name) {
-		this(name, null);
-	}
-
-	/**
-	 * Creates a new Event with the given name and copies the given properties
-	 * into the event's properties map.
-	 *
-	 * @param name - Name of the event. Cannot be null or empty.
-	 * @param properties - Properties to set on the event.
-	 */
-	public Event(String name, Map<String,Object> properties) {
 		if(name == null) {
 			throw new NullPointerException("Name must not be null");
 		}
@@ -75,11 +64,6 @@ public class Event {
 
 		this.name = name;
 		this.frozen = false;
-		this.properties = new HashMap<>();
-
-		if (properties != null) {
-			properties.forEach((propName, value) -> this.addProperty(propName, value));
-		}
 	}
 
 	/**
@@ -102,88 +86,98 @@ public class Event {
 	/**
 	 * Attempts to add a property to the event.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @param value - Property value.
 	 * @return True if the property was successfully added; otherwise false.
 	 * @throws EventFrozenException If the Event has been frozen, it cannot have additional
 	 * properties set.
 	 */
-	public boolean addProperty(String name, Object value) throws EventFrozenException {
+	public boolean addProperty(String propName, Object value) throws EventFrozenException {
 		if (isFrozen()) {
 			throw new EventFrozenException(EventFrozenException.CANNOT_ADD_PROPERTY);
 		}
 
-		if (!name.matches(NAME_PATTERN)) {
+		if (!propName.matches(NAME_PATTERN)) {
 			throw new MalformedNameException(MalformedNameException.BAD_PROPERTY_NAME);
 		}
 
-		properties.put(name, value);
+		if (properties == null) {
+			properties = new HashMap<>();
+		}
+
+		properties.put(propName, value);
 		return true;
 	}
 
 	/**
 	 * Gets the event property as an int.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @return The event property as an int.
 	 * @throws NullPointerException If the specified property is not found.
 	 */
-	public int getPropertyAsInt(String name) {
-		return (int)getPropertyAsType(name, Integer.class);
+	public int getPropertyAsInt(String propName) {
+		return (int)getPropertyAsType(propName, Integer.class);
 	}
 
 	/**
 	 * Gets the event property as a String.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @return The event property as a String.
 	 * @throws NullPointerException If the specified property is not found.
 	 */
-	public String getPropertyAsString(String name) {
-		return getPropertyAsType(name, String.class);
+	public String getPropertyAsString(String propName) {
+		return getPropertyAsType(propName, String.class);
 	}
 
 	/**
 	 * Gets the event property as a double.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @return The event property as a double.
 	 * @throws NullPointerException If the specified property is not found.
 	 */
-	public double getPropertyAsDouble(String name) {
-		return (double)getPropertyAsType(name, Double.class);
+	public double getPropertyAsDouble(String propName) {
+		return (double)getPropertyAsType(propName, Double.class);
 	}
 
 	/**
 	 * Gets the event property as a boolean.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @return The event property as a boolean.
 	 * @throws NullPointerException If the specified property is not found.
 	 */
-	public boolean getPropertyAsBoolean(String name) {
-		return (boolean)getPropertyAsType(name, Boolean.class);
+	public boolean getPropertyAsBoolean(String propName) {
+		return (boolean)getPropertyAsType(propName, Boolean.class);
 	}
 
 	/**
 	 * Gets the event property as an Object.
 	 *
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @return The event property as an Object.
 	 */
-	public Object getProperty(String name) {
-		return (Object) properties.get(name);
+	public Object getProperty(String propName) {
+		if (properties == null) {
+			return null;
+		}
+		return (Object) properties.get(propName);
 	}
 
 	/**
 	 * Attempts to retrieve a property cast to the specified class.
 	 *
 	 * @param <T> - Type to cast the property to.
-	 * @param name - Name of the property.
+	 * @param propName - Name of the property.
 	 * @param _class - Class to attempt to cast the property to.
 	 * @return The property cast as the specified Class.
 	 */
-	public <T> T getPropertyAsType(String name, Class<T> _class) {
-		return _class.cast(properties.get(name));
+	public <T> T getPropertyAsType(String propName, Class<T> _class) {
+		if (properties == null) {
+			return null;
+		}
+		return _class.cast(properties.get(propName));
 	}
 }

@@ -2,8 +2,6 @@ package com.sparklicorn.bucket.util.event;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.HashMap;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -66,9 +64,8 @@ public class TestEvent {
       );
 
       assertThrows(MalformedNameException.class, () -> {
-        HashMap<String, Object> props = new HashMap<>();
-        props.put(invalidName, "doesn't matter");
-        new Event(eventName, props);
+        Event testEvent = new Event(eventName);
+        testEvent.addProperty(invalidName, "doesn't matter");
       }, message);
     }
   }
@@ -195,21 +192,5 @@ public class TestEvent {
     assertThrows(NullPointerException.class, () -> {
       event.getPropertyAsInt("testProp");
     });
-  }
-
-  // Integration Tests
-
-  @Test
-  void testConstructor_setsProperties() {
-    HashMap<String,Object> props = new HashMap<>();
-    props.put("testProp1", "apple");
-    props.put("testProp2", 96);
-    props.put("testProp3", props);
-
-    event = new Event(eventName, props);
-
-    assertEquals("apple", event.getPropertyAsString("testProp1"));
-    assertEquals(96, event.getPropertyAsInt("testProp2"));
-    assertEquals(props, event.getPropertyAsType("testProp3", HashMap.class));
   }
 }
