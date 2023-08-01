@@ -15,15 +15,16 @@ import java.util.concurrent.TimeUnit;
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 
-import com.sparklicorn.bucket.tetris.ITetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisEvent;
+import com.sparklicorn.bucket.tetris.TetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.util.event.Event;
 
 public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 	private static final long SHIFT_DELAY = TimeUnit.MILLISECONDS.toNanos(100L);
 	private static final long DROP_DELAY = TimeUnit.MILLISECONDS.toNanos(25L);
 
-	protected ITetrisGame game;
+	protected TetrisGame game;
 	protected TetrisBoardPanel panel;
 	protected TetrisSidePanel sidePanel;
 
@@ -37,7 +38,7 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 	private Map<Integer,Runnable> keyPressedListeners;
 	private Map<Integer,Runnable> keyReleasedListeners;
 
-	public TetrisFrame(int width, int height, int blockSize, ITetrisGame _game) {
+	public TetrisFrame(int width, int height, int blockSize, TetrisGame _game) {
 		this.game = _game;
 		this.shutdown = false;
 		this._shutdown = shutdown;
@@ -200,11 +201,12 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 	}
 
 	private void handleEnterKeyPress() {
-		if (game.isGameOver()) {
+		TetrisState state = game.getState();
+		if (state.isGameOver) {
 			game.newGame();
-		} else if (!game.hasStarted()) {
+		} else if (!state.hasStarted) {
 			game.start(0);
-		} else if (game.isPaused()) {
+		} else if (state.isPaused) {
 			game.resume();
 		} else {
 			game.pause();
