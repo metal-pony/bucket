@@ -6,7 +6,6 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.util.concurrent.Future;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -108,11 +107,10 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 			tetris.newGame();
 			tetris.start(0);
 		} else if (e.getKeyCode() == KeyEvent.VK_G) {
-			asyncRunGame(tetris, 1, false);
+			runGame(0L, false);
 		} else if (e.getKeyCode() == KeyEvent.VK_H) {
-			asyncRunGame(tetris, 1, true);
+			runGame(0L, true);
 		} else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-			tetris.shutdown();
 			dispose();
 		}
 	}
@@ -134,10 +132,13 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 	}
 
 	public GameStats runGame(long sleepTime, boolean useLookAhead) {
-		return tetris.run(sleepTime, useLookAhead);
-	}
-
-	public static Future<GameStats> asyncRunGame(AiTetris g1, long sleepTime, boolean useLookAhead) {
-		return ThreadPool.submit(() -> g1.run(sleepTime, useLookAhead));
+		try {
+			if (!tetris.isRunning()) {
+				return tetris.run(sleepTime, useLookAhead);
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		return null;
 	}
 }

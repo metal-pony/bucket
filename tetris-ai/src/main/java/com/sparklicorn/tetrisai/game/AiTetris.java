@@ -94,7 +94,7 @@ public class AiTetris extends TetrisGame {
 			0,
 			this.state.shape.getNumRotations()
 		);
-		populateBlockPositions(state.blockLocations, state.position);
+		state.updateBlockPositions();
 	}
 
 	/**
@@ -225,7 +225,9 @@ public class AiTetris extends TetrisGame {
 			while (!state.isGameOver) {
 				if (state.isActive) {
 					state.position = findBestPlacement(getState(), ranker, options);
-					populateBlockPositions(state.blockLocations, state.position);
+					if (state.position != null) {
+						state.updateBlockPositions();
+					}
 				}
 
 				// System.out.print('.');
@@ -267,7 +269,7 @@ public class AiTetris extends TetrisGame {
 		if (!state.isGameOver && state.isActive) {
 			LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
 			state.position = findBestPlacement(getState(), ranker, options);
-			populateBlockPositions(state.blockLocations, state.position);
+			state.updateBlockPositions();
 		}
 	}
 
@@ -360,7 +362,7 @@ public class AiTetris extends TetrisGame {
 	 *
 	 * @param lookAhead - Whether to consider the next shape when calculating.
 	 */
-	public Position findBestPlacement(
+	public static Position findBestPlacement(
 		TetrisState state,
 		ITetrisStateRanker ranker,
 		LookAheadOptions options

@@ -108,6 +108,13 @@ public class TetrisGame implements ITetrisGame {
 	}
 
 	/**
+	 * Returns whether the game is currently running.
+	 */
+	public boolean isRunning() {
+		return state.hasStarted && !state.isGameOver;
+	}
+
+	/**
 	 * Returns points rewarded for clearing lines at a given level.
 	 *
 	 * @param lines Number of lines cleared.
@@ -116,25 +123,6 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	protected long calcPointsForClearing(int lines) {
 		return POINTS_BY_LINES_CLEARED.get(lines) * (state.level + 1L);
-	}
-
-	/**
-	 * Calculates the coordinates of blocks that make up the current shape,
-	 * in the given position.
-	 *
-	 * @param coords Contains block coordinates that make up the shape.
-	 * The newly calculated block positions will be written here.
-	 * @param pos The location and rotation of the shape to calculate block positions for.
-	 * @return The modified blockCoords array (for convenience).
-	 */
-	public Coord[] populateBlockPositions(Coord[] coords, Position pos) {
-		int rotationIndex = state.shape.rotationIndex(pos.rotation());
-		for (int i = 0; i < coords.length; i++) {
-			coords[i].set(pos.offset());
-			coords[i].add(state.shape.rotationOffsets[rotationIndex][i]);
-		}
-
-		return coords;
 	}
 
 	public Coord[] populateBlockPositions(Position move) {
