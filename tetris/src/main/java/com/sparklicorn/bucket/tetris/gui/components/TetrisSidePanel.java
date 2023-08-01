@@ -13,8 +13,9 @@ import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-import com.sparklicorn.bucket.tetris.ITetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisEvent;
+import com.sparklicorn.bucket.tetris.TetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.event.Event;
@@ -29,7 +30,7 @@ public class TetrisSidePanel extends JPanel {
 			setBackground(Color.BLACK);
 			this.setPreferredSize(
 				new Dimension(
-					game.getNumCols() * blockSize,
+					state.cols * blockSize,
 					2 * blockSize
 				)
 			);
@@ -38,8 +39,8 @@ public class TetrisSidePanel extends JPanel {
 		@Override protected void paintComponent(Graphics g) {
 			super.paintComponent(g);
 
-			if (game != null && game.hasStarted() && !game.isPaused()) {
-				drawTetrisPiece(8, 8, game.getNextShape(), nextBlockSize, (Graphics2D) g);
+			if (state != null && state.hasStarted && !state.isPaused) {
+				drawTetrisPiece(8, 8, state.nextShapes.peek(), nextBlockSize, (Graphics2D) g);
 			}
 		}
 
@@ -48,7 +49,7 @@ public class TetrisSidePanel extends JPanel {
 			float row = 0;
 			float col = 2;
 
-			g2DContext.setColor(TetrisBoardPanel.COLORS_BY_SHAPE[shape.value]);
+			g2DContext.setColor(TetrisBoardPanel.colorForShape(shape));
 
 			for (Coord c : coords) {
 				int bx = (int) (col * blockSize + c.col() * blockSize + x);
@@ -58,7 +59,9 @@ public class TetrisSidePanel extends JPanel {
 		}
 	}
 
-	protected ITetrisGame game;
+	protected TetrisGame game;
+	protected TetrisState state;
+
 	protected int blockSize;
 	protected int fontSize;
 	protected int nextBlockSize;
@@ -69,16 +72,14 @@ public class TetrisSidePanel extends JPanel {
 	protected boolean showNextPiece;
 
 	protected JLabel scoreLabel;
-	protected long score;
 	protected boolean showScore;
 
 	protected JLabel levelLabel;
-	protected long level;
 	protected boolean showLevel;
 
 	protected Consumer<Event> eventListener;
 
-	public TetrisSidePanel(ITetrisGame game) {
+	public TetrisSidePanel(TetrisGame game) {
 		this(
 			game,
 			TetrisBoardPanel.DEFAULT_BLOCK_SIZE,
@@ -87,30 +88,23 @@ public class TetrisSidePanel extends JPanel {
 		);
 	}
 
-	public TetrisSidePanel(ITetrisGame game, int blockSize, int fontSize, int nextBlockSize) {
+	public TetrisSidePanel(TetrisGame game, int blockSize, int fontSize, int nextBlockSize) {
 		super();
 
-		this.game = game;
 		this.blockSize = blockSize;
 		this.fontSize = fontSize;
 		this.nextBlockSize = nextBlockSize;
 		this.showNextPiece = true;
 		this.showScore = true;
 		this.showLevel = true;
-
-		score = (game != null) ? game.getScore() : 0L;
-		level = (game != null) ? game.getLevel() : 0L;
 		statsFont = new Font("Consolas", Font.PLAIN, fontSize);
+
+		connectGame(game);
 
 		nextPiecePanel = new NextPiecePanel();
 		nextLabel = createLabel("Next");
 		scoreLabel = createLabel(scoreLabelText());
 		levelLabel = createLabel(levelLabelText());
-
-		// setPreferredSize(new Dimension(
-		// 	game.getNumCols() * blockSize,
-		// 	game.getNumRows() * blockSize
-		// ));
 
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		setBackground(Color.BLACK);
@@ -121,8 +115,6 @@ public class TetrisSidePanel extends JPanel {
 		add(levelLabel);
 		setAlignmentX(Component.LEFT_ALIGNMENT);
 		nextLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		hookGameEvents();
 	}
 
 	private JLabel createLabel(String text) {
@@ -175,46 +167,30 @@ public class TetrisSidePanel extends JPanel {
 	}
 
 	protected void onGameEvent(Event e) {
-		updateScoreLabel();
-		updateLevelLabel();
-		repaint();
-	}
+		state = e.getPropertyAsType("state", TetrisState.class);
 
-	protected void updateScoreLabel() {
-		if (!showScore) {
-			return;
-		}
-
-		long currentScore = game.getScore();
-		if (score != currentScore) {
-			score = currentScore;
+		if (showScore) {
 			scoreLabel.setText(scoreLabelText());
 		}
-	}
 
-	protected void updateLevelLabel() {
-		if (!showLevel) {
-			return;
-		}
-
-		long currentLevel = game.getLevel();
-		if (level != currentLevel) {
-			level = currentLevel;
+		if (showLevel) {
 			levelLabel.setText(levelLabelText());
 		}
+
+		repaint();
 	}
 
 	protected String scoreLabelText() {
 		return String.format(
 			"<html>Score<br><font color='#ffffff'>%8d</font></html>",
-			score
+			state.score
 		);
 	}
 
 	protected String levelLabelText() {
 		return String.format(
 			"<html>Level<br><font color='#ffffff'>%8d</font></html>",
-			level
+			state.level
 		);
 	}
 
@@ -226,9 +202,15 @@ public class TetrisSidePanel extends JPanel {
 		Arrays.stream(TetrisEvent.values()).forEach((e) -> game.unregisterEventListener(e, this::onGameEvent));
 	}
 
-	public void setGame(ITetrisGame newGame) {
-		unhookGameEvents();
+	public TetrisGame connectGame(TetrisGame newGame) {
+		if (game != null) {
+			unhookGameEvents();
+		}
+
+		TetrisGame oldGame = this.game;
 		this.game = newGame;
+		this.state = newGame.getState();
 		hookGameEvents();
+		return oldGame;
 	}
 }

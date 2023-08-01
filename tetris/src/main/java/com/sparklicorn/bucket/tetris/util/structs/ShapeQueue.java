@@ -83,6 +83,21 @@ public class ShapeQueue implements Queue<Shape> {
 		return Shape.getShape(shapeIndexQueue.get(0));
 	}
 
+	/**
+	 * Gets the specified number of next shapes in the queue, but does not remove them.
+	 *
+	 * @param amount Number of shapes to peek.
+	 * @return An array of the next shapes in the queue.
+	 */
+	public Shape[] peekNext(int amount) {
+		ensureCapacity(minSize + amount);
+		Shape[] result = new Shape[amount];
+		for (int i = 0; i < amount; i++) {
+			result[i] = Shape.getShape(shapeIndexQueue.get(i));
+		}
+		return result;
+	}
+
 	@Override
 	public Shape remove() {
 		if (isEmpty()) {

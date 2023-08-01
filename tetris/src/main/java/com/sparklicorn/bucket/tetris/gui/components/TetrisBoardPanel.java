@@ -8,9 +8,9 @@ import java.util.Arrays;
 
 import javax.swing.JPanel;
 
-import com.sparklicorn.bucket.tetris.ITetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisEvent;
 import com.sparklicorn.bucket.tetris.TetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.event.Event;
@@ -31,11 +31,24 @@ public class TetrisBoardPanel extends JPanel {
 		new Color(128,0,128)
 	};
 
+	protected static Color colorForShape(Shape shape) {
+		int shapeIndex = (shape == null) ? 0 : shape.value;
+		return COLORS_BY_SHAPE[shapeIndex % COLORS_BY_SHAPE.length];
+	}
+
+	protected static Color colorWithAlhpa(Color c, int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
+    }
+
+    protected Color currentGamePieceColor() {
+		return colorForShape(state.shape);
+    }
+
 	protected class Cell {
 		protected final int index;
 		protected final int row;
 		protected final int col;
-		protected int shapeIndex;
+		protected Shape shape;
 
 		protected Cell(int index, int row, int col) {
 			this.index = index;
@@ -44,11 +57,11 @@ public class TetrisBoardPanel extends JPanel {
 		}
 
 		protected Color color() {
-			return COLORS_BY_SHAPE[shapeIndex % COLORS_BY_SHAPE.length];
+			return colorForShape(shape);
 		}
 
 		protected void draw(Graphics g) {
-			if (shapeIndex <= 0) {
+			if (shape == null) {
 				return;
 			}
 
@@ -62,59 +75,46 @@ public class TetrisBoardPanel extends JPanel {
 	protected int numRows;
 	protected int numCols;
 	protected int blockSize;
-	protected int[] blocks;
 	protected Cell[] cells;
-	// protected Cell[][] rows;
-	// protected Cell[][] columns;
 
-	protected boolean hidingBlocks;
+	protected boolean showBlocks;
 	protected boolean shouldDraw;
 	protected String message;
-	protected ITetrisGame game;
 
-	public TetrisBoardPanel() {
-		this(DEFAULT_BLOCK_SIZE, null);
-	}
+	protected TetrisGame game;
+	protected TetrisState state;
 
-	public TetrisBoardPanel(ITetrisGame game) {
+	public TetrisBoardPanel(TetrisGame game) {
 		this(DEFAULT_BLOCK_SIZE, game);
 	}
 
-	public TetrisBoardPanel(int blockSize, ITetrisGame game) {
-		this.game = game;
-
-		if (game != null) {
-			numRows = game.getNumRows();
-			numCols = game.getNumCols();
-		} else {
-			numRows = TetrisGame.DEFAULT_NUM_ROWS;
-			numCols = TetrisGame.DEFAULT_NUM_COLS;
+	public TetrisBoardPanel(int blockSize, TetrisGame game) {
+		if (game == null) {
+			throw new IllegalArgumentException("game cannot be null");
 		}
 
-		hidingBlocks = false;
+		showBlocks = true;
 		shouldDraw = true;
 		message = "";
 
+		connectGame(game);
 		setBlockSize(blockSize);
-		setGame(game);
 		setBackground(Color.BLACK);
 		// setLayout(null);
 		setVisible(true);
 	}
 
-	protected Cell[] cells() {
-		return cells;
-	}
-
-	protected void onGameEvent(Event e) {
-		System.out.println(e.name);
-		update(e);
-		repaint();
-	}
-
-	protected void update(Event e) {
-		updateBlocks();
-		updatePiece();
+	@Override
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+		if (shouldDraw) {
+			if (showBlocks) {
+				drawCells(g);
+			}
+			drawStats(g);
+		} else if (!message.equals("")) {
+			drawMessage(g);
+		}
 	}
 
 	public void setBlockSize(int newBlockSize) {
@@ -126,80 +126,46 @@ public class TetrisBoardPanel extends JPanel {
 		setPreferredSize(new Dimension(numCols * blockSize, numRows * blockSize));
 	}
 
-	protected Cell[] resetCells() {
-		Cell[] newCells = new Cell[numRows * numCols];
-		for (int i = 0; i < newCells.length; i++) {
-			newCells[i] = new Cell(i, i / numCols, i % numCols);
-		}
-		return newCells;
-	}
-
-	public void setGame(ITetrisGame newGame) {
-		//unregister old events if necessary
-		if (game != null) {
-			// TODO #69 game.unregisterAllEventListeners();
-			Arrays.stream(TetrisEvent.values()).forEach((e) -> game.unregisterEventListener(e, this::onGameEvent));
+	public TetrisGame connectGame(TetrisGame newGame) {
+		if (newGame == null) {
+			throw new IllegalArgumentException("newGame cannot be null");
 		}
 
+		TetrisGame oldGame = disconnectGame();
 		game = newGame;
-		if (game != null) {
-			numRows = game.getNumRows();
-			numCols = game.getNumCols();
-		} else {
-			numRows = TetrisGame.DEFAULT_NUM_ROWS;
-			numCols = TetrisGame.DEFAULT_NUM_COLS;
-		}
+		state = game.getState();
+		numRows = state.rows;
+		numCols = state.cols;
 
-		cells = resetCells();
-		blocks = new int[numRows * numCols];
+		initCells();
 		setPreferredSize(new Dimension(numCols * blockSize, numRows * blockSize));
 
-		//register new event handlers for the new game
+		// Register new event handlers
+		game.registerEventListener(TetrisEvent.LINE_CLEAR, this::onGameEvent);
+		game.registerEventListener(TetrisEvent.BLOCKS, this::onGameEvent);
+		game.registerEventListener(TetrisEvent.PIECE_CREATE, this::onGameEvent);
+		game.registerEventListener(TetrisEvent.PIECE_ROTATE, this::onGameEvent);
+		game.registerEventListener(TetrisEvent.PIECE_SHIFT, this::onGameEvent);
+		game.registerEventListener(TetrisEvent.PIECE_PLACED, this::onGameEvent);
+
+		return oldGame;
+	}
+
+	public TetrisGame disconnectGame() {
 		if (game != null) {
-			game.registerEventListener(TetrisEvent.LINE_CLEAR, this::onGameEvent);
-			game.registerEventListener(TetrisEvent.BLOCKS, this::onGameEvent);
-			game.registerEventListener(TetrisEvent.PIECE_CREATE, this::onGameEvent);
-			game.registerEventListener(TetrisEvent.PIECE_ROTATE, this::onGameEvent);
-			game.registerEventListener(TetrisEvent.PIECE_SHIFT, this::onGameEvent);
-			game.registerEventListener(TetrisEvent.PIECE_PLACED, this::onGameEvent);
+			// Unregister all active event handlers
+			Arrays.stream(TetrisEvent.values()).forEach(this::unregisterEvent);
 		}
+
+		return game;
 	}
 
 	public void hideBlocks() {
-		hidingBlocks = true;
+		showBlocks = false;
 	}
 
 	public void showBlocks() {
-		hidingBlocks = false;
-	}
-
-	protected void mapBlocksToCells() {
-		for (Cell cell : cells()) {
-			cell.shapeIndex = blocks[cell.index];
-		}
-	}
-
-	public void updateBlocks() {
-		if (game != null) {
-			blocks = game.getBlocksOnBoard(blocks);
-			mapBlocksToCells();
-		}
-	}
-
-	public void updatePiece() {
-		if (game != null && game.isPieceActive()) {
-			updatePiece(game.getPieceBlocks(), game.getCurrentShape());
-		}
-	}
-
-	public void updatePiece(Coord[] pieceCoords, Shape shape) {
-		if (pieceCoords != null) {
-			for (Coord c : pieceCoords) {
-				int cellIndex = c.row() * numCols + c.col();
-				blocks[cellIndex] = shape.value;
-				cells[cellIndex].shapeIndex = shape.value;
-			}
-		}
+		showBlocks = true;
 	}
 
 	public void setShouldDraw(boolean isPaused) {
@@ -210,8 +176,39 @@ public class TetrisBoardPanel extends JPanel {
 		message = msg;
 	}
 
+	protected void initCells() {
+		cells = new Cell[numRows * numCols];
+		for (int i = 0; i < cells.length; i++) {
+			cells[i] = new Cell(i, i / numCols, i % numCols);
+		}
+	}
+
+	protected void update(Event e) {
+		this.state = e.getPropertyAsType("state", TetrisState.class);
+		mapStateToCells();
+	}
+
+	protected void mapStateToCells() {
+		for (Cell cell : cells) {
+			cell.shape = Shape.getShape(state.board[cell.index]);
+		}
+
+		mapPieceStateToCells();
+	}
+
+	protected void mapPieceStateToCells() {
+		if (!state.isActive) {
+			return;
+		}
+
+		for (Coord blockCoord : state.blockLocations) {
+			int cellIndex = blockCoord.row() * state.cols + blockCoord.col();
+			cells[cellIndex].shape = state.shape;
+		}
+	}
+
 	protected void drawCells(Graphics g) {
-		for (Cell cell : cells()) {
+		for (Cell cell : cells) {
 			cell.draw(g);
 		}
 	}
@@ -223,30 +220,22 @@ public class TetrisBoardPanel extends JPanel {
 		g.drawString(message, x, y);
 	}
 
-	@Override public void paintComponent(Graphics g) {
-		super.paintComponent(g);
-		if (shouldDraw) {
-			if (!hidingBlocks) {
-				drawCells(g);
-			}
-			drawStats(g);
-		} else if (!message.equals("")) {
-			drawMessage(g);
-		}
+	protected void drawStats(Graphics g) {
+		g.setColor(Color.MAGENTA);
+		g.setFont(new Font("Arial", Font.BOLD, 12));
+		int y;
+		g.drawString("Score: " + state.score, 8, y=16);
+		g.drawString("Level: " + state.level, 8, y+=20);
+		g.drawString("Lines: " + state.linesCleared, 8, y+=20);
+		g.drawString("Pieces: " + state.numPiecesDropped, 8, y+=20);
 	}
 
-	public void drawStats(Graphics g) {
-		if (game != null) {
-			g.setColor(Color.MAGENTA);
-			g.setFont(new Font("Arial", Font.BOLD, 12));
-			int y = 16;
-			g.drawString("Score: " + game.getScore(), 8, y);
-			y += 20;
-			g.drawString("Pieces: " + game.getNumPiecesDropped(), 8, y);
-			y += 20;
-			g.drawString("Lines: " + game.getLinesCleared(), 8, y);
-			y += 20;
-			g.drawString("Level: " + game.getLevel(), 8, y);
-		}
+	protected void onGameEvent(Event e) {
+		update(e);
+		repaint();
+	}
+
+	protected boolean unregisterEvent(TetrisEvent e) {
+		return game.unregisterEventListener(e, this::onGameEvent);
 	}
 }

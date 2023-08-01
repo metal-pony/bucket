@@ -1,123 +1,143 @@
 package com.sparklicorn.tetrisai.drivers;
 
-import java.awt.GridLayout;
+import java.awt.Color;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
+import java.util.concurrent.Future;
 
-import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
+import javax.swing.BorderFactory;
+import javax.swing.JFrame;
+
 import com.sparklicorn.bucket.util.ThreadPool;
 import com.sparklicorn.tetrisai.game.AiTetris;
-import com.sparklicorn.tetrisai.game.FixedShapeGenerator;
 import com.sparklicorn.tetrisai.game.GenericRanker;
-import com.sparklicorn.tetrisai.game.PolyFuncRanker;
-import com.sparklicorn.tetrisai.structs.MutatingPolyFunc;
-import com.sparklicorn.tetrisai.structs.PolyFunc.PolyFuncTerm;
+import com.sparklicorn.tetrisai.gui.AiSidePanel;
+import com.sparklicorn.tetrisai.gui.AiTetrisPanel;
+import com.sparklicorn.tetrisai.structs.GameStats;
 
-public class DefaultTetrisRunner {
-	public static void show() {
-		GenericRanker ranker2 = new GenericRanker(
-			new double[] { 3.589, -1.374, -17.409, -12.835, -10.748 }
-		);
+public class DefaultTetrisRunner extends JFrame implements KeyListener {
 
-		PolyFuncRanker polyRanker = new PolyFuncRanker(
-			new MutatingPolyFunc[] {
-				new MutatingPolyFunc(new PolyFuncTerm(58.134255, 7.880358)),
-				new MutatingPolyFunc(new PolyFuncTerm(30.695983, -4.800810)),
-				new MutatingPolyFunc(new PolyFuncTerm(43.369132, -8.567011)),
-				new MutatingPolyFunc(new PolyFuncTerm(-52.209781, 1.879746)),
-				new MutatingPolyFunc(new PolyFuncTerm(30.562679, 5.511573))
-			}
-		);
+	private static final long serialVersionUID = 0L;
 
-		FixedShapeGenerator.init();
-
-		AiTetris tetris = new AiTetris(
-			AiTetris.DEFAULT_NUM_ROWS,
-			AiTetris.DEFAULT_NUM_COLS,
-			true,
-			ranker2,
-			FixedShapeGenerator.get()
-		);
-
-		AiTetris tetris2 = new AiTetris(
-			AiTetris.DEFAULT_NUM_ROWS,
-			AiTetris.DEFAULT_NUM_COLS,
-			true,
-			polyRanker,
-			FixedShapeGenerator.get()
-		);
-
-		TetrisBoardPanel tetrisPanel = new TetrisBoardPanel(40, tetris);
-		// TetrisBoardPanel tetris2Panel = new TetrisBoardPanel(40, tetris2);
-
-		JPanel p = new JPanel();
-		p.setLayout(new GridLayout(1, 2, 4, 4));
-		p.add(tetrisPanel);
-		// p.add(tetris2Panel);
-
-		JFrame frame = new JFrame("Tetris Run Tester") {
-			@Override public void dispose() {
-				super.dispose();
-				tetris.stop();
-				tetris.shutdown();
-				ThreadPool.shutdownNow();
-				// tetris2.stop();
-				// tetris2.shutdown();
-			}
-		};
-		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-		frame.addKeyListener(new KeyListener() {
-			@Override public void keyTyped(KeyEvent e) {}
-			@Override public void keyReleased(KeyEvent e) {}
-			@Override public void keyPressed(KeyEvent e) {
-				if (e.getKeyCode() == KeyEvent.VK_SPACE) {
-					//runGames(tetris, tetris2, 1, true);
-
-					placeNextPieces(tetris, tetris2, true);
-				} else if (e.getKeyCode() == KeyEvent.VK_R) {
-					tetris.stop();
-					tetris.newGame();
-					tetris.start(0);
-
-					// tetris2.stop();
-					// tetris2.newGame();
-					// tetris2.start(0);
-				} else if (e.getKeyCode() == KeyEvent.VK_G) {
-					runGames(tetris, tetris2, 1, false);
-				} else if (e.getKeyCode() == KeyEvent.VK_H) {
-					runGames(tetris, tetris2, 1, true);
-				}
-			}
-		});
-
-		frame.add(p);
-		frame.pack();
-		frame.setVisible(true);
-
-		//thread1.start();
-		//thread2.start();
-		runGames(tetris, tetris2, 1, false);
+	public static DefaultTetrisRunner createAndShow() {
+		DefaultTetrisRunner runner = new DefaultTetrisRunner();
+		runner.setVisible(true);
+		return runner;
 	}
 
-	private static void placeNextPieces(AiTetris g1, AiTetris g2, boolean useLookAhead) {
-		g1.placeBest(useLookAhead);
-		g1.gameloop();
+	GenericRanker ranker;
+	AiTetris tetris;
 
-		// g2.placeBest(useLookAhead);
-		// g2.gameloop();
+	AiTetrisPanel panel;
+	AiSidePanel sidePanel;
+
+	public DefaultTetrisRunner() {
+		super("Tetris Runner");
+		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		addKeyListener(this);
+
+		ranker = new GenericRanker();
+		tetris = new AiTetris();
+		tetris.setRanker(ranker);
+		panel = new AiTetrisPanel(tetris);
+		panel.setBorder(BorderFactory.createLineBorder(Color.MAGENTA, 2));
+
+		boolean showNextPiece = true;
+		boolean showLevel = false;
+		boolean showScore = false;
+		this.sidePanel = new AiSidePanel(tetris, showNextPiece, showLevel, showScore);
+
+		setLayout(new GridBagLayout());
+		getContentPane().setBackground(Color.BLACK);
+		add(panel, new GridBagConstraints(
+			1,0, 1,1, 0.0,0.0, GridBagConstraints.CENTER,
+			GridBagConstraints.NONE, new Insets(3, 3, 3, 3), 0,0
+		));
+		add(sidePanel, new GridBagConstraints(
+			2,0,
+			1,1,
+			0.0,0.0,
+			GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL,
+			new Insets(0, 0, 0, 0),
+			0,0
+		));
+		pack();
+		setLocationRelativeTo(null);
 	}
 
-	private static void runGames(AiTetris g1, AiTetris g2, long sleepTime, boolean useLookAhead) {
-		FixedShapeGenerator.init();
-		new Thread(() -> {
-			g1.run(sleepTime, useLookAhead);
-		}).start();
+	public AiTetrisPanel getPanel() {
+		return panel;
+	}
 
-		// new Thread(() -> {
-		//     g2.run(sleepTime, useLookAhead);
-		// }).start();
+	public AiSidePanel getSidePanel() {
+		return sidePanel;
+	}
+
+	public AiTetris getGame() {
+		return tetris;
+	}
+
+	@Override
+	public void setVisible(boolean b) {
+		super.setVisible(true);
+		outputHelp();
+	}
+
+	@Override
+	public void dispose() {
+		super.dispose();
+		tetris.shutdown();
+		ThreadPool.shutdownNow();
+	}
+
+	@Override
+	public void keyTyped(KeyEvent e) {}
+
+	@Override
+	public void keyReleased(KeyEvent e) {}
+
+	@Override
+	public void keyPressed(KeyEvent e) {
+		if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+			placeNextPiece(true);
+		} else if (e.getKeyCode() == KeyEvent.VK_R) {
+			tetris.stop();
+			tetris.newGame();
+			tetris.start(0);
+		} else if (e.getKeyCode() == KeyEvent.VK_G) {
+			asyncRunGame(tetris, 1, false);
+		} else if (e.getKeyCode() == KeyEvent.VK_H) {
+			asyncRunGame(tetris, 1, true);
+		} else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+			tetris.shutdown();
+			dispose();
+		}
+	}
+
+	public void outputHelp() {
+		System.out.println("""
+		KEY MAPPINGS:
+			[ SPACE ]  Run piece placement
+			[ R ]      Reset game
+			[ G ]      Run game (look-ahead disabled in piece placement algorithm)
+			[ H ]      Run game (look-ahead enabled)
+			[ ESCAPE ] Leave this place and never return
+		""");
+	}
+
+	private void placeNextPiece(boolean useLookAhead) {
+		tetris.placeBest(false);
+		tetris.gameloop();
+	}
+
+	public GameStats runGame(long sleepTime, boolean useLookAhead) {
+		return tetris.run(sleepTime, useLookAhead);
+	}
+
+	public static Future<GameStats> asyncRunGame(AiTetris g1, long sleepTime, boolean useLookAhead) {
+		return ThreadPool.submit(() -> g1.run(sleepTime, useLookAhead));
 	}
 }

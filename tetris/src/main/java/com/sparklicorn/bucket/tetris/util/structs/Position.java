@@ -25,13 +25,6 @@ public class Position extends Move implements Comparable<Position> {
 	/**
 	 * Creates a new Position with the given location and rotation.
 	 */
-	public Position(Coord location, int rotation) {
-		this(location, rotation, 1);
-	}
-
-	/**
-	 * Creates a new Position with the given location and rotation.
-	 */
 	public Position(Coord location, int rotation, int maxRotation) {
 		super(location, rotation);
 		this.maxRotation = maxRotation;

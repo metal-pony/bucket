@@ -11,6 +11,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.Shuffler;
@@ -36,31 +37,31 @@ public class TestAITetris {
 	}
 
 	// TODO sparklicorn/bucket#9 move to utility class
-	private static <T> String strAll(Collection<T> collection) {
-		StringBuilder strb = new StringBuilder();
-		collection.forEach((obj) -> {
-			strb.append(obj.toString());
-			strb.append(System.lineSeparator());
-		});
-		return strb.toString();
-	}
+	// private static <T> String strAll(Collection<T> collection) {
+	// 	StringBuilder strb = new StringBuilder();
+	// 	collection.forEach((obj) -> {
+	// 		strb.append(obj.toString());
+	// 		strb.append(System.lineSeparator());
+	// 	});
+	// 	return strb.toString();
+	// }
 
 	@Test
 	public void getTopPlacements_whenBoardIsEmpty() {
-		AiTetris game = new AiTetris();
-		game.setRanker((_game) -> {
+		ITetrisStateRanker ranker = (state) -> {
 			double result = 0.0;
-			int[] blocks = _game.getBlocksOnBoard();
-			for (int i = 0; i < blocks.length; i++) {
-				if (blocks[i] >0 ) {
+			for (int i = 0; i < state.board.length; i++) {
+				if (state.board[i] > 0) {
 					result += i;
 				}
 			}
 			return result;
-		});
-		game.setShape(Shape.I);
+		};
+		TetrisState state = new TetrisState();
+		state.shape = Shape.I;
+		state.position = new Position(1, 4, 0, state.shape.getNumRotations());
 
-		List<Position> actual = AiTetris.getTopPlacements(game, new ArrayList<>(), 1f)
+		List<Position> actual = AiTetris.getTopPlacements(state, ranker, new ArrayList<>(), 1f)
 			.stream()
 			.map((placementRank) -> placementRank.placements().get(0))
 			.toList();
@@ -77,10 +78,11 @@ public class TestAITetris {
 	// TODO #13 test more states - may want to build a tool or functions to assist in creation of test fixtures
 	@Test
 	public void getPossiblePlacements_whenBoardIsEmpty() {
-		AiTetris game = new AiTetris();
-		game.setShape(Shape.I);
+		TetrisState state = new TetrisState();
+		state.shape = Shape.I;
+		state.position = new Position(1, 4, 0, state.shape.getNumRotations());
 
-		Set<Position> actual = game.getPossiblePlacements();
+		Set<Position> actual = AiTetris.getPossiblePlacements(state);
 		Set<Position> expected = new HashSet<>();
 		// 7 horizontal placements across the bottom
 		Shuffler.range(2, 9).forEach((i) -> expected.add(new Position(19, i, 0, 2)));

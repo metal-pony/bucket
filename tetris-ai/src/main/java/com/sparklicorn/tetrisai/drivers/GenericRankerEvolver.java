@@ -12,7 +12,6 @@ import java.awt.event.KeyListener;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import javax.swing.JFrame;
 
 public class GenericRankerEvolver {
@@ -61,8 +60,7 @@ public class GenericRankerEvolver {
 
 		List<TetrisBoardPanel> panels = new ArrayList<>();
 		for (int n = 0; n < numPanels; n++) {
-			TetrisBoardPanel panel = new TetrisBoardPanel();
-			panel.setBlockSize(blockSize);
+			TetrisBoardPanel panel = new TetrisBoardPanel(blockSize, new AiTetris());
 			frame.add(panel);
 			panels.add(panel);
 		}
@@ -77,7 +75,7 @@ public class GenericRankerEvolver {
 		// Create new population. Seed with random weights.
 		RankerPopulation<GenericRanker> pop = new RankerPopulation<>();
 		for (int n = 0; n < popSize; n++) {
-			pop.add(new GenericRanker(getRandomWeights(GenericRanker.NUM_WEIGHTS, lower, upper)));
+			pop.add(new GenericRanker(GenericRanker.getRandomHeuristicWeights(lower, upper)));
 			System.out.print('.');
 		}
 
@@ -107,18 +105,5 @@ public class GenericRankerEvolver {
 				);
 			});
 		});
-	}
-
-	//lower inclusive, upper exclusive
-	private static double[] getRandomWeights(int size, double lower, double upper) {
-		double[] result = new double[size];
-
-		double range = upper - lower;
-		ThreadLocalRandom rand = ThreadLocalRandom.current();
-		for (int i = 0; i < size; i++) {
-			result[i] = rand.nextDouble() * range + lower;
-		}
-
-		return result;
 	}
 }

@@ -4,8 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import com.sparklicorn.bucket.tetris.ITetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
+import com.sparklicorn.bucket.util.Array;
 
 /**
  * Container for Tetris game statistics.
@@ -22,13 +23,13 @@ public record GameStats(
 	/**
 	 * Creates new GameStats given a game instance to derive stats from.
 	 */
-	public GameStats(ITetrisGame game) {
+	public GameStats(TetrisState state) {
 		this(
-			game.getScore(),
-			game.getLinesCleared(),
-			game.getNumPiecesDropped(),
-			game.getLevel(),
-			game.getDistribution()
+			state.score,
+			state.linesCleared,
+			state.numPiecesDropped,
+			state.level,
+			Array.copy(state.dist)
 		);
 	}
 
