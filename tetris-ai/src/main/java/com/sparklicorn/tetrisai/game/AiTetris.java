@@ -1,16 +1,13 @@
 package com.sparklicorn.tetrisai.game;
 
-import com.sparklicorn.bucket.tetris.TetrisEvent;
 import com.sparklicorn.bucket.tetris.TetrisGame;
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Move;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
-import com.sparklicorn.bucket.tetris.util.structs.ShapeQueue;
 import com.sparklicorn.bucket.util.SearchQueue;
-import com.sparklicorn.bucket.util.event.Event;
-import com.sparklicorn.bucket.util.event.EventBus;
 import com.sparklicorn.tetrisai.structs.GameConfig;
 import com.sparklicorn.tetrisai.structs.GameStats;
 import com.sparklicorn.tetrisai.structs.PlacementRank;
@@ -19,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -51,9 +47,7 @@ public class AiTetris extends TetrisGame {
 		this(
 			config.rows(),
 			config.cols(),
-			config.useEvents(),
-			config.stateRanker(),
-			null
+			config.stateRanker()
 		);
 
 		if (config.eventListeners() != null) {
@@ -71,19 +65,14 @@ public class AiTetris extends TetrisGame {
 	public AiTetris(
 		int numRows,
 		int numCols,
-		boolean useEvents,
-		ITetrisStateRanker ranker,
-		ShapeQueue shapeQueue
+		ITetrisStateRanker ranker
 	) {
 		super(numRows, numCols, false);
-
-		if (!useEvents) {
-			this.eventBus.dispose(true);
-			this.eventBus = null;
-		}
-
-		this.nextShapes = (shapeQueue == null) ? new ShapeQueue(256) : shapeQueue;
 		this.ranker = ranker;
+	}
+
+	public AiTetris(TetrisState state) {
+		super(state);
 	}
 
 	public AiTetris(AiTetris other) {
@@ -95,70 +84,67 @@ public class AiTetris extends TetrisGame {
 	// It is especially useful for testing to be able to change the active shape ad hoc.
 	public void setShape(Shape shape) {
 		// Fast-forward so that the given shape is next in the queue.
-		while (nextShapes.peek() != shape) {
-			nextShapes.poll();
+		while (state.nextShapes.peek() != shape) {
+			state.nextShapes.poll();
 		}
 		// Set next shape and set block locations.
-		this.shape = nextShapes.poll();
-		position = new Position(
-			new Coord(1, calcEntryColumn(cols)),
+		this.state.shape = state.nextShapes.poll();
+		state.position = new Position(
+			new Coord(1, calcEntryColumn(state.cols)),
 			0,
-			this.shape.getNumRotations()
+			this.state.shape.getNumRotations()
 		);
-		populateBlockPositions(blockLocations, position);
+		populateBlockPositions(state.blockLocations, state.position);
 	}
 
 	/**
+	 * TODO Is this useful? If not, remove.
 	 * Resets the game using the given configuration.
 	 *
 	 * @param newConfig Configuration used to set the game properties.
 	 */
-	public void reset(GameConfig newConfig) {
-		if (newConfig.rows() != rows || newConfig.cols() != cols) {
-			rows = newConfig.rows();
-			cols = newConfig.cols();
+	// public void reset(GameConfig newConfig) {
+	// 	if (newConfig.rows() != rows || newConfig.cols() != cols) {
+	// 		rows = newConfig.rows();
+	// 		cols = newConfig.cols();
 
-			if (rows < MINIMUM_ROWS || rows > MAXIMUM_ROWS) {
-				rows = DEFAULT_NUM_ROWS;
-			}
+	// 		if (rows < MINIMUM_ROWS || rows > MAXIMUM_ROWS) {
+	// 			rows = DEFAULT_NUM_ROWS;
+	// 		}
 
-			if (cols < MINIMUM_COLS || cols > MAXIMUM_COLS) {
-				cols = DEFAULT_NUM_COLS;
-			}
-		}
+	// 		if (cols < MINIMUM_COLS || cols > MAXIMUM_COLS) {
+	// 			cols = DEFAULT_NUM_COLS;
+	// 		}
+	// 	}
 
-		if (newConfig.useEvents()) {
-			if (eventBus == null) {
-				eventBus = new EventBus();
-			}
+	// 	if (newConfig.useEvents()) {
+	// 		if (eventBus == null) {
+	// 			eventBus = new EventBus();
+	// 		}
 
-			eventBus.unregisterAll();
+	// 		eventBus.unregisterAll();
 
-			for (TetrisEvent e : newConfig.eventListeners().keySet()) {
-				List<Consumer<Event>> list = newConfig.eventListeners().get(e);
-				for (Consumer<Event> listener : list) {
-					registerEventListener(e, listener);
-				}
-			}
-		} else {
-			if (eventBus != null) {
-				eventBus.dispose(false);
-				eventBus = null;
-			}
-		}
+	// 		for (TetrisEvent e : newConfig.eventListeners().keySet()) {
+	// 			List<Consumer<Event>> list = newConfig.eventListeners().get(e);
+	// 			for (Consumer<Event> listener : list) {
+	// 				registerEventListener(e, listener);
+	// 			}
+	// 		}
+	// 	} else {
+	// 		if (eventBus != null) {
+	// 			eventBus.dispose(false);
+	// 			eventBus = null;
+	// 		}
+	// 	}
 
-		ranker = newConfig.stateRanker();
-	}
+	// 	// ranker = newConfig.stateRanker();
+	// 	resetRank();
+	// }
 
-	// Exposes gameloop() publicly.
 	@Override
 	public synchronized void gameloop() {
 		super.gameloop();
 	}
-
-	////////////////////////
-	// AI playstyle  methods
-	////////////////////////
 
 	/**
 	 * Sets the game state ranker to the one given. The ranker is used to automate gameplay.
@@ -201,16 +187,16 @@ public class AiTetris extends TetrisGame {
 		LookAheadOptions options = new LookAheadOptions(config.useLookAhead() ? 3 : 0, 0.25f);
 		t.run(sleepTime, options);
 		t.shutdown();
-		return new GameStats(t);
+		return new GameStats(t.getState());
 	}
 
 	public static GameStats runWithPanel(long sleepTime, GameConfig config, TetrisBoardPanel panel) {
 		AiTetris t = new AiTetris(config);
 		LookAheadOptions options = new LookAheadOptions(config.useLookAhead() ? 3 : 0, 0.25f);
-		panel.setGame(t);
+		panel.connectGame(t);
 		t.run(sleepTime, options);
 		t.shutdown();
-		return new GameStats(t);
+		return new GameStats(t.getState());
 	}
 
 	public GameStats run(long sleepTime, boolean useLookAhead) {
@@ -235,29 +221,33 @@ public class AiTetris extends TetrisGame {
 		// Turn it into a stat if a use case is found.
 		// int ticks = 0;
 
-		while (!isGameOver) {
-			if (isActive) {
-				position = findBestPlacement(options);
-				populateBlockPositions(blockLocations, position);
-			}
+		try {
+			while (!state.isGameOver) {
+				if (state.isActive) {
+					state.position = findBestPlacement(getState(), ranker, options);
+					populateBlockPositions(state.blockLocations, state.position);
+				}
 
-			// System.out.print('.');
-			// if (ticks > 80) {
-			// 	System.out.println();
-			// 	ticks = 0;
-			// }
-			gameloop();
+				// System.out.print('.');
+				// if (ticks > 80) {
+				// 	System.out.println();
+				// 	ticks = 0;
+				// }
+				gameloop();
 
-			if (sleepTime > 0L) {
-				try {
-					Thread.sleep(sleepTime);
-				} catch (InterruptedException e) {
-					// fail silently
+				if (sleepTime > 0L) {
+					try {
+						Thread.sleep(sleepTime);
+					} catch (InterruptedException e) {
+						System.err.println("Game run thread sleep interrupted?");
+					}
 				}
 			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
 
-		return new GameStats(this);
+		return new GameStats(getState());
 	}
 
 	/**
@@ -271,28 +261,21 @@ public class AiTetris extends TetrisGame {
 
 	/**
 	 * Attempts to place the current piece in whichever position the ranker calculates is best.
-	 * Has no effect is the game is over or if the piece is inactive.
+	 * Has no effect if the game is over or if the piece is inactive.
 	 */
 	public void placeBest(boolean useLookAhead) {
-		if (!isGameOver) {
-			if (isActive) {
-				LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
-				position = findBestPlacement(options);
-				populateBlockPositions(blockLocations, position);
-			}
+		if (!state.isGameOver && state.isActive) {
+			LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
+			state.position = findBestPlacement(getState(), ranker, options);
+			populateBlockPositions(state.blockLocations, state.position);
 		}
 	}
 
-	@Override
-	protected void plotPiece() {
-		populateBlockPositions(blockLocations, position);
-		super.plotPiece();
-	}
-
-	protected void unplotPiece() {
-		populateBlockPositions(blockLocations, position);
-		for (Coord c : blockLocations) {
-			board[c.row() * cols + c.col()] = 0;
+	protected void removePiece() {
+		state.updateBlockPositions();
+		for (Coord c : state.blockLocations) {
+			int index = c.row() * state.cols + c.col();
+			state.board[index] = 0;
 		}
 		// TODO #13 Does this need to throw events (possibly new event)?
 		// throwEvent(TetrisEvent.PIECE_PLACED);
@@ -300,12 +283,12 @@ public class AiTetris extends TetrisGame {
 	}
 
 	public double getPlacementRank(Position placement) {
-		Position originalPosition = position;
-		position = placement;
+		Position originalPosition = state.position;
+		state.position = placement;
 		plotPiece();
-		double rank = ranker.rank(this);
-		unplotPiece();
-		position = originalPosition;
+		double rank = ranker.rank(getState());
+		removePiece();
+		state.position = originalPosition;
 		return rank;
 	}
 
@@ -319,14 +302,15 @@ public class AiTetris extends TetrisGame {
 		}
 	}
 
+	// TODO refactor using state instead of game
 	public static List<PlacementRank> getTopPlacements(
-		AiTetris game,
+		TetrisState state,
+		ITetrisStateRanker ranker,
 		List<Position> prevPositions,
 		float percentage
 	) {
-		// System.out.println("getTopPlacements:");
 		List<PlacementRank> placements = new ArrayList<>();
-		Set<Position> possiblePlacements = game.getPossiblePlacements();
+		Set<Position> possiblePlacements = getPossiblePlacements(state);
 		for (Position placement : possiblePlacements) {
 			// System.out.printf(
 			// 	"Looking at %s @ %s\n",
@@ -334,17 +318,17 @@ public class AiTetris extends TetrisGame {
 			// 	placement.toString()
 			// );
 
-			AiTetris copy = new AiTetris(game);
-			copy.position = placement;
+			TetrisState stateCopy = new TetrisState(state);
+			AiTetris copy = new AiTetris(stateCopy);
+			copy.state.position = placement;
 			copy.plotPiece();
-			copy.attemptClearLines(); // TODO #13 Not sure it is correct to clear lines?
-			copy.nextPiece();
+			// copy.attemptClearLines(); // TODO #13 Not sure it is correct to clear lines?
+			// copy.nextPiece();
 
 			List<Position> prevPositionsCopy = new ArrayList<>(prevPositions);
 			prevPositionsCopy.add(placement);
 
-			// double rank = copy.getPlacementRank(placement);
-			double rank = copy.ranker.rank(copy);
+			double rank = ranker.rank(copy.getState());
 			// System.out.println("Rank: " + rank);
 
 			placements.add(new PlacementRank(
@@ -360,7 +344,15 @@ public class AiTetris extends TetrisGame {
 			numToKeep = 1;
 		}
 
-		return placements.subList(0, numToKeep);
+		List<PlacementRank> sublist = placements.subList(0, numToKeep);
+		// System.out.printf(
+		// 	"TopPlacements ([%d], [%d] possible, [%.2f] keepPercentage): %s\n",
+		// 	sublist.size(),
+		// 	possiblePlacements.size(),
+		// 	percentage,
+		// 	sublist
+		// );
+		return sublist;
 	}
 
 	/**
@@ -368,20 +360,30 @@ public class AiTetris extends TetrisGame {
 	 *
 	 * @param lookAhead - Whether to consider the next shape when calculating.
 	 */
-	public Position findBestPlacement(LookAheadOptions options) {
+	public Position findBestPlacement(
+		TetrisState state,
+		ITetrisStateRanker ranker,
+		LookAheadOptions options
+	) {
 		final float percentageToKeep = options.percentage();
 		List<PlacementRank> topPlacements = getTopPlacements(
-			this,
+			state,
+			ranker,
 			new ArrayList<Position>(),
 			percentageToKeep
 		);
 
-		for (int n = 0; n < options.lookAhead(); n++) {
-			topPlacements.stream().flatMap((p) -> getTopPlacements(
-				p.game(),
-				p.placements(),
-				percentageToKeep
-			).stream());
+		// TODO temp turn off
+		// for (int n = 0; n < options.lookAhead(); n++) {
+		// 	topPlacements.stream().flatMap((p) -> getTopPlacements(
+		// 		p.game(),
+		// 		p.placements(),
+		// 		percentageToKeep
+		// 	).stream());
+		// }
+
+		if (topPlacements.size() == 0) {
+			return null;
 		}
 
 		topPlacements.sort((a, b) -> Double.compare(a.rank(), b.rank()));
@@ -396,15 +398,16 @@ public class AiTetris extends TetrisGame {
 	 * @param t Tetromino piece to calculate placements for.
 	 * @return
 	 */
-	public Set<Position> getPossiblePlacements() {
+	public static Set<Position> getPossiblePlacements(TetrisState state) {
+		// System.out.print("getPossiblePlacements()");
 		HashSet<Position> placements = new HashSet<>();
-		Function<Position,Boolean> acceptance = (position) -> isPositionValid(position);
+		Function<Position,Boolean> acceptance = (position) -> state.isPositionValid(position);
 		SearchQueue<Position> q = new SearchQueue<>(acceptance);
 
-		int topMostBlockRow = getTopmostBlocksRow() - 3;
-		Position startPosition = new Position(position);
-		if (position.location().row() < topMostBlockRow) {
-			startPosition.location().set(topMostBlockRow, position.colOffset());
+		int topMostBlockRow = getTopmostBlocksRow(state) - 3;
+		Position startPosition = new Position(state.position);
+		if (state.position.location().row() < topMostBlockRow) {
+			startPosition.location().set(topMostBlockRow, state.position.colOffset());
 			// startPosition.add(new Coord(position.location().row(), 0), 0);
 		}
 		q.offer(startPosition);
@@ -415,15 +418,16 @@ public class AiTetris extends TetrisGame {
 
 			// Is the move legal?
 			// I don't think this this condition will ever be true, given the acceptCriteria on the queue.
-			if (!isPositionValid(currentPosition)) {
+			if (!state.isPositionValid(currentPosition)) {
 				// System.out.println("Invalid, skipping...");
 				continue;
 			}
 
 			// Is the new position terminal / i.e. can we move down?
-			if (!isPositionValid(new Position(currentPosition).add(Move.DOWN))) {
+			if (!state.isPositionValid(new Position(currentPosition).add(Move.DOWN))) {
 				// System.out.println("Terminal position! Adding to result set.");
 				placements.add(currentPosition);
+				// System.out.print(".");
 			}
 
 			for (Move move : ATOMIC_MOVES) {
@@ -441,15 +445,16 @@ public class AiTetris extends TetrisGame {
 			}
 		}
 
+		// System.out.println();
 		return placements;
 	}
 
-	private int getTopmostBlocksRow() {
-		for (int i = 0; i < rows * cols; i++) {
-			if (board[i] > 0) {
-				return i / cols;
+	private static int getTopmostBlocksRow(TetrisState state) {
+		for (int i = 0; i < state.rows * state.cols; i++) {
+			if (state.board[i] > 0) {
+				return i / state.cols;
 			}
 		}
-		return rows - 1;
+		return state.rows - 1;
 	}
 }

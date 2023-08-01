@@ -20,11 +20,11 @@ import com.sparklicorn.tetrisai.game.RankerPopulation;
 import com.sparklicorn.bucket.util.ThreadPool;
 
 public class BunchOfGames {
-	private static int rows = 4;
-	private static int cols = 12;
+	private static int rows = 1;
+	private static int cols = 1;
 	private static int popSize = rows * cols;
 	private static int numGenerations = 100;
-	private static int blockSize = 8;
+	private static int blockSize = 24;
 
 	/**
 	 * Runs the Tetris training algorithm.
@@ -174,7 +174,7 @@ public class BunchOfGames {
 		};
 
 		for (int i = 0; i < popSize; i++) {
-			pop.add(new GenericRanker(getRandomWeights(GenericRanker.NUM_WEIGHTS, -1.0, 1.0)));
+			pop.add(new GenericRanker(GenericRanker.getRandomHeuristicWeights(-10f, 10f)));
 			TetrisBoardPanel p = new TetrisBoardPanel(blockSize, null);
 			panels.add(p);
 			frame.add(p);
@@ -183,42 +183,30 @@ public class BunchOfGames {
 		frame.pack();
 		frame.setVisible(true);
 
-		System.out.println("Ranker population initialized.");
-		System.out.println("Calculating initial fitness values...");
-		pop.updateFitnesses();
-		System.out.println("Fitness values finished calculating.");
-		System.out.println("Here's the initial population:");
-		System.out.println(pop.json());
+		// ThreadPool.submit(() -> {
+			System.out.println("Ranker population initialized.");
+			System.out.println("Calculating initial fitness values...");
+			pop.updateFitnesses();
+			System.out.println("Fitness values finished calculating.");
+			System.out.println("Here's the initial population:");
+			System.out.println(pop.json());
 
-		// pop.select(); //cuts the population in half
-		//because the first step in nextGeneration() is crossover, which doubles population.
-		for (int gen = 1; gen <= numGenerations; gen++) {
-			if (!frame.isVisible()) {
-				break;
+			// pop.select(); //cuts the population in half
+			//because the first step in nextGeneration() is crossover, which doubles population.
+			for (int gen = 1; gen <= numGenerations; gen++) {
+				if (!frame.isVisible()) {
+					break;
+				}
+
+				System.out.println("Generation " + gen);
+				pop.nextGeneration();
+				pop.updateFitnesses();
+				System.out.println(pop.json());
 			}
 
-			System.out.println("Generation " + gen);
-			pop.nextGeneration();
-			pop.updateFitnesses();
-			System.out.println(pop.json());
-		}
-
-		System.out.println("Finished");
-		// GenericRanker.shutdown();
-		// ThreadPool.shutdown();
-	}
-
-	//lower inclusive, upper exclusive
-	private static double[] getRandomWeights(int size, double lower, double upper) {
-		double[] result = new double[size];
-
-		double range = upper - lower;
-		ThreadLocalRandom rand = ThreadLocalRandom.current();
-
-		for (int i = 0; i < size; i++) {
-			result[i] = rand.nextDouble() * range + lower;
-		}
-
-		return result;
+			System.out.println("Finished");
+			// GenericRanker.shutdown();
+			// ThreadPool.shutdown();
+		// });
 	}
 }

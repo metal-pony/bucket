@@ -1,7 +1,7 @@
 package com.sparklicorn.tetrisai.drivers;
 
 import java.awt.Color;
-import java.awt.Font;
+// import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -11,7 +11,6 @@ import java.awt.event.MouseMotionListener;
 import java.util.HashMap;
 import javax.swing.JFrame;
 
-import com.sparklicorn.bucket.tetris.gui.components.Block;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.ThreadPool;
@@ -22,7 +21,8 @@ import com.sparklicorn.tetrisai.structs.MutatingPolyFunc;
 import com.sparklicorn.tetrisai.structs.PolyFunc.PolyFuncTerm;
 
 public class TestBestPath extends TetrisBoardPanel {
-	Block mousePointerBlock;
+	// TODO Block class removed - replace with something else
+	// Block mousePointerBlock;
 	int[] state;
 	HashMap<String, ITetrisStateRanker> rankers;
 	int button = 0;
@@ -40,7 +40,7 @@ public class TestBestPath extends TetrisBoardPanel {
 		super(blockSize, null);
 
 		rankers = new HashMap<>();
-		mousePointerBlock = null;
+		// mousePointerBlock = null;
 		state = new int[200];
 		shape = Shape.I;
 		next = Shape.L;
@@ -54,24 +54,24 @@ public class TestBestPath extends TetrisBoardPanel {
 			@Override public void mouseReleased(MouseEvent e) {}
 			@Override public void mousePressed(MouseEvent e) {
 				//calculate row/column of click
-				int row = Math.max(Math.min(e.getY() / Block.size, numRows - 1), 0);
-				int col = Math.max(Math.min(e.getX() / Block.size, numCols - 1), 0);
+				// int row = Math.max(Math.min(e.getY() / Block.size, numRows - 1), 0);
+				// int col = Math.max(Math.min(e.getX() / Block.size, numCols - 1), 0);
 				//place or remove block in row,column
 				button = e.getButton();
 				if (e.getButton() == MouseEvent.BUTTON1) {
 					if (e.isShiftDown()) {
 						// piece.reset(shape, new Coord(row, col));
 					} else {
-						state[row * numCols + col] = 3;
+						// state[row * numCols + col] = 3;
 					}
 				} else if (e.getButton() == MouseEvent.BUTTON3) {
-					state[row * numCols + col] = 0;
+					// state[row * numCols + col] = 0;
 				}
 				repaint();
 			}
 
 			@Override public void mouseExited(MouseEvent e) {
-				mousePointerBlock = null;
+				// mousePointerBlock = null;
 				repaint();
 			}
 
@@ -93,13 +93,13 @@ public class TestBestPath extends TetrisBoardPanel {
 			}
 
 			@Override public void mouseDragged(MouseEvent e) {
-				int row = Math.max(Math.min(e.getY() / Block.size, numRows - 1), 0);
-				int col = Math.max(Math.min(e.getX() / Block.size, numCols - 1), 0);
+				// int row = Math.max(Math.min(e.getY() / Block.size, numRows - 1), 0);
+				// int col = Math.max(Math.min(e.getX() / Block.size, numCols - 1), 0);
 
 				if (button == MouseEvent.BUTTON1) {
-					state[row * numCols + col] = 3;
+					// state[row * numCols + col] = 3;
 				} else if (button == MouseEvent.BUTTON3) {
-					state[row * numCols + col] = 0;
+					// state[row * numCols + col] = 0;
 				}
 
 				//mousePointerBlock = blockData[row * numCols + col]; // TODO #12 Revamp
@@ -188,25 +188,25 @@ public class TestBestPath extends TetrisBoardPanel {
 		// updateBlocks(state);
 		// updatePiece(piece);
 
-		if (mousePointerBlock != null) {
-			if (!mousePointerBlock.isShown()) {
-				mousePointerBlock.setColor(Color.LIGHT_GRAY);
-				mousePointerBlock.setShown(true);
-				mousePointerBlock.paintComponent(g);
-				mousePointerBlock.setShown(false);
-			}
-		}
+		// if (mousePointerBlock != null) {
+		// 	if (!mousePointerBlock.isShown()) {
+		// 		mousePointerBlock.setColor(Color.LIGHT_GRAY);
+		// 		mousePointerBlock.setShown(true);
+		// 		mousePointerBlock.paintComponent(g);
+		// 		mousePointerBlock.setShown(false);
+		// 	}
+		// }
 
-		int textRowOffset = 24;
-		int y = textRowOffset;
-		g.setColor(Color.WHITE);
-		g.setFont(new Font("Consolas", Font.PLAIN, 20));
-		for (String n : rankers.keySet()) {
-			ITetrisStateRanker r = rankers.get(n);
-			// double rank = r.rank(); // TODO #12 fix me later - need access to a game instance
-			// g.drawString(String.format("%-16s: %.3f", n, rank), 4, y);
-			y += textRowOffset;
-		}
+		// int textRowOffset = 24;
+		// int y = textRowOffset;
+		// g.setColor(Color.WHITE);
+		// g.setFont(new Font("Consolas", Font.PLAIN, 20));
+		// for (String n : rankers.keySet()) {
+		// 	ITetrisStateRanker r = rankers.get(n);
+		// 	double rank = r.rank(); // TODO #12 fix me later - need access to a game instance
+		// 	g.drawString(String.format("%-16s: %.3f", n, rank), 4, y);
+		// 	y += textRowOffset;
+		// }
 	}
 
 	/**
