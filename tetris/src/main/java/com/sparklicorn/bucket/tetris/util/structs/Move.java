@@ -38,6 +38,14 @@ public class Move {
 	public static final Move CLOCKWISE = new FinalMove(0, 0, -1);
 	public static final Move COUNTERCLOCKWISE = new FinalMove(0, 0, 1);
 
+	public static final Move[] ATOMIC_MOVES = new Move[] {
+		Move.DOWN,
+		Move.LEFT,
+		Move.RIGHT,
+		Move.CLOCKWISE,
+		Move.COUNTERCLOCKWISE
+	};
+
 	protected Coord offset;
 	protected int rotation;
 
@@ -73,14 +81,17 @@ public class Move {
 	}
 
 	public Move add(Move other) {
-		add(other.offset, other.rotation);
-		return this;
+		return add(other.offset, other.rotation);
 	}
 
 	public Move add(Coord offset, int rotation) {
 		this.offset.add(offset);
 		this.rotation += rotation;
 		return this;
+	}
+
+	public Move add(Coord offset) {
+		return add(offset, 0);
 	}
 
 	public Move rotateClockwise() {

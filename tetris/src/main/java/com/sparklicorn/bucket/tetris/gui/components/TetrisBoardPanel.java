@@ -11,7 +11,6 @@ import javax.swing.JPanel;
 import com.sparklicorn.bucket.tetris.TetrisEvent;
 import com.sparklicorn.bucket.tetris.TetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisState;
-import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.event.Event;
 
@@ -41,7 +40,7 @@ public class TetrisBoardPanel extends JPanel {
     }
 
     protected Color currentGamePieceColor() {
-		return colorForShape(state.shape);
+		return colorForShape(state.piece.shape());
     }
 
 	protected class Cell {
@@ -197,14 +196,11 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	protected void mapPieceStateToCells() {
-		if (!state.isActive) {
+		if (!state.piece.isActive()) {
 			return;
 		}
 
-		for (Coord blockCoord : state.blockLocations) {
-			int cellIndex = blockCoord.row() * state.cols + blockCoord.col();
-			cells[cellIndex].shape = state.shape;
-		}
+		state.piece.forEachCell((row, col) -> cells[row * state.cols + col].shape = state.piece.shape());
 	}
 
 	protected void drawCells(Graphics g) {

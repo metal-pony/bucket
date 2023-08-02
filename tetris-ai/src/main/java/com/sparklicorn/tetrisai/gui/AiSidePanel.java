@@ -10,9 +10,9 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.sparklicorn.bucket.tetris.gui.components.TetrisSidePanel;
-import com.sparklicorn.tetrisai.game.AiTetris;
-import com.sparklicorn.tetrisai.game.GenericRanker;
-import com.sparklicorn.tetrisai.game.GenericRanker.HeuristicWeight;
+import com.sparklicorn.tetrisai.AiTetris;
+import com.sparklicorn.tetrisai.ranking.GenericRanker;
+import com.sparklicorn.tetrisai.ranking.GenericRanker.HeuristicWeight;
 
 public class AiSidePanel extends TetrisSidePanel {
     protected class GenericRankerEditorPanel extends JPanel {
@@ -91,7 +91,7 @@ public class AiSidePanel extends TetrisSidePanel {
         runButton.setFocusable(false);
         runButton.addActionListener((e) -> {
             try {
-                ((AiTetris) this.game).run(0L, false);
+                ((AiTetris) this.game).run();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -106,7 +106,7 @@ public class AiSidePanel extends TetrisSidePanel {
             AiTetris _game = (AiTetris) this.game;
             _game.stop();
             _game.newGame();
-            _game.start(0L);
+            _game.start(0L, false);
         });
         newGameButton.setFocusable(false);
         return newGameButton;

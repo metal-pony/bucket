@@ -43,6 +43,8 @@ public class Position extends Move implements Comparable<Position> {
 	 * Creates a deep copy of the given Position.
 	 */
 	public Position(Position other) {
+		if (other == null) throw new IllegalArgumentException("Cannot copy null Position");
+
 		this.offset = new Coord(other.offset);
 		this.rotation = other.rotation;
 		this.maxRotation = other.maxRotation;

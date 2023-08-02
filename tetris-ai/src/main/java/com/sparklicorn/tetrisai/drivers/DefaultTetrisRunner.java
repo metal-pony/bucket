@@ -11,10 +11,10 @@ import javax.swing.BorderFactory;
 import javax.swing.JFrame;
 
 import com.sparklicorn.bucket.util.ThreadPool;
-import com.sparklicorn.tetrisai.game.AiTetris;
-import com.sparklicorn.tetrisai.game.GenericRanker;
+import com.sparklicorn.tetrisai.AiTetris;
 import com.sparklicorn.tetrisai.gui.AiSidePanel;
 import com.sparklicorn.tetrisai.gui.AiTetrisPanel;
+import com.sparklicorn.tetrisai.ranking.GenericRanker;
 import com.sparklicorn.tetrisai.structs.GameStats;
 
 public class DefaultTetrisRunner extends JFrame implements KeyListener {
@@ -105,7 +105,7 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 		} else if (e.getKeyCode() == KeyEvent.VK_R) {
 			tetris.stop();
 			tetris.newGame();
-			tetris.start(0);
+			tetris.start(0L, false);
 		} else if (e.getKeyCode() == KeyEvent.VK_G) {
 			runGame(0L, false);
 		} else if (e.getKeyCode() == KeyEvent.VK_H) {
@@ -134,7 +134,7 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 	public GameStats runGame(long sleepTime, boolean useLookAhead) {
 		try {
 			if (!tetris.isRunning()) {
-				return tetris.run(sleepTime, useLookAhead);
+				return tetris.run(sleepTime, useLookAhead ? 1 : 0);
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();

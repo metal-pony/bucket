@@ -1,4 +1,4 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai.genetic;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,14 +1,12 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai;
 
 import com.sparklicorn.bucket.tetris.TetrisGame;
 import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
-import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Move;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
-import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.SearchQueue;
-import com.sparklicorn.tetrisai.structs.GameConfig;
+import com.sparklicorn.tetrisai.ranking.ITetrisStateRanker;
 import com.sparklicorn.tetrisai.structs.GameStats;
 import com.sparklicorn.tetrisai.structs.PlacementRank;
 
@@ -19,13 +17,72 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Implementation of Tetris that uses the 7-bag random piece generator.
- * Users call <code>gameloop()</code> directly.  There is no internal timer
- * associated with the gameloop in this version, as it is intended to be
- * played by a computer to play as quickly as possible.
- * Provides methods for automated gameplay.
+ * Implementation of Tetris that provides methods that help automate gameplay.
  */
 public class AiTetris extends TetrisGame {
+	/**
+	 * Runs a game of Tetris using the given ranker to drive piece placement.
+	 * NOTE: This call blocks until the game finishes, which may take some time.
+	 *
+	 * @param ranker The ranker used to determine the best placement for each piece.
+	 * @return Stats about the finished game.
+	 */
+	public static GameStats run(ITetrisStateRanker ranker) {
+		return run(new TetrisState(), ranker);
+	}
+
+	/**
+	 * Runs a game of Tetris using the given state and ranker to drive piece placement.
+	 * NOTE: This call blocks until the game finishes, which may take some time.
+	 *
+	 * @param state The initial state of the game.
+	 * @param ranker The ranker used to determine the best placement for each piece.
+	 * @return Stats about the finished game.
+	 */
+	public static GameStats run(TetrisState state, ITetrisStateRanker ranker) {
+		return run(state, ranker, 0L, 0);
+	}
+
+	/**
+	 * Runs a game of Tetris using the given state and ranker to drive piece placement,
+	 * where sleepTime is the time (in ms) between game loop ticks, and
+	 * numLookAhead is the number of pieces to look ahead when ranking placements.
+	 * NOTE: This call blocks until the game finishes, which may take some time.
+	 *
+	 * @param state The initial state of the game.
+	 * @param sleepTime Time (in ms) between game loop ticks.
+	 * @param numLookAhead Number of pieces to look ahead when ranking placements.
+	 * @return Stats about the finished game.
+	 */
+	public static GameStats run(TetrisState state, ITetrisStateRanker ranker, long sleepTime, int numLookAhead) {
+		return runWithPanel(state, ranker, sleepTime, numLookAhead, null);
+	}
+
+	/**
+	 * Runs a game of Tetris using the given state and ranker to drive piece placement,
+	 * where sleepTime is the time (in ms) between game loop ticks, and
+	 * numLookAhead is the number of pieces to look ahead when ranking placements.
+	 * The game will connect to the given panel, which is updated as the game progresses.
+	 * NOTE: This call blocks until the game finishes, which may take some time.
+	 *
+	 * @param state The initial state of the game.
+	 * @param sleepTime Time (in ms) between game loop ticks.
+	 * @param numLookAhead Number of pieces to look ahead when ranking placements.
+	 * @param panel The panel to connect the game to. Can be null to not connect to any gui.
+	 * @return Stats about the finished game.
+	 */
+	public static GameStats runWithPanel(TetrisState state, ITetrisStateRanker ranker, long sleepTime, int numLookAhead, TetrisBoardPanel panel) {
+		AiTetris t = new AiTetris(state);
+		t.setRanker(ranker);
+		LookAheadOptions options = new LookAheadOptions(numLookAhead > 0 ? 1 : 0, 0.25f);
+		if (panel != null) {
+			panel.connectGame(t);
+		}
+		t.run(sleepTime, options, panel);
+		t.shutdown();
+		return new GameStats(t.getState());
+	}
+
 	/* ****************
 	* GAME COMPONENTS
 	******************/
@@ -35,7 +92,7 @@ public class AiTetris extends TetrisGame {
 	 * Creates a new Tetris game with a default configuration.
 	 */
 	public AiTetris() {
-		this(new GameConfig());
+		super();
 	}
 
 	/**
@@ -43,107 +100,35 @@ public class AiTetris extends TetrisGame {
 	 *
 	 * @param config Configuration used to set up the game.
 	 */
-	public AiTetris(GameConfig config) {
-		this(
-			config.rows(),
-			config.cols(),
-			config.stateRanker()
-		);
-
-		if (config.eventListeners() != null) {
-			config.eventListeners().forEach((event, consumers) -> {
-				consumers.forEach((consumer) -> {
-					registerEventListener(event, consumer);
-				});
-			});
-		}
+	public AiTetris(int rows, int cols) {
+		this(rows, cols, null);
 	}
 
 	/**
-	 * Creates a new Tetris game with the given parameters.
+	 * Creates a new Tetris game with the given rows, columns, and ranker.
 	 */
-	public AiTetris(
-		int numRows,
-		int numCols,
-		ITetrisStateRanker ranker
-	) {
-		super(numRows, numCols, false);
+	public AiTetris(int rows, int cols, ITetrisStateRanker ranker) {
+		super(rows, cols);
 		this.ranker = ranker;
 	}
 
+	/**
+	 * Creates a new Tetris game with a copy of the given state.
+	 *
+	 * @param other The state to copy.
+	 */
 	public AiTetris(TetrisState state) {
 		super(state);
 	}
 
+	/**
+	 * Creates a new Tetris game that is a copy of the given.
+	 *
+	 * @param other The game to copy.
+	 */
 	public AiTetris(AiTetris other) {
 		super(other);
 		this.ranker = other.ranker;
-	}
-
-	// TODO sparklicorn/bucket#49 make shape queue more flexible
-	// It is especially useful for testing to be able to change the active shape ad hoc.
-	public void setShape(Shape shape) {
-		// Fast-forward so that the given shape is next in the queue.
-		while (state.nextShapes.peek() != shape) {
-			state.nextShapes.poll();
-		}
-		// Set next shape and set block locations.
-		this.state.shape = state.nextShapes.poll();
-		state.position = new Position(
-			new Coord(1, calcEntryColumn(state.cols)),
-			0,
-			this.state.shape.getNumRotations()
-		);
-		state.updateBlockPositions();
-	}
-
-	/**
-	 * TODO Is this useful? If not, remove.
-	 * Resets the game using the given configuration.
-	 *
-	 * @param newConfig Configuration used to set the game properties.
-	 */
-	// public void reset(GameConfig newConfig) {
-	// 	if (newConfig.rows() != rows || newConfig.cols() != cols) {
-	// 		rows = newConfig.rows();
-	// 		cols = newConfig.cols();
-
-	// 		if (rows < MINIMUM_ROWS || rows > MAXIMUM_ROWS) {
-	// 			rows = DEFAULT_NUM_ROWS;
-	// 		}
-
-	// 		if (cols < MINIMUM_COLS || cols > MAXIMUM_COLS) {
-	// 			cols = DEFAULT_NUM_COLS;
-	// 		}
-	// 	}
-
-	// 	if (newConfig.useEvents()) {
-	// 		if (eventBus == null) {
-	// 			eventBus = new EventBus();
-	// 		}
-
-	// 		eventBus.unregisterAll();
-
-	// 		for (TetrisEvent e : newConfig.eventListeners().keySet()) {
-	// 			List<Consumer<Event>> list = newConfig.eventListeners().get(e);
-	// 			for (Consumer<Event> listener : list) {
-	// 				registerEventListener(e, listener);
-	// 			}
-	// 		}
-	// 	} else {
-	// 		if (eventBus != null) {
-	// 			eventBus.dispose(false);
-	// 			eventBus = null;
-	// 		}
-	// 	}
-
-	// 	// ranker = newConfig.stateRanker();
-	// 	resetRank();
-	// }
-
-	@Override
-	public synchronized void gameloop() {
-		super.gameloop();
 	}
 
 	/**
@@ -163,58 +148,40 @@ public class AiTetris extends TetrisGame {
 	}
 
 	/**
-	 * Plays a game of Tetris using the given configuration.
+	 * Runs the game. This method blocks until the game is finished.
 	 *
-	 * @param config - The configuration used to set up the game.
-	 * @return When the game is finished, this returns a container
-	 * object holding statistics about the game.
-	 */
-	public static GameStats run(GameConfig config) {
-		return run(0L, config);
-	}
-
-	/**
-	 * Starts a new AITetris game with the given game configuration, using the given time
-	 * between game loop ticks.
-	 * NOTE: This call blocks until the game finishes, which may take some time.
-	 *
-	 * @param sleepTime Time (in ms) between game loop ticks.
-	 * @param config Game configuration.
 	 * @return Stats about the finished game.
 	 */
-	public static GameStats run(long sleepTime, GameConfig config) {
-		AiTetris t = new AiTetris(config);
-		LookAheadOptions options = new LookAheadOptions(config.useLookAhead() ? 3 : 0, 0.25f);
-		t.run(sleepTime, options);
-		t.shutdown();
-		return new GameStats(t.getState());
-	}
-
-	public static GameStats runWithPanel(long sleepTime, GameConfig config, TetrisBoardPanel panel) {
-		AiTetris t = new AiTetris(config);
-		LookAheadOptions options = new LookAheadOptions(config.useLookAhead() ? 3 : 0, 0.25f);
-		panel.connectGame(t);
-		t.run(sleepTime, options);
-		t.shutdown();
-		return new GameStats(t.getState());
-	}
-
-	public GameStats run(long sleepTime, boolean useLookAhead) {
-		return run(sleepTime, new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f));
+	public GameStats run() {
+		return run(0L, 0);
 	}
 
 	/**
-	 * Plays the game using the preconfigured ranker to drive piece placements.
-	 * NOTE: This call blocks until the game finishes, which may take some time.
+	 * Runs the game with the given time between game loop ticks and number of pieces to look ahead.
+	 * This method blocks until the game is finished.
 	 *
-	 * @param sleepTime - The amount of time (in ms) to pause between gameloops.
-	 * This is useful if there is a GUI displaying the game so that the game does not
-	 * flash by too quickly.
+	 * @return Stats about the finished game.
 	 */
-	public GameStats run(long sleepTime, LookAheadOptions options) {
+	public GameStats run(long sleepTime, int numLookAhead) {
+		return run(sleepTime, new LookAheadOptions(numLookAhead > 0 ? 1 : 0, 0.25f), null);
+	}
+
+	/**
+	 * Runs the game using the preconfigured ranker to drive piece placements.
+	 * This method blocks until the game is finished.
+	 *
+	 * @param sleepTime Time (in ms) between game loop ticks.
+	 * @param options Options for how to look ahead when ranking placements.
+	 * @return Stats about the finished game.
+	 */
+	public GameStats run(long sleepTime, LookAheadOptions options, TetrisBoardPanel panel) {
+		if (panel != null) {
+			panel.connectGame(this);
+		}
+
 		stop();
 		newGame();
-		start(0L);
+		start(0L, false);
 
 		// TODO #13 Remove this and the print-outs after debugging.
 		// This could be a stat that TetrisGame tracks, but it's unclear what it could be useful for.
@@ -223,10 +190,10 @@ public class AiTetris extends TetrisGame {
 
 		try {
 			while (!state.isGameOver) {
-				if (state.isActive) {
-					state.position = findBestPlacement(getState(), ranker, options);
-					if (state.position != null) {
-						state.updateBlockPositions();
+				if (state.piece.isActive()) {
+					Position bestPlacement = findBestPlacement(getState(), ranker, options);
+					if (bestPlacement != null) {
+						state.piece.position(bestPlacement);
 					}
 				}
 
@@ -253,45 +220,17 @@ public class AiTetris extends TetrisGame {
 	}
 
 	/**
-	 * Plays an automated round of Tetris using the game's ranker to guide
-	 * piece placements. The game will try to play as quickly as possible.
-	 * Blocks until the game is finished.
-	 */
-	public GameStats run(boolean useLookAhead) {
-		return run(0, new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f));
-	}
-
-	/**
 	 * Attempts to place the current piece in whichever position the ranker calculates is best.
 	 * Has no effect if the game is over or if the piece is inactive.
 	 */
 	public void placeBest(boolean useLookAhead) {
-		if (!state.isGameOver && state.isActive) {
+		if (!state.isGameOver && state.piece.isActive()) {
 			LookAheadOptions options = new LookAheadOptions(useLookAhead ? 3 : 0, 0.25f);
-			state.position = findBestPlacement(getState(), ranker, options);
-			state.updateBlockPositions();
+			Position bestPlacement = findBestPlacement(getState(), ranker, options);
+			if (bestPlacement != null) {
+				state.piece.position(bestPlacement);
+			}
 		}
-	}
-
-	protected void removePiece() {
-		state.updateBlockPositions();
-		for (Coord c : state.blockLocations) {
-			int index = c.row() * state.cols + c.col();
-			state.board[index] = 0;
-		}
-		// TODO #13 Does this need to throw events (possibly new event)?
-		// throwEvent(TetrisEvent.PIECE_PLACED);
-		// throwEvent(TetrisEvent.BLOCKS);
-	}
-
-	public double getPlacementRank(Position placement) {
-		Position originalPosition = state.position;
-		state.position = placement;
-		plotPiece();
-		double rank = ranker.rank(getState());
-		removePiece();
-		state.position = originalPosition;
-		return rank;
 	}
 
 	public static record LookAheadOptions(
@@ -304,7 +243,15 @@ public class AiTetris extends TetrisGame {
 		}
 	}
 
-	// TODO refactor using state instead of game
+	/**
+	 * Finds the best placements for the current piece using the given ranker.
+	 *
+	 * @param state The current game state.
+	 * @param ranker The ranker to use to rank placements.
+	 * @param prevPositions The previous positions of the current piece.
+	 * @param percentage The percentage of possible placements to keep.
+	 * @return A list of the best placements for the current piece.
+	 */
 	public static List<PlacementRank> getTopPlacements(
 		TetrisState state,
 		ITetrisStateRanker ranker,
@@ -322,7 +269,7 @@ public class AiTetris extends TetrisGame {
 
 			TetrisState stateCopy = new TetrisState(state);
 			AiTetris copy = new AiTetris(stateCopy);
-			copy.state.position = placement;
+			copy.state.piece.position(placement);
 			copy.plotPiece();
 			// copy.attemptClearLines(); // TODO #13 Not sure it is correct to clear lines?
 			// copy.nextPiece();
@@ -360,7 +307,10 @@ public class AiTetris extends TetrisGame {
 	/**
 	 * Calculates the best placement for the current piece using the preconfigured state ranker.
 	 *
-	 * @param lookAhead - Whether to consider the next shape when calculating.
+	 * @param state The current game state.
+	 * @param ranker The ranker to use to rank placements.
+	 * @param options The look-ahead options to use.
+	 * @return The best placement for the current piece.
 	 */
 	public static Position findBestPlacement(
 		TetrisState state,
@@ -396,9 +346,8 @@ public class AiTetris extends TetrisGame {
 	 * Calculates the set of Tetrominos containing all terminal states for the given
 	 * Tetromino on the given Board.
 	 *
-	 * @param b Board to calculate piece positions on.
-	 * @param t Tetromino piece to calculate placements for.
-	 * @return
+	 * @param state The current game state.
+	 * @return The set of all possible placements for the current piece.
 	 */
 	public static Set<Position> getPossiblePlacements(TetrisState state) {
 		// System.out.print("getPossiblePlacements()");
@@ -407,9 +356,9 @@ public class AiTetris extends TetrisGame {
 		SearchQueue<Position> q = new SearchQueue<>(acceptance);
 
 		int topMostBlockRow = getTopmostBlocksRow(state) - 3;
-		Position startPosition = new Position(state.position);
-		if (state.position.location().row() < topMostBlockRow) {
-			startPosition.location().set(topMostBlockRow, state.position.colOffset());
+		Position startPosition = state.piece.position();
+		if (startPosition.rowOffset() < topMostBlockRow) {
+			startPosition.location().set(topMostBlockRow, startPosition.colOffset());
 			// startPosition.add(new Coord(position.location().row(), 0), 0);
 		}
 		q.offer(startPosition);
@@ -432,7 +381,7 @@ public class AiTetris extends TetrisGame {
 				// System.out.print(".");
 			}
 
-			for (Move move : ATOMIC_MOVES) {
+			for (Move move : Move.ATOMIC_MOVES) {
 				Position nextPosition = new Position(currentPosition).add(move);
 				if (q.offer(nextPosition)) {
 					// System.out.printf("Added %s to the queue.\n", nextPosition.toString());
@@ -451,6 +400,12 @@ public class AiTetris extends TetrisGame {
 		return placements;
 	}
 
+	/**
+	 * Calculates the row of the topmost blocks on the board.
+	 *
+	 * @param state The current game state.
+	 * @return The row of the topmost blocks on the board.
+	 */
 	private static int getTopmostBlocksRow(TetrisState state) {
 		for (int i = 0; i < state.rows * state.cols; i++) {
 			if (state.board[i] > 0) {
