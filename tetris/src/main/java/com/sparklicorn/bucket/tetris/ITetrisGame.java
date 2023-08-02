@@ -26,8 +26,9 @@ public interface ITetrisGame {
 	 * Starts the game at the given level.
 	 *
 	 * @param level - The level to begin on.
+	 * @param useGravity - Whether or not to use gravity.
 	 */
-	public void start(long level);
+	public void start(long level, boolean useGravity);
 
 	/**
 	 * Stops the game.

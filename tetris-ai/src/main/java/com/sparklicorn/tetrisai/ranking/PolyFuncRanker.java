@@ -1,5 +1,7 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai.ranking;
 
+import com.sparklicorn.bucket.tetris.TetrisState;
+import com.sparklicorn.tetrisai.genetic.AbstractRankerGene;
 import com.sparklicorn.tetrisai.structs.MutatingPolyFunc;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,7 +90,8 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		hasChanged.set(true);
 	}
 
-	@Override public boolean equals(Object obj) {
+	@Override
+	public boolean equals(Object obj) {
 		if (this == obj) {
 			return true;
 		}
@@ -107,7 +110,8 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		return false;
 	}
 
-	@Override public int hashCode() {
+	@Override
+	public int hashCode() {
 		int result = 0;
 		result += funcs[0].hashCode();
 		result += 31 * funcs[1].hashCode();
@@ -117,7 +121,8 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		return result;
 	}
 
-	@Override public void mutate() {
+	@Override
+	public void mutate() {
 		ThreadLocalRandom rand = ThreadLocalRandom.current();
 
 		//guarantee that something will change
@@ -134,7 +139,8 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		}
 	}
 
-	@Override public PolyFuncRanker[] cross(PolyFuncRanker other) {
+	@Override
+	public PolyFuncRanker[] cross(PolyFuncRanker other) {
 		PolyFuncRanker[] result = new PolyFuncRanker[] {
 			new PolyFuncRanker(this),
 			new PolyFuncRanker(other)
@@ -198,11 +204,13 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		return hasChanged.get();
 	}
 
-	@Override public String toString() {
+	@Override
+	public String toString() {
 		return json();
 	}
 
-	@Override public String json() {
+	@Override
+	public String json() {
 		StringBuilder strb = new StringBuilder();
 
 		strb.append("[");
@@ -217,19 +225,14 @@ public class PolyFuncRanker extends AbstractRankerGene<PolyFuncRanker> {
 		return strb.toString();
 	}
 
-	@Override public PolyFuncRanker copy() {
+	@Override
+	public PolyFuncRanker copy() {
 		return new PolyFuncRanker(this);
 	}
 
-	@Override protected double rankImpl(int[] features) {
-		int deepHoles = features[3];
-		double hasLineBlockHole = (deepHoles > 0) ? 1.0 : 0.0;
-		double excessDeepHoles = (deepHoles > 0) ? deepHoles - 1.0 : 0.0;
-
-		return funcs[0].calc(features[0]) +
-			funcs[1].calc(features[1]) +
-			funcs[2].calc(features[2]) +
-			funcs[3].calc(hasLineBlockHole) +
-			funcs[4].calc(excessDeepHoles);
+	@Override
+	public double rank(TetrisState state) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("Unimplemented method 'rank'");
 	}
 }

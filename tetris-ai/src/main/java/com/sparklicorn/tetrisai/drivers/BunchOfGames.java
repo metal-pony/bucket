@@ -15,8 +15,8 @@ import java.util.concurrent.TimeoutException;
 import javax.swing.JFrame;
 
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
-import com.sparklicorn.tetrisai.game.GenericRanker;
-import com.sparklicorn.tetrisai.game.RankerPopulation;
+import com.sparklicorn.tetrisai.genetic.RankerPopulation;
+import com.sparklicorn.tetrisai.ranking.GenericRanker;
 import com.sparklicorn.bucket.util.ThreadPool;
 
 public class BunchOfGames {

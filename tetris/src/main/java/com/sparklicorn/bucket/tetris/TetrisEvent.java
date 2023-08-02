@@ -7,6 +7,11 @@ public enum TetrisEvent {
 	STOP,
 	PAUSE,
 	RESUME,
+
+	/**
+	 * Called when the game is reset to its initial state.
+	 */
+	RESET,
 	GAMELOOP,
 
 	GAME_OVER,

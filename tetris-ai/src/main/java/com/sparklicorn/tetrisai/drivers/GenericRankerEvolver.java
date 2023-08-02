@@ -1,11 +1,11 @@
 package com.sparklicorn.tetrisai.drivers;
 
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.util.ThreadPool;
-import com.sparklicorn.tetrisai.game.AiTetris;
-import com.sparklicorn.tetrisai.game.GenericRanker;
-import com.sparklicorn.tetrisai.game.RankerPopulation;
-import com.sparklicorn.tetrisai.structs.GameConfig;
+import com.sparklicorn.tetrisai.AiTetris;
+import com.sparklicorn.tetrisai.genetic.RankerPopulation;
+import com.sparklicorn.tetrisai.ranking.GenericRanker;
 
 import java.awt.GridLayout;
 import java.awt.event.KeyListener;
@@ -99,8 +99,10 @@ public class GenericRankerEvolver {
 		panels.forEach((panel) -> {
 			ThreadPool.submit(() -> {
 				AiTetris.runWithPanel(
+					new TetrisState(),
+					new GenericRanker(pop.fittestMember()),
 					sleepTime,
-					new GameConfig(new GenericRanker(pop.fittestMember())),
+					0,
 					panel
 				);
 			});

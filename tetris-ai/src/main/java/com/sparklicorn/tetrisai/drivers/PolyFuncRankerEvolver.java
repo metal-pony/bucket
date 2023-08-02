@@ -1,7 +1,7 @@
 package com.sparklicorn.tetrisai.drivers;
 
-import com.sparklicorn.tetrisai.game.PolyFuncRanker;
-import com.sparklicorn.tetrisai.game.RankerPopulation;
+import com.sparklicorn.tetrisai.genetic.RankerPopulation;
+import com.sparklicorn.tetrisai.ranking.PolyFuncRanker;
 
 public class PolyFuncRankerEvolver {
 	static int popSize = 100;

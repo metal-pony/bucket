@@ -1,4 +1,4 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai.ranking;
 
 import com.sparklicorn.bucket.tetris.TetrisState;
 

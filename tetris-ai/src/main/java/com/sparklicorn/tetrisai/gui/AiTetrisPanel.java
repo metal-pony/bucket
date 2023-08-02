@@ -11,7 +11,7 @@ import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.util.event.Event;
-import com.sparklicorn.tetrisai.game.AiTetris;
+import com.sparklicorn.tetrisai.AiTetris;
 import com.sparklicorn.tetrisai.structs.PlacementRank;
 
 public class AiTetrisPanel extends TetrisBoardPanel {
@@ -94,7 +94,7 @@ public class AiTetrisPanel extends TetrisBoardPanel {
             return;
         }
 
-        if (state.isActive) {
+        if (state.piece.isActive()) {
             clearCellRanks();
             setPlacementRanks();
         } else {
@@ -135,7 +135,7 @@ public class AiTetrisPanel extends TetrisBoardPanel {
                         index, cells.length
                     );
 
-                    System.out.println("Shape: " + state.shape.name());
+                    System.out.println("Shape: " + state.piece.shape().name());
                     System.out.println("Position: " + placement);
                     System.out.println("Cell Coords: " + Arrays.toString(cellCoords));
                 }

@@ -14,9 +14,9 @@ import javax.swing.JFrame;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.ThreadPool;
-import com.sparklicorn.tetrisai.game.GenericRanker;
-import com.sparklicorn.tetrisai.game.ITetrisStateRanker;
-import com.sparklicorn.tetrisai.game.PolyFuncRanker;
+import com.sparklicorn.tetrisai.ranking.GenericRanker;
+import com.sparklicorn.tetrisai.ranking.ITetrisStateRanker;
+import com.sparklicorn.tetrisai.ranking.PolyFuncRanker;
 import com.sparklicorn.tetrisai.structs.MutatingPolyFunc;
 import com.sparklicorn.tetrisai.structs.PolyFunc.PolyFuncTerm;
 

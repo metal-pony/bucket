@@ -15,6 +15,8 @@ import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.util.Shuffler;
+import com.sparklicorn.tetrisai.AiTetris;
+import com.sparklicorn.tetrisai.ranking.ITetrisStateRanker;
 
 public class TestAITetris {
 	// TODO sparklicorn/bucket#9 move to utility class
@@ -58,8 +60,8 @@ public class TestAITetris {
 			return result;
 		};
 		TetrisState state = new TetrisState();
-		state.shape = Shape.I;
-		state.position = new Position(1, 4, 0, state.shape.getNumRotations());
+		state.setNextShape(Shape.I);
+		state.resetPiece();
 
 		List<Position> actual = AiTetris.getTopPlacements(state, ranker, new ArrayList<>(), 1f)
 			.stream()
@@ -79,8 +81,8 @@ public class TestAITetris {
 	@Test
 	public void getPossiblePlacements_whenBoardIsEmpty() {
 		TetrisState state = new TetrisState();
-		state.shape = Shape.I;
-		state.position = new Position(1, 4, 0, state.shape.getNumRotations());
+		state.setNextShape(Shape.I);
+		state.resetPiece();
 
 		Set<Position> actual = AiTetris.getPossiblePlacements(state);
 		Set<Position> expected = new HashSet<>();

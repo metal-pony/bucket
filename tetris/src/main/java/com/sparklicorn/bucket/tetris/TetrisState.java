@@ -5,7 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
+import com.sparklicorn.bucket.tetris.util.structs.Coord.FinalCoord;
 import com.sparklicorn.bucket.tetris.util.structs.Move;
+import com.sparklicorn.bucket.tetris.util.structs.Piece;
 import com.sparklicorn.bucket.tetris.util.structs.Position;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
 import com.sparklicorn.bucket.tetris.util.structs.ShapeQueue;
@@ -15,6 +17,20 @@ import com.sparklicorn.bucket.util.Array;
  * Represents the state of a Tetris game.
  */
 public class TetrisState {
+	public static final int DEFAULT_NUM_ROWS = 20;
+	public static final int DEFAULT_NUM_COLS = 10;
+	public static final int DEFAULT_ENTRY_COLUMN = calcEntryColumn(DEFAULT_NUM_COLS);
+	/**
+	 * Calculates the column where pieces appear, which is the center column,
+	 * or just left of center if there are an even number of columns.
+	 *
+	 * @param cols Number of columns on the board.
+	 */
+	public static int calcEntryColumn(int cols) {
+		return (cols / 2) - ((cols % 2 == 0) ? 1 : 0);
+	}
+	public static final Coord DEFAULT_ENTRY_COORD = new FinalCoord(1, DEFAULT_ENTRY_COLUMN);
+
 	/**
 	 * Represents a Tetris board. Each element in the rows*cols array represents a single cell,
 	 * where the value is the color of the block in that cell. A value of 0 means the cell is empty.
@@ -46,11 +62,6 @@ public class TetrisState {
 	 * Tracks whether the game has started.
 	 */
 	public boolean hasStarted;
-
-	/**
-	 * Tracks whether the game piece is currently active.
-	 */
-	public boolean isActive;
 
 	/**
 	 * Current game level.
@@ -88,14 +99,14 @@ public class TetrisState {
 	public int linesUntilNextLevel;
 
 	/**
+	 * The coordinates where pieces appear on the board.
+	 */
+	public Coord entryCoord;
+
+	/**
 	 * Tracks how many times each shape has appeared.
 	 */
 	public long[] dist;
-
-	/**
-	 * The active piece shape.
-	 */
-	public Shape shape;
 
 	/**
 	 * TODO #92 Hide shapeQueue so it can't be manipulated.
@@ -104,20 +115,15 @@ public class TetrisState {
 	public ShapeQueue nextShapes;
 
 	/**
-	 * Position of the active piece.
+	 * The current piece.
 	 */
-	public Position position;
-
-	/**
-	 * The locations of the blocks in the active piece.
-	 */
-	public Coord[] blockLocations;
+	public Piece piece;
 
 	/**
 	 * Creates a new TetrisState with default rows and columns.
 	 */
 	public TetrisState() {
-		this(TetrisGame.DEFAULT_NUM_ROWS, TetrisGame.DEFAULT_NUM_COLS);
+		this(TetrisState.DEFAULT_NUM_ROWS, TetrisState.DEFAULT_NUM_COLS);
 	}
 
 	/**
@@ -144,11 +150,9 @@ public class TetrisState {
 		linesUntilNextLevel = TetrisGame.LINES_PER_LEVEL;
 		dist = new long[Shape.NUM_SHAPES];
 		Arrays.fill(dist, 0L);
-		shape = null;
 		nextShapes = new ShapeQueue();
-		position = null;
-		blockLocations = Array.fillWithFunc(new Coord[4], (i) -> new Coord(TetrisGame.DEFAULT_ENTRY_COORD));
-		isActive = false;
+		entryCoord = new Coord(1, calcEntryColumn(cols));
+		piece = new Piece(entryCoord, nextShapes.poll());
 	}
 
 	/**
@@ -168,12 +172,10 @@ public class TetrisState {
 		this.rows = other.rows;
 		this.cols = other.cols;
 		this.linesUntilNextLevel = other.linesUntilNextLevel;
+		this.entryCoord = new Coord(other.entryCoord);
 		this.dist = Array.copy(other.dist);
-		this.shape = other.shape;
 		this.nextShapes = new ShapeQueue(other.nextShapes);
-		this.position = (other.position != null) ? new Position(other.position) : null;
-		this.blockLocations = Coord.copyFrom(other.blockLocations);
-		this.isActive = other.isActive;
+		this.piece = new Piece(other.piece);
 	}
 
 	/**
@@ -224,8 +226,10 @@ public class TetrisState {
 	 */
 	public boolean isPositionValid(Position pos) {
 		Coord[] newBlockCoords = getShapeCoordsAtPosition(pos);
-		int minCol = cols - 1;
-		int maxCol = 0;
+		int minCol = newBlockCoords[0].col();
+		int maxCol = newBlockCoords[0].col();
+
+
 
 		for (Coord c : newBlockCoords) {
 			minCol = Math.min(minCol, c.col());
@@ -256,16 +260,13 @@ public class TetrisState {
 	 * @return True if the active piece can move to the specified position; otherwise false.
 	 */
 	public boolean canPieceMove(Move move) {
-		if (
-			isGameOver ||
-			!isActive ||
-			isPaused ||
-			move.rowOffset() < 0
-		) {
-			return false;
-		}
-
-		return isPositionValid(new Position(position).add(move));
+		return (
+			!isGameOver &&
+			piece.isActive() &&
+			!isPaused &&
+			move.rowOffset() >= 0 &&
+			isPositionValid(piece.position().add(move))
+		);
 	}
 
 	/**
@@ -306,32 +307,13 @@ public class TetrisState {
 	}
 
 	/**
-	 * Updates the block coordinates for the active shape at the current position.
-	 * Does not check if the active shape exists or is in valid position.
-	 */
-	public void updateBlockPositions() {
-		int rotationIndex = shape.rotationIndex(position.rotation());
-		for (int i = 0; i < blockLocations.length; i++) {
-			blockLocations[i].set(position.offset());
-			blockLocations[i].add(shape.rotationOffsets[rotationIndex][i]);
-		}
-	}
-
-	/**
 	 * Calculates the block coordinates for the active shape at the given position.
 	 *
 	 * @param pos Position of the shape to calculate the block coordinates for.
 	 * @return An array of coordinates for the blocks of the shape at the given position.
 	 */
 	public Coord[] getShapeCoordsAtPosition(Position pos) {
-		Coord[] coords = Coord.copyFrom(blockLocations);
-		int rotationIndex = shape.rotationIndex(pos.rotation());
-		for (int i = 0; i < blockLocations.length; i++) {
-			coords[i].set(pos.offset());
-			coords[i].add(shape.rotationOffsets[rotationIndex][i]);
-		}
-
-		return coords;
+		return new Piece(pos, piece.shape()).blockCoords();
 	}
 
 	/**
@@ -368,36 +350,39 @@ public class TetrisState {
 	/**
 	 * Determines if the piece is sharing the same cell as any other block.
 	 *
-	 * @return True if the piece is overlapping with other blocks.
+	 * @return True if the piece is overlapping with other blocks; otherwise false.
 	 */
-	protected boolean intersects(Coord[] locations) {
-		for (Coord location : locations) {
-			if (!isCellEmpty(location)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Moves the piece position by the specified amount and updates its block coordinates.
-	 * Legality of the move is not checked.
-	 *
-	 * @param move The move to apply to the piece position.
-	 */
-	public void movePiece(Move move) {
-		position.add(move);
-		updateBlockPositions();
+	protected boolean pieceOverlapsBlocks() {
+		return piece.intersects(this);
 	}
 
 	/**
 	 * Places the piece on the board at its current position.
 	 */
 	public void placePiece() {
-		updateBlockPositions();
-		for (Coord c : blockLocations) {
-			int index = c.row() * cols + c.col();
-			board[index] = shape.value;
+		if (piece.isActive()) {
+			piece.forEachCell((row, col) -> board[row * cols + col] = piece.shape().value);
+			piece.disable();
+			numPiecesDropped++;
+		}
+	}
+
+	/**
+	 * Resets the piece to the top of the board with the next shape from the queue.
+	 */
+	public void resetPiece() {
+		piece.reset(entryCoord, nextShapes.poll());
+	}
+
+	/**
+	 * Fast-forwards the shape queue so that the given shape is next in the queue.
+	 *
+	 * @param shape The Shape that will be next in the queue.
+	 */
+	public void setNextShape(Shape shape) {
+		// Fast-forward so that the given shape is next in the queue.
+		while (nextShapes.peek() != shape) {
+			nextShapes.poll();
 		}
 	}
 }

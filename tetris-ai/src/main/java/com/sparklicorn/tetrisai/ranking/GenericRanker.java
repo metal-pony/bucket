@@ -1,4 +1,4 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai.ranking;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
+import com.sparklicorn.tetrisai.genetic.AbstractRankerGene;
 
 public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 	public static class HeuristicWeight {
@@ -72,8 +73,8 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 		new HeuristicWeight(new CompleteLinesRankingHeuristic(), 3.56f),
 		new HeuristicWeight(new BlockHeightSumRankingHeuristic(), -1.37f),
 		new HeuristicWeight(new BlockedSpacesRankingHeuristic(), -17.40f),
-		// new HeuristicWeight(new DeepPocketsRankingHeuristic(), -12.83f),
-		// new HeuristicWeight(new DeepSidePocketsRankingHeuristic(), -10.74f)
+		new HeuristicWeight(new DeepPocketsRankingHeuristic(), -12.83f),
+		new HeuristicWeight(new DeepSidePocketsRankingHeuristic(), -10.74f)
 	};
 
 	public static List<HeuristicWeight> getDefaultHeuristicWeights() {
@@ -310,12 +311,8 @@ public class GenericRanker extends AbstractRankerGene<GenericRanker> {
 		return rank;
 	}
 
-	@Override protected double rankImpl(int[] features) {
-		// TODO delete this method from abstract class
-		throw new UnsupportedOperationException();
-	}
-
-	@Override public GenericRanker copy() {
+	@Override
+	public GenericRanker copy() {
 		return new GenericRanker(this);
 	}
 

@@ -205,7 +205,7 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 		if (state.isGameOver) {
 			game.newGame();
 		} else if (!state.hasStarted) {
-			game.start(0);
+			game.start(0L, true);
 		} else if (state.isPaused) {
 			game.resume();
 		} else {

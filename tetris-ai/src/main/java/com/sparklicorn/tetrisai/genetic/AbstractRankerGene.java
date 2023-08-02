@@ -1,9 +1,11 @@
-package com.sparklicorn.tetrisai.game;
+package com.sparklicorn.tetrisai.genetic;
 
+import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.gui.components.TetrisBoardPanel;
 import com.sparklicorn.bucket.util.ThreadPool;
 import com.sparklicorn.bucket.util.genetic.IGenes;
-import com.sparklicorn.tetrisai.structs.GameConfig;
+import com.sparklicorn.tetrisai.AiTetris;
+import com.sparklicorn.tetrisai.ranking.ITetrisStateRanker;
 import com.sparklicorn.tetrisai.structs.GameStats;
 
 import java.util.ArrayList;
@@ -14,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public abstract class AbstractRankerGene<R extends AbstractRankerGene<R>>
-	extends AbstractRanker implements IGenes<R>
+	implements IGenes<R>, ITetrisStateRanker
 {
 	/**
 	 * The number of tetris games to run when calculating {@link #getFitness()}.
@@ -45,8 +47,10 @@ public abstract class AbstractRankerGene<R extends AbstractRankerGene<R>>
 		for (int i = 0; i < numFitnessRuns; i++) {
 			results.add(
 				AiTetris.runWithPanel(
+					new TetrisState(),
+					this,
 					0L,
-					new GameConfig(this),
+					0,
 					panel
 				)
 			);
@@ -88,7 +92,7 @@ public abstract class AbstractRankerGene<R extends AbstractRankerGene<R>>
 
 	protected Future<GameStats> asyncRunGame() {
 		return ThreadPool.submit(() -> {
-			return AiTetris.run(new GameConfig(this));
+			return AiTetris.run(this);
 		});
 	}
 
