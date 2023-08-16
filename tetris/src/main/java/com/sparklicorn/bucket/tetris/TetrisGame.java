@@ -108,6 +108,7 @@ public class TetrisGame implements ITetrisGame {
 		}
 
 		state.piece.move(_move);
+		throwEvent(TetrisEvent.PIECE_ROTATE.withPieceData(this));
 
 		return true;
 	}
@@ -121,6 +122,7 @@ public class TetrisGame implements ITetrisGame {
 	protected boolean shiftPiece(Move move) {
 		if (state.canPieceMove(move)) {
 			state.piece.move(move);
+			throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));
 			return true;
 		}
 
@@ -132,8 +134,10 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	protected void plotPiece() {
 		state.placePiece();
-		throwEvent(TetrisEvent.PIECE_PLACED);
-		throwEvent(TetrisEvent.BLOCKS);
+		Event pieceEvent = TetrisEvent.PIECE_PLACED.withPieceData(this);
+		pieceEvent.addProperty("numPiecesDropped", state.numPiecesDropped);
+		throwEvent(pieceEvent);
+		throwEvent(TetrisEvent.BLOCKS.withBlockData(this));
 	}
 
 	// TODO #44 Removes full rows from the board, shifting remaining rows down.
@@ -189,6 +193,7 @@ public class TetrisGame implements ITetrisGame {
 		if (isGravityEnabled()) {
 			this.gravityTimer.shutdownNow();
 			this.gravityTimer = null;
+			throwEvent(TetrisEvent.GRAVITY_DISABLED);
 		}
 	}
 
@@ -201,6 +206,7 @@ public class TetrisGame implements ITetrisGame {
 			if (state.hasStarted && !state.isGameOver && !state.isPaused) {
 				gravityTimer.start();
 			}
+			throwEvent(TetrisEvent.GRAVITY_ENABLED);
 		}
 	}
 
@@ -231,9 +237,12 @@ public class TetrisGame implements ITetrisGame {
 			state.score += calcPointsForClearing(lines.size());
 			state.linesUntilNextLevel -= lines.size();
 
-			throwEvent(TetrisEvent.LINE_CLEAR);
-			throwEvent(TetrisEvent.SCORE_UPDATE);
-			throwEvent(TetrisEvent.BLOCKS);
+			Event lineEvent = TetrisEvent.LINE_CLEAR.withData("lines", lines.toArray());
+			lineEvent.addProperty("linesCleared", state.linesCleared);
+			lineEvent.addProperty("linesUntilNextLevel", state.linesUntilNextLevel);
+			throwEvent(lineEvent);
+			throwEvent(TetrisEvent.SCORE_UPDATE.withData("score", state.score));
+			throwEvent(TetrisEvent.BLOCKS.withBlockData(this));
 
 			//check if we need to update level
 			if (state.linesUntilNextLevel <= 0) { //level up!!
@@ -269,10 +278,10 @@ public class TetrisGame implements ITetrisGame {
 			}
 		} else {	//piece alive && not at bottom
 			shiftPiece(Move.DOWN);
-			throwEvent(TetrisEvent.PIECE_SHIFT);
+			throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));
 		}
 
-		throwEvent(TetrisEvent.GAMELOOP);
+		throwEvent(TetrisEvent.GAMELOOP.withState(this));
 	}
 
 	/**
@@ -297,7 +306,7 @@ public class TetrisGame implements ITetrisGame {
 	@Override
 	public synchronized void newGame() {
 		reset();
-		throwEvent(TetrisEvent.NEW_GAME);
+		throwEvent(TetrisEvent.NEW_GAME.withState(this));
 	}
 
 	/**
@@ -307,7 +316,7 @@ public class TetrisGame implements ITetrisGame {
 		state.level++;
 		state.linesUntilNextLevel += LINES_PER_LEVEL;
 		updateGravityTimerDelayMs();
-		throwEvent(TetrisEvent.LEVEL_CHANGE);
+		throwEvent(TetrisEvent.LEVEL_CHANGE.withData("level", state.level));
 	}
 
 	/**
@@ -316,7 +325,7 @@ public class TetrisGame implements ITetrisGame {
 	protected void reset() {
 		state = new TetrisState(state.rows, state.cols);
 		numTimerPushbacks = 0;
-		throwEvent(TetrisEvent.RESET);
+		throwEvent(TetrisEvent.RESET.withState(this));
 	}
 
 	@Override
@@ -335,7 +344,7 @@ public class TetrisGame implements ITetrisGame {
 			updateGravityTimerDelayMs();
 		}
 
-		throwEvent(TetrisEvent.START);
+		throwEvent(TetrisEvent.START.withState(this));
 	}
 
 	@Override
@@ -349,7 +358,7 @@ public class TetrisGame implements ITetrisGame {
 			gravityTimer.stop();
 		}
 
-		throwEvent(TetrisEvent.STOP);
+		throwEvent(TetrisEvent.STOP.withState(this));
 	}
 
 	@Override
@@ -382,7 +391,7 @@ public class TetrisGame implements ITetrisGame {
 			gravityTimer.stop();
 		}
 
-		throwEvent(TetrisEvent.GAME_OVER);
+		throwEvent(TetrisEvent.GAME_OVER.withState(this));
 	}
 
 	@Override
@@ -427,7 +436,7 @@ public class TetrisGame implements ITetrisGame {
 				numTimerPushbacks++;
 			}
 
-			throwEvent(TetrisEvent.PIECE_ROTATE);
+			throwEvent(TetrisEvent.PIECE_ROTATE.withPieceData(this));
 			return true;
 		}
 
@@ -452,7 +461,7 @@ public class TetrisGame implements ITetrisGame {
 				numTimerPushbacks++;
 			}
 
-			throwEvent(TetrisEvent.PIECE_SHIFT);
+			throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));
 			return true;
 		}
 
@@ -496,8 +505,35 @@ public class TetrisGame implements ITetrisGame {
 	}
 
 	/**
-	 * Throws an event. Attaches the current game state as a property to the event.
+	 * Unregisters all listeners for the given event.
 	 * If the event bus has not been initialized, then nothing happens.
+	 *
+	 * @param event The event to unregister from.
+	 * @return True if the event was unregistered; otherwise false.
+	 */
+	public boolean unregisterEvent(TetrisEvent event) {
+		if (eventBus == null) {
+			return false;
+		}
+
+		return eventBus.unregisterEvent(event.name());
+	}
+
+	/**
+	 * Throws an event if the eventBus has been initialized.
+	 *
+	 * @param event The event to throw.
+	 */
+	protected void throwEvent(Event event) {
+		if (eventBus == null) {
+			return;
+		}
+
+		eventBus.throwEvent(event);
+	}
+
+	/**
+	 * Throws an event if the eventBus has been initialized.
 	 *
 	 * @param event The event to throw.
 	 */
@@ -506,9 +542,7 @@ public class TetrisGame implements ITetrisGame {
 			return;
 		}
 
-		Event _event = new Event(event.name());
-		_event.addProperty("state", getState());
-		eventBus.throwEvent(_event);
+		eventBus.throwEvent(new Event(event.name()));
 	}
 
 	/**
@@ -553,6 +587,8 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	protected void nextPiece() {
 		state.resetPiece();
-		throwEvent(TetrisEvent.PIECE_CREATE);
+		Event pieceEvent = TetrisEvent.PIECE_CREATE.withPieceData(this);
+		pieceEvent.addProperty("nextShapes", new ShapeQueue(state.nextShapes));
+		throwEvent(pieceEvent);
 	}
 }
