@@ -110,6 +110,16 @@ public class Event {
 	}
 
 	/**
+	 * Returns whether the event has a property with the given name.
+	 *
+	 * @param propName Name of the property.
+	 * @return True if the event has a property with the given name; otherwise false.
+	 */
+	public boolean hasProperty(String propName) {
+		return properties != null && properties.containsKey(propName);
+	}
+
+	/**
 	 * Gets the event property as an int.
 	 *
 	 * @param propName - Name of the property.
@@ -118,6 +128,17 @@ public class Event {
 	 */
 	public int getPropertyAsInt(String propName) {
 		return (int)getPropertyAsType(propName, Integer.class);
+	}
+
+	/**
+	 * Gets the event property as a long.
+	 *
+	 * @param propName Name of the property.
+	 * @return The event property as a long.
+	 * @throws NullPointerException If the specified property is not found.
+	 */
+	public long getPropertyAsLong(String propName) {
+		return (long)getPropertyAsType(propName, Long.class);
 	}
 
 	/**
