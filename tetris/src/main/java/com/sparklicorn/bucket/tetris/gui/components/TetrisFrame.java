@@ -1,9 +1,6 @@
 package com.sparklicorn.bucket.tetris.gui.components;
 
 import java.awt.Color;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.WindowEvent;
@@ -26,7 +23,6 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 
 	protected TetrisGame game;
 	protected TetrisBoardPanel panel;
-	protected TetrisSidePanel sidePanel;
 
 	protected Thread pieceMover;
 
@@ -44,8 +40,7 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 		this._shutdown = shutdown;
 		this.keyPressedListeners = new HashMap<>();
 		this.keyReleasedListeners = new HashMap<>();
-		this.panel = new TetrisBoardPanel(blockSize, game);
-		this.sidePanel = new TetrisSidePanel(game, blockSize, TetrisSidePanel.DEFAULT_FONT_SIZE, Math.round((float)blockSize * 2f / 3f));
+		this.panel = new TetrisBoardPanel(game, blockSize, true);
 		this.pieceMover = new Thread(() -> {
 			long nextLeft = 0L;
 			long nextRight = 0L;
@@ -72,16 +67,11 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 			}
 		});
 
-		panel.setShouldDraw(false);
 		panel.setMessage("Press ENTER To Start A New Game");
-		panel.setBorder(BorderFactory.createLineBorder(TetrisBoardPanel.UIColor, 3));
+		panel.tetrisPanel.setBorder(BorderFactory.createLineBorder(TetrisBoardPanel.UIColor, 3));
 
 		game.registerEventListener(TetrisEvent.NEW_GAME, this::onNewGame);
-		game.registerEventListener(TetrisEvent.START, this::onStartGame);
 		game.registerEventListener(TetrisEvent.GAME_OVER, this::onGameOver);
-		game.registerEventListener(TetrisEvent.LEVEL_CHANGE, this::onLevelChange);
-		game.registerEventListener(TetrisEvent.PAUSE, this::onPause);
-		game.registerEventListener(TetrisEvent.RESUME, this::onResume);
 
 		keyPressedListeners.put(KeyEvent.VK_Z, () -> this.game.rotateClockwise());
 		keyPressedListeners.put(KeyEvent.VK_X, () -> this.game.rotateCounterClockwise());
@@ -95,15 +85,7 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 		keyReleasedListeners.put(KeyEvent.VK_LEFT, this::stopDriftingLeft);
 		keyReleasedListeners.put(KeyEvent.VK_DOWN, this::stopFastDropping);
 
-		setLayout(new GridBagLayout());
-		add(panel, new GridBagConstraints(
-			1,0, 1,1, 0.0,0.0, GridBagConstraints.CENTER,
-			GridBagConstraints.NONE, new Insets(3, 3, 3, 3), 0,0
-		));
-		add(sidePanel, new GridBagConstraints(
-			2,0, 1,1, 0.0,0.0, GridBagConstraints.CENTER,
-			GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0,0
-		));
+		add(panel);
 
 		pieceMover.start();
 		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -158,31 +140,11 @@ public class TetrisFrame extends JFrame implements KeyListener, WindowListener {
 	 * TETRIS GAME EVENTS HANDLERS *
 	 *******************************/
 	private void onNewGame(Event event) {
-		panel.setShouldDraw(false);
 		panel.setMessage("Press ENTER To Start A New Game");
-	}
-
-	private void onStartGame(Event event) {
-		panel.setShouldDraw(true);
 	}
 
 	private void onGameOver(Event event) {
 		panel.setMessage("Game Over\nPress ENTER To Start A New Game");
-	}
-
-	private void onLevelChange(Event event) {}
-
-	private void onPause(Event event) {
-		panel.hideBlocks();
-		panel.setShouldDraw(false);
-		panel.setMessage("Paused");
-		panel.repaint();
-	}
-
-	private void onResume(Event event) {
-		panel.showBlocks();
-		panel.setShouldDraw(true);
-		panel.repaint();
 	}
 
 	/***************************

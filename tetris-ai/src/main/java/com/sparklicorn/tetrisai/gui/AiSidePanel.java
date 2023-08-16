@@ -66,14 +66,12 @@ public class AiSidePanel extends TetrisSidePanel {
 
     protected JButton runButton;
     protected JButton newGameButton;
+    protected AiTetris game;
 
-    public AiSidePanel(AiTetris game) {
-        this(game, true, true, true);
-    }
+    public AiSidePanel(AiTetrisPanel aiPanel, AiTetris game, boolean showNextPiece, boolean showLevel, boolean showScore) {
+        super(aiPanel);
 
-    public AiSidePanel(AiTetris game, boolean showNextPiece, boolean showLevel, boolean showScore) {
-        super(game);
-
+        this.game = game;
         JPanel controlsPanel = new JPanel();
         controlsPanel.setBackground(Color.BLACK);
         controlsPanel.add(runButton = createRunButton());
@@ -91,7 +89,7 @@ public class AiSidePanel extends TetrisSidePanel {
         runButton.setFocusable(false);
         runButton.addActionListener((e) -> {
             try {
-                ((AiTetris) this.game).run();
+                this.game.run();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -103,10 +101,9 @@ public class AiSidePanel extends TetrisSidePanel {
     private JButton createNewGameButton() {
         JButton newGameButton = new JButton("New Game");
         newGameButton.addActionListener((e) -> {
-            AiTetris _game = (AiTetris) this.game;
-            _game.stop();
-            _game.newGame();
-            _game.start(0L, false);
+            game.stop();
+            game.newGame();
+            game.start(0L, false);
         });
         newGameButton.setFocusable(false);
         return newGameButton;
