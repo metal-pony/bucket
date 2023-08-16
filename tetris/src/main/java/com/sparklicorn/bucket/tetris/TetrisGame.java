@@ -79,7 +79,7 @@ public class TetrisGame implements ITetrisGame {
 	 * Returns whether the game is currently running.
 	 */
 	public boolean isRunning() {
-		return state.hasStarted && !state.isGameOver;
+		return state.isRunning();
 	}
 
 	/**
