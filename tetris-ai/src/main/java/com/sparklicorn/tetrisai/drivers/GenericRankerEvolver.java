@@ -60,7 +60,7 @@ public class GenericRankerEvolver {
 
 		List<TetrisBoardPanel> panels = new ArrayList<>();
 		for (int n = 0; n < numPanels; n++) {
-			TetrisBoardPanel panel = new TetrisBoardPanel(blockSize, new AiTetris());
+			TetrisBoardPanel panel = new TetrisBoardPanel(new AiTetris(), blockSize, false);
 			frame.add(panel);
 			panels.add(panel);
 		}

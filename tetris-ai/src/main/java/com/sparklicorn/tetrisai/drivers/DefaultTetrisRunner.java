@@ -30,7 +30,7 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 	GenericRanker ranker;
 	AiTetris tetris;
 
-	AiTetrisPanel panel;
+	AiTetrisPanel boardPanel;
 	AiSidePanel sidePanel;
 
 	public DefaultTetrisRunner() {
@@ -41,17 +41,17 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 		ranker = new GenericRanker();
 		tetris = new AiTetris();
 		tetris.setRanker(ranker);
-		panel = new AiTetrisPanel(tetris);
-		panel.setBorder(BorderFactory.createLineBorder(Color.MAGENTA, 2));
+		boardPanel = new AiTetrisPanel(tetris);
+		boardPanel.setBorder(BorderFactory.createLineBorder(Color.MAGENTA, 2));
 
 		boolean showNextPiece = true;
 		boolean showLevel = false;
 		boolean showScore = false;
-		this.sidePanel = new AiSidePanel(tetris, showNextPiece, showLevel, showScore);
+		this.sidePanel = new AiSidePanel(boardPanel, tetris, showNextPiece, showLevel, showScore);
 
 		setLayout(new GridBagLayout());
 		getContentPane().setBackground(Color.BLACK);
-		add(panel, new GridBagConstraints(
+		add(boardPanel, new GridBagConstraints(
 			1,0, 1,1, 0.0,0.0, GridBagConstraints.CENTER,
 			GridBagConstraints.NONE, new Insets(3, 3, 3, 3), 0,0
 		));
@@ -67,8 +67,8 @@ public class DefaultTetrisRunner extends JFrame implements KeyListener {
 		setLocationRelativeTo(null);
 	}
 
-	public AiTetrisPanel getPanel() {
-		return panel;
+	public AiTetrisPanel getBoardPanel() {
+		return boardPanel;
 	}
 
 	public AiSidePanel getSidePanel() {

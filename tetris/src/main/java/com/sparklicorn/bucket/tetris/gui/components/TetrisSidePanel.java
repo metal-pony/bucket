@@ -1,46 +1,46 @@
 package com.sparklicorn.bucket.tetris.gui.components;
 
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.util.Arrays;
-import java.util.function.Consumer;
 
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-import com.sparklicorn.bucket.tetris.TetrisEvent;
-import com.sparklicorn.bucket.tetris.TetrisGame;
-import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.tetris.util.structs.Coord;
 import com.sparklicorn.bucket.tetris.util.structs.Shape;
-import com.sparklicorn.bucket.util.event.Event;
 
 //shows game stats and next piece panel
 public class TetrisSidePanel extends JPanel {
 	protected static final int DEFAULT_FONT_SIZE = 20;
-	protected static final int DEFAULT_NEXT_BLOCK_SIZE = 20;
 
 	protected class NextPiecePanel extends JPanel {
+		boolean show;
+
 		NextPiecePanel() {
+			show = true;
 			setBackground(Color.BLACK);
+			updatePreferredSize();
+		}
+
+		protected void updatePreferredSize() {
 			this.setPreferredSize(
 				new Dimension(
-					state.cols * blockSize,
-					2 * blockSize
+					6 * boardPanel.blockSize,
+					2 * boardPanel.blockSize
 				)
 			);
 		}
 
-		@Override protected void paintComponent(Graphics g) {
+		@Override
+		protected void paintComponent(Graphics g) {
 			super.paintComponent(g);
 
-			if (state != null && state.hasStarted && !state.isPaused) {
-				drawTetrisPiece(8, 8, state.nextShapes.peek(), nextBlockSize, (Graphics2D) g);
+			if (show) {
+				drawTetrisPiece(8, 8, boardPanel.state.nextShapes.peek(), nextBlockSize, (Graphics2D) g);
 			}
 		}
 
@@ -59,16 +59,17 @@ public class TetrisSidePanel extends JPanel {
 		}
 	}
 
-	protected TetrisGame game;
-	protected TetrisState state;
+	/**
+	 * The TetrisBoardPanel that this TetrisSidePanel is associated with.
+	 */
+	protected TetrisBoardPanel boardPanel;
 
-	protected int blockSize;
 	protected int fontSize;
 	protected int nextBlockSize;
 	protected Font statsFont;
 
 	protected JLabel nextLabel;
-	protected JPanel nextPiecePanel;
+	protected NextPiecePanel nextPiecePanel;
 	protected boolean showNextPiece;
 
 	protected JLabel scoreLabel;
@@ -77,44 +78,35 @@ public class TetrisSidePanel extends JPanel {
 	protected JLabel levelLabel;
 	protected boolean showLevel;
 
-	protected Consumer<Event> eventListener;
-
-	public TetrisSidePanel(TetrisGame game) {
+	public TetrisSidePanel(TetrisBoardPanel panel) {
 		this(
-			game,
-			TetrisBoardPanel.DEFAULT_BLOCK_SIZE,
-			DEFAULT_FONT_SIZE,
-			DEFAULT_NEXT_BLOCK_SIZE
+			panel,
+			DEFAULT_FONT_SIZE
 		);
 	}
 
-	public TetrisSidePanel(TetrisGame game, int blockSize, int fontSize, int nextBlockSize) {
+	public TetrisSidePanel(TetrisBoardPanel panel, int fontSize) {
 		super();
 
-		this.blockSize = blockSize;
+		this.boardPanel = panel;
 		this.fontSize = fontSize;
-		this.nextBlockSize = nextBlockSize;
+		this.nextBlockSize = Math.round((float)panel.blockSize * 2f / 3f);
 		this.showNextPiece = true;
 		this.showScore = true;
 		this.showLevel = true;
 		statsFont = new Font("Consolas", Font.PLAIN, fontSize);
 
-		connectGame(game);
-
 		nextPiecePanel = new NextPiecePanel();
 		nextLabel = createLabel("Next");
-		scoreLabel = createLabel(scoreLabelText());
-		levelLabel = createLabel(levelLabelText());
+		scoreLabel = createLabel(scoreLabelText(0L));
+		levelLabel = createLabel(levelLabelText(0L));
 
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		setBackground(Color.BLACK);
-		// setHorizontalAlignment(SwingConstants.LEFT);
 		add(nextLabel);
 		add(nextPiecePanel);
 		add(scoreLabel);
 		add(levelLabel);
-		setAlignmentX(Component.LEFT_ALIGNMENT);
-		nextLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 	}
 
 	private JLabel createLabel(String text) {
@@ -123,6 +115,12 @@ public class TetrisSidePanel extends JPanel {
 		label.setFont(statsFont);
 		label.setForeground(TetrisBoardPanel.UIColor);
 		return label;
+	}
+
+	public void setBlockSize(int newBlockSize) {
+		boardPanel.blockSize = newBlockSize;
+		nextBlockSize = Math.round((float)boardPanel.blockSize * 2f / 3f);
+		nextPiecePanel.updatePreferredSize();
 	}
 
 	public boolean isShowingScore() {
@@ -166,51 +164,29 @@ public class TetrisSidePanel extends JPanel {
 		showNextPiece = val;
 	}
 
-	protected void onGameEvent(Event e) {
-		state = e.getPropertyAsType("state", TetrisState.class);
-
+	public void updateScoreLabel(long score) {
 		if (showScore) {
-			scoreLabel.setText(scoreLabelText());
+			scoreLabel.setText(scoreLabelText(score));
 		}
-
-		if (showLevel) {
-			levelLabel.setText(levelLabelText());
-		}
-
-		repaint();
 	}
 
-	protected String scoreLabelText() {
+	public void updateLevelLabel(long level) {
+		if (showLevel) {
+			levelLabel.setText(levelLabelText(level));
+		}
+	}
+
+	protected String scoreLabelText(long score) {
 		return String.format(
 			"<html>Score<br><font color='#ffffff'>%8d</font></html>",
-			state.score
+			score
 		);
 	}
 
-	protected String levelLabelText() {
+	protected String levelLabelText(long level) {
 		return String.format(
 			"<html>Level<br><font color='#ffffff'>%8d</font></html>",
-			state.level
+			level
 		);
-	}
-
-	protected void hookGameEvents() {
-		Arrays.stream(TetrisEvent.values()).forEach((e) -> game.registerEventListener(e, this::onGameEvent));
-	}
-
-	protected void unhookGameEvents() {
-		Arrays.stream(TetrisEvent.values()).forEach((e) -> game.unregisterEventListener(e, this::onGameEvent));
-	}
-
-	public TetrisGame connectGame(TetrisGame newGame) {
-		if (game != null) {
-			unhookGameEvents();
-		}
-
-		TetrisGame oldGame = this.game;
-		this.game = newGame;
-		this.state = newGame.getState();
-		hookGameEvents();
-		return oldGame;
 	}
 }

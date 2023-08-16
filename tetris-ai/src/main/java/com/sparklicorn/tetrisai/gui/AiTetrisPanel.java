@@ -88,6 +88,7 @@ public class AiTetrisPanel extends TetrisBoardPanel {
 
     @Override
     protected void update(Event e) {
+        // TODO inspect how accurate this logic will be post TetrisBoardPanel updates
         super.update(e);
 
         if (state.isPaused || state.isGameOver) {

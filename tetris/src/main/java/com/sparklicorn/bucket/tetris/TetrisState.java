@@ -385,4 +385,11 @@ public class TetrisState {
 			nextShapes.poll();
 		}
 	}
+
+	/**
+	 * Returns whether the game has started and is in progress.
+	 */
+	public boolean isRunning() {
+		return hasStarted && !isGameOver;
+	}
 }

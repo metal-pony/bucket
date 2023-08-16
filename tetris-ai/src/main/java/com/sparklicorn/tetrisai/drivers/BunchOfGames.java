@@ -175,7 +175,7 @@ public class BunchOfGames {
 
 		for (int i = 0; i < popSize; i++) {
 			pop.add(new GenericRanker(GenericRanker.getRandomHeuristicWeights(-10f, 10f)));
-			TetrisBoardPanel p = new TetrisBoardPanel(blockSize, null);
+			TetrisBoardPanel p = new TetrisBoardPanel(null, blockSize, false);
 			panels.add(p);
 			frame.add(p);
 		}
