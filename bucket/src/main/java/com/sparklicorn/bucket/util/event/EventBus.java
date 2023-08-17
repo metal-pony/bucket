@@ -155,13 +155,12 @@ public class EventBus {
 	 * @return True if any listener was removed as result of this; otherwise false.
 	 */
 	public boolean unregisterEvent(String eventName) {
-		boolean result = false;
-		for (Consumer<Event> f : eventListeners.get(eventName)) {
-			if (unregisterEventListener(eventName, f)) {
-				result = true;
-			}
+		if (eventListeners.containsKey(eventName)) {
+			eventListeners.remove(eventName);
+			return true;
 		}
-		return result;
+
+		return false;
 	}
 
 	/**
