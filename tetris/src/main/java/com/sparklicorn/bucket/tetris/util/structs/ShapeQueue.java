@@ -127,8 +127,10 @@ public class ShapeQueue implements Queue<Shape> {
 
 	/** Throws UnsupportedOperationException */
 	@Override public boolean contains(Object o) { throw new UnsupportedOperationException(); }
-	/** Throws UnsupportedOperationException */
-	@Override public Iterator<Shape> iterator() { throw new UnsupportedOperationException(); }
+
+	@Override public Iterator<Shape> iterator() {
+		return shapeIndexQueue.stream().map((shapeIndex) -> Shape.getShape(shapeIndex)).iterator();
+	}
 	/** Throws UnsupportedOperationException */
 	@Override public Object[] toArray() { throw new UnsupportedOperationException(); }
 	/** Throws UnsupportedOperationException */

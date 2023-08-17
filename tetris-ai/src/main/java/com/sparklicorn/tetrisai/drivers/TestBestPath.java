@@ -37,7 +37,7 @@ public class TestBestPath extends TetrisBoardPanel {
 	 * @param blockSize Size of tetris blocks in pixels.
 	 */
 	public TestBestPath(int blockSize) {
-		super(null, blockSize, false);
+		super();
 
 		rankers = new HashMap<>();
 		// mousePointerBlock = null;

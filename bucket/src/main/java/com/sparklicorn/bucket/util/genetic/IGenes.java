@@ -26,10 +26,11 @@ public interface IGenes<T> {
 	 * Crosses genetic material with one or more other, returning an arbitrary number
 	 * of offspring. Offspring's genetic data should occur in order relative to its parents,
 	 * i.e. data should not be positionally scrambled or randomized.
-	 * @param other One or more set of genes to cross with this one.
+	 *
+	 * @param others One or more set of genes to cross with this one.
 	 * @return One or more offspring as the result of the crossover.
 	 */
-	public abstract T[] cross(T[] other);
+	public abstract T[] cross(T[] others);
 
 	/**
 	 * Mutates the data representing genetic material in some random way.

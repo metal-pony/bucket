@@ -109,7 +109,6 @@ public class TetrisState {
 	public long[] dist;
 
 	/**
-	 * TODO #92 Hide shapeQueue so it can't be manipulated.
 	 * A queue of next shapes.
 	 */
 	public ShapeQueue nextShapes;
@@ -217,6 +216,15 @@ public class TetrisState {
 	}
 
 	/**
+	 * Checks whether the current piece is within the bounds of the board.
+	 *
+	 * @return True if the piece is in bounds; false otherwise.
+	 */
+	public boolean pieceInBounds() {
+		return Arrays.stream(piece.blockCoords()).allMatch(this::validateCoord);
+	}
+
+	/**
 	 * Checks whether the given position for the current shape is valid,
 	 * i.e. the piece blocks are all within the bounds of the board, there
 	 * are no blocks in the way, and the piece is not wrapping around the board.
@@ -281,7 +289,7 @@ public class TetrisState {
 	 * or right shift that is required to accomodate the rotation.
 	 * If the rotation is not possible, returns Move.STAND.
 	 */
-	protected Move validateRotation(Move move) {
+	public Move validateRotation(Move move) {
 		if (!(move.equals(Move.CLOCKWISE) || move.equals(Move.COUNTERCLOCKWISE))) {
 			return new Move(Move.STAND);
 		}
