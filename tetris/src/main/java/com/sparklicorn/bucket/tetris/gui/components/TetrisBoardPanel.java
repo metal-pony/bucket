@@ -92,6 +92,8 @@ public class TetrisBoardPanel extends JPanel {
 	protected JPanel tetrisPanel;
 	protected TetrisSidePanel sidePanel;
 
+	protected boolean drawStats;
+
 	public TetrisBoardPanel(TetrisGame game) {
 		this(game, DEFAULT_BLOCK_SIZE, false);
 	}
@@ -100,6 +102,8 @@ public class TetrisBoardPanel extends JPanel {
 		if (game == null) {
 			throw new IllegalArgumentException("game cannot be null");
 		}
+
+		this.drawStats = true;
 
 		tetrisPanel = new JPanel() {
 			@Override
@@ -137,6 +141,15 @@ public class TetrisBoardPanel extends JPanel {
 		}
 
 		setVisible(true);
+	}
+
+
+	public boolean drawStats() {
+		return drawStats;
+	}
+
+	public void drawStats(boolean drawStats) {
+		this.drawStats = drawStats;
 	}
 
 	public void setBlockSize(int newBlockSize) {
@@ -236,7 +249,7 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	protected void drawStats(Graphics g) {
-		if (state.isPaused || !state.hasStarted) {
+		if (!drawStats || state.isPaused || !state.hasStarted) {
 			return;
 		}
 
