@@ -79,8 +79,6 @@ public class TetrisBoardPanel extends JPanel {
 		}
 	}
 
-	protected int numRows;
-	protected int numCols;
 	protected int blockSize;
 	protected Cell[] cells;
 
@@ -94,24 +92,30 @@ public class TetrisBoardPanel extends JPanel {
 
 	protected boolean drawStats;
 
+	public TetrisBoardPanel() {
+		this(new TetrisState(), DEFAULT_BLOCK_SIZE, false);
+	}
+
 	public TetrisBoardPanel(TetrisGame game) {
 		this(game, DEFAULT_BLOCK_SIZE, false);
 	}
 
-	public TetrisBoardPanel(TetrisGame game, int blockSize, boolean useSidePanel) {
-		if (game == null) {
-			throw new IllegalArgumentException("game cannot be null");
+	public TetrisBoardPanel(TetrisState state) {
+		this(state, DEFAULT_BLOCK_SIZE, false);
+	}
+
+	public TetrisBoardPanel(TetrisState state, int blockSize, boolean useSidePanel) {
+		if (state == null) {
+			throw new IllegalArgumentException("state cannot be null");
 		}
 
+		this.state = state;
 		this.drawStats = true;
 
 		tetrisPanel = new JPanel() {
 			@Override
 			public void paintComponent(Graphics g) {
 				super.paintComponent(g);
-				if (state == null) {
-					return;
-				}
 
 				drawCells(g);
 				drawStats(g);
@@ -121,7 +125,7 @@ public class TetrisBoardPanel extends JPanel {
 
 		message = "";
 
-		connectGame(game);
+		initCells();
 		setBlockSize(blockSize);
 		setBackground(Color.BLACK);
 		tetrisPanel.setBackground(Color.BLACK);
@@ -143,6 +147,11 @@ public class TetrisBoardPanel extends JPanel {
 		setVisible(true);
 	}
 
+	public TetrisBoardPanel(TetrisGame game, int blockSize, boolean useSidePanel) {
+		this(game.getState(), blockSize, useSidePanel);
+
+		connectGame(game);
+	}
 
 	public boolean drawStats() {
 		return drawStats;
@@ -158,7 +167,7 @@ public class TetrisBoardPanel extends JPanel {
 			blockSize = DEFAULT_BLOCK_SIZE;
 		}
 
-		tetrisPanel.setPreferredSize(new Dimension(numCols * blockSize, numRows * blockSize));
+		tetrisPanel.setPreferredSize(new Dimension(state.cols * blockSize, state.rows * blockSize));
 
 		if (sidePanel != null) {
 			sidePanel.setBlockSize(newBlockSize);
@@ -173,8 +182,6 @@ public class TetrisBoardPanel extends JPanel {
 		TetrisGame oldGame = disconnectGame();
 		game = newGame;
 		state = game.getState();
-		numRows = state.rows;
-		numCols = state.cols;
 
 		initCells();
 		setBlockSize(blockSize);
@@ -218,9 +225,9 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	protected void initCells() {
-		cells = new Cell[numRows * numCols];
+		cells = new Cell[state.rows * state.cols];
 		for (int i = 0; i < cells.length; i++) {
-			cells[i] = new Cell(i, i / numCols, i % numCols);
+			cells[i] = new Cell(i, i / state.cols, i % state.cols);
 		}
 	}
 
@@ -268,18 +275,18 @@ public class TetrisBoardPanel extends JPanel {
 		repaint();
 	}
 
-	protected void update(Event e) {
+	public void update(Event e) {
 		mapStateToCells();
 		mapPieceStateToCells();
 	}
 
-	protected void mapStateToCells() {
+	public void mapStateToCells() {
 		for (Cell cell : cells) {
 			cell.shape = Shape.getShape(state.board[cell.index]);
 		}
 	}
 
-	protected void mapPieceStateToCells() {
+	public void mapPieceStateToCells() {
 		if (!state.piece.isActive()) {
 			return;
 		}

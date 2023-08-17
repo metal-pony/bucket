@@ -65,9 +65,9 @@ public class AiTetrisPanel extends TetrisBoardPanel {
 
     @Override
     protected void initCells() {
-		super.cells = new AiCell[numRows * numCols];
+		super.cells = new AiCell[state.rows * state.cols];
 		for (int i = 0; i < super.cells.length; i++) {
-			super.cells[i] = new AiCell(i, i / numCols, i % numCols);
+			super.cells[i] = new AiCell(i, i / state.cols, i % state.cols);
 		}
         this.cells = (AiCell[]) super.cells;
 	}
@@ -87,7 +87,7 @@ public class AiTetrisPanel extends TetrisBoardPanel {
     }
 
     @Override
-    protected void update(Event e) {
+    public void update(Event e) {
         // TODO inspect how accurate this logic will be post TetrisBoardPanel updates
         super.update(e);
 
@@ -126,7 +126,7 @@ public class AiTetrisPanel extends TetrisBoardPanel {
             Coord[] cellCoords = state.getShapeCoordsAtPosition(placement);
 
             for (Coord cellCoord : cellCoords) {
-                int index = cellCoord.row() * numCols + cellCoord.col();
+                int index = cellCoord.row() * state.cols + cellCoord.col();
                 double rank = pr.rank();
 
                 // TODO Temp messaging while debugging index out of bounds err
