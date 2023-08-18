@@ -1,6 +1,6 @@
 package com.sparklicorn.bucket.tetris.util.structs;
 
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import com.sparklicorn.bucket.tetris.TetrisState;
 import com.sparklicorn.bucket.util.Array;
@@ -159,9 +159,9 @@ public class Piece {
      *
      * @param consumer The consumer to execute for each block (row, column) coordinates of the piece.
      */
-    public void forEachCell(BiConsumer<Integer,Integer> consumer) {
+    public void forEachCell(Consumer<Coord> consumer) {
         for (Coord coord : blockCoords) {
-            consumer.accept(coord.row(), coord.col());
+            consumer.accept(new Coord(coord));
         }
     }
 

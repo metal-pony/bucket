@@ -188,17 +188,75 @@ public class TetrisState {
 	}
 
 	/**
+	 * Sets the value of the cell at the given location.
+	 *
+	 * @param row The row of the cell to set.
+	 * @param col The column of the cell to set.
+	 * @param value The value to set the cell to.
+	 */
+	public void setCell(int row, int col, int value) {
+		board[row * cols + col] = value;
+	}
+
+	/**
+	 * Sets the value of the cell at the given location.
+	 *
+	 * @param location The location of the cell to set.
+	 * @param value The value to set the cell to.
+	 */
+	public void setCell(Coord location, int value) {
+		setCell(location.row(), location.col(), value);
+	}
+
+	/**
+	 * Gets the value of the cell at the given location.
+	 *
+	 * @param row The row of the cell to get.
+	 * @param col The column of the cell to get.
+	 * @return The value of the cell at the given location.
+	 */
+	public int getCell(int row, int col) {
+		return board[row * cols + col];
+	}
+
+	/**
+	 * Gets the value of the cell at the given location.
+	 *
+	 * @param location The location of the cell to get.
+	 * @return The value of the cell at the given location.
+	 */
+	public int getCell(Coord location) {
+		return getCell(location.row(), location.col());
+	}
+
+	/**
 	 * Checks whether the specified cell is empty.
 	 */
 	public boolean isCellEmpty(int row, int col) {
-		return board[row * cols + col] == 0;
+		return getCell(row, col) == 0;
 	}
 
 	/**
 	 * Checks whether the specified cell is empty.
 	 */
 	public boolean isCellEmpty(Coord location) {
-		return board[location.row() * cols + location.col()] == 0;
+		return getCell(location.row(), location.col()) == 0;
+	}
+
+	/**
+	 * Checks whether the given coordinates are within the bounds of the board.
+	 *
+	 * @param row The row to check.
+	 * @param col The column to check.
+	 * @return True if the coordinates are valid; false otherwise.
+	 */
+	public boolean validateCoords(int row, int col) {
+		return (
+			row >= 0 &&
+			row < rows &&
+			col >= 0 &&
+			col < cols
+		);
 	}
 
 	/**
@@ -207,12 +265,7 @@ public class TetrisState {
 	 * @return True if the coordinates are valid; false otherwise.
 	 */
 	public boolean validateCoord(Coord coord) {
-		return (
-			coord.row() >= 0 &&
-			coord.row() < rows &&
-			coord.col() >= 0 &&
-			coord.col() < cols
-		);
+		return validateCoords(coord.row(), coord.col());
 	}
 
 	/**
@@ -360,8 +413,8 @@ public class TetrisState {
 	 *
 	 * @return True if the piece is overlapping with other blocks; otherwise false.
 	 */
-	protected boolean pieceOverlapsBlocks() {
-		return piece.intersects(this);
+	public boolean pieceOverlapsBlocks() {
+		return piece.isActive() && piece.intersects(this);
 	}
 
 	/**
@@ -369,7 +422,7 @@ public class TetrisState {
 	 */
 	public void placePiece() {
 		if (piece.isActive()) {
-			piece.forEachCell((row, col) -> board[row * cols + col] = piece.shape().value);
+			piece.forEachCell((coord) -> setCell(coord, piece.shape().value));
 			piece.disable();
 			numPiecesDropped++;
 		}
