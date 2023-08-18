@@ -27,6 +27,7 @@ public class TetrisGame implements ITetrisGame {
 	public static final List<Long> POINTS_BY_LINES_CLEARED = Collections.unmodifiableList(
 		Arrays.asList(0L, 40L, 100L, 300L, 1200L)
 	);
+	public static final long PIECE_PLACED_DELAY_MS = 250L;
 
 	/* ****************
 	 * STATE AND STATS
@@ -39,6 +40,7 @@ public class TetrisGame implements ITetrisGame {
 	 ******************/
 	protected EventBus eventBus;
 	protected Timer gravityTimer;
+	protected int ticksUntilNextGravity;
 
 	/**
 	 * Creates a new Tetris game with standard number of rows and columns.
@@ -73,6 +75,7 @@ public class TetrisGame implements ITetrisGame {
 	 */
 	public TetrisGame(TetrisState state) {
 		this.state = new TetrisState(state);
+		ticksUntilNextGravity = 0;
 	}
 
 	/**
@@ -236,6 +239,7 @@ public class TetrisGame implements ITetrisGame {
 			state.linesCleared += lines.size();
 			state.score += calcPointsForClearing(lines.size());
 			state.linesUntilNextLevel -= lines.size();
+			state.isClearingLines = true;
 
 			Event lineEvent = TetrisEvent.LINE_CLEAR.withData("lines", lines.toArray());
 			lineEvent.addProperty("linesCleared", state.linesCleared);
@@ -243,11 +247,6 @@ public class TetrisGame implements ITetrisGame {
 			throwEvent(lineEvent);
 			throwEvent(TetrisEvent.SCORE_UPDATE.withData("score", state.score));
 			throwEvent(TetrisEvent.BLOCKS.withBlockData(this));
-
-			//check if we need to update level
-			if (state.linesUntilNextLevel <= 0) { //level up!!
-				increaseLevel();
-			}
 		}
 
 		return lines != null;
@@ -269,16 +268,36 @@ public class TetrisGame implements ITetrisGame {
 			//*kerplunk*
 			//next loop should attempt to clear lines
 			plotPiece();
+
+			if (isGravityEnabled()) {
+				gravityTimer.setDelay(PIECE_PLACED_DELAY_MS, TimeUnit.MILLISECONDS);
+				ticksUntilNextGravity = 3;
+			}
 		} else if (!state.piece.isActive()) {	// The loop after piece kerplunks
-			if (!attemptClearLines()) {
+			if (attemptClearLines()) {
+				ticksUntilNextGravity += 2;
+				//check if we need to update level
+				if (state.linesUntilNextLevel <= 0) { //level up!!
+					increaseLevel();
+				}
+			} else {
 				nextPiece();
 				if (checkGameOver()) {
 					return;
 				}
 			}
 		} else {	//piece alive && not at bottom
-			shiftPiece(Move.DOWN);
-			throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));
+			if (isGravityEnabled()) {
+				if (ticksUntilNextGravity == 0) {
+					shiftPiece(Move.DOWN);
+					throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));
+				} else {
+					ticksUntilNextGravity = Math.max(0, ticksUntilNextGravity - 1);
+					if (ticksUntilNextGravity == 0) {
+						updateGravityTimerDelayMs();
+					}
+				}
+			}
 		}
 
 		throwEvent(TetrisEvent.GAMELOOP.withState(this));
@@ -459,6 +478,15 @@ public class TetrisGame implements ITetrisGame {
 		if (shiftPiece(move)) {
 			if (!state.canPieceMove(Move.DOWN) && numTimerPushbacks < 4) {
 				numTimerPushbacks++;
+			}
+
+			if (isGravityEnabled() && rowOffset > 0) {
+				if (ticksUntilNextGravity > 0) {
+					ticksUntilNextGravity = 0;
+					updateGravityTimerDelayMs();
+				}
+
+				gravityTimer.resetTickDelay();
 			}
 
 			throwEvent(TetrisEvent.PIECE_SHIFT.withPieceData(this));

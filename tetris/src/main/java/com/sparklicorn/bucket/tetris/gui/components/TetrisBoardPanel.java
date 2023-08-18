@@ -93,7 +93,7 @@ public class TetrisBoardPanel extends JPanel {
 	protected boolean drawStats;
 
 	public TetrisBoardPanel() {
-		this(new TetrisState(), DEFAULT_BLOCK_SIZE, false);
+		this((TetrisState)null, DEFAULT_BLOCK_SIZE, false);
 	}
 
 	public TetrisBoardPanel(TetrisGame game) {
@@ -105,11 +105,6 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	public TetrisBoardPanel(TetrisState state, int blockSize, boolean useSidePanel) {
-		if (state == null) {
-			throw new IllegalArgumentException("state cannot be null");
-		}
-
-		this.state = state;
 		this.drawStats = true;
 
 		tetrisPanel = new JPanel() {
@@ -125,8 +120,7 @@ public class TetrisBoardPanel extends JPanel {
 
 		message = "";
 
-		initCells();
-		setBlockSize(blockSize);
+		setState(state);
 		setBackground(Color.BLACK);
 		tetrisPanel.setBackground(Color.BLACK);
 
@@ -167,11 +161,30 @@ public class TetrisBoardPanel extends JPanel {
 			blockSize = DEFAULT_BLOCK_SIZE;
 		}
 
-		tetrisPanel.setPreferredSize(new Dimension(state.cols * blockSize, state.rows * blockSize));
+		tetrisPanel.setPreferredSize(new Dimension(
+			((state == null) ? DEFAULT_BLOCK_SIZE : state.cols) * blockSize,
+			((state == null) ? DEFAULT_BLOCK_SIZE : state.rows) * blockSize
+		));
 
 		if (sidePanel != null) {
 			sidePanel.setBlockSize(newBlockSize);
 		}
+	}
+
+	public TetrisState setState(TetrisState state) {
+		TetrisState oldState = this.state;
+		this.state = state;
+
+		initCells();
+		setBlockSize(blockSize);
+
+		if (state != null) {
+			mapStateToCells();
+			mapPieceStateToCells();
+			repaint();
+		}
+
+		return oldState;
 	}
 
 	public TetrisGame connectGame(TetrisGame newGame) {
@@ -225,14 +238,16 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	protected void initCells() {
-		cells = new Cell[state.rows * state.cols];
+		int rows = (state == null) ? TetrisState.DEFAULT_NUM_ROWS : state.rows;
+		int cols = (state == null) ? TetrisState.DEFAULT_NUM_COLS : state.cols;
+		cells = new Cell[rows * cols];
 		for (int i = 0; i < cells.length; i++) {
-			cells[i] = new Cell(i, i / state.cols, i % state.cols);
+			cells[i] = new Cell(i, i / cols, i % cols);
 		}
 	}
 
 	protected void drawCells(Graphics g) {
-		if (state.isPaused || !state.hasStarted) {
+		if (state == null || state.isPaused || !state.hasStarted) {
 			return;
 		}
 
@@ -243,6 +258,7 @@ public class TetrisBoardPanel extends JPanel {
 
 	protected void drawMessage(Graphics g) {
 		if (
+			state == null ||
 			message.isEmpty() ||
 			(!state.isPaused && state.isRunning())
 		) {
@@ -256,7 +272,7 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	protected void drawStats(Graphics g) {
-		if (!drawStats || state.isPaused || !state.hasStarted) {
+		if (state == null || !drawStats || state.isPaused || !state.hasStarted) {
 			return;
 		}
 
@@ -281,17 +297,21 @@ public class TetrisBoardPanel extends JPanel {
 	}
 
 	public void mapStateToCells() {
+		if (state == null) {
+			return;
+		}
+
 		for (Cell cell : cells) {
 			cell.shape = Shape.getShape(state.board[cell.index]);
 		}
 	}
 
 	public void mapPieceStateToCells() {
-		if (!state.piece.isActive()) {
+		if (state == null || !state.piece.isActive()) {
 			return;
 		}
 
-		state.piece.forEachCell((row, col) -> cells[row * state.cols + col].shape = state.piece.shape());
+		state.piece.forEachCell((coord) -> cells[coord.row() * state.cols + coord.col()].shape = state.piece.shape());
 	}
 
 	/*******************************
