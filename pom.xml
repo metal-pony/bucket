@@ -7,13 +7,13 @@
 
   <groupId>com.metal_pony.bucket</groupId>
   <artifactId>root</artifactId>
-  <version>1.0.5</version>
+  <version>1.0.6</version>
   <packaging>pom</packaging>
 
   <properties>
-    <revision>1.0.5</revision>
+    <revision>1.0.6</revision>
     <bucket.version>1.7.0</bucket.version>
-    <sudoku.version>1.1.1</sudoku.version>
+    <sudoku.version>1.1.2</sudoku.version>
     <tetris.version>1.1.0</tetris.version>
     <tetris-ai.version>3.1.0</tetris-ai.version>
 
