@@ -101,13 +101,11 @@ public class Main {
     for (int n = 0; n < numConfigs; n++) {
       // Board config = Generator.generateConfig();
       Sudoku seed = Sudoku.configSeed();
-      System.out.println(seed.toString());
       seed.searchForSolutions3((solution) -> {
         if (normalize) {
           // solution.normalize();
         }
 
-        System.out.printf(" > %s\n", solution.toString());
         return false;
       });
     }

@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 import com.metal_pony.bucket.util.Shuffler;
 
 public class Sudoku {
-    static final boolean isDebugging = true;
+    static final boolean isDebugging = false;
     static void debug(String formatMsg, Object... args) {
         if (isDebugging) {
             System.out.printf(formatMsg, args);
@@ -26,7 +26,7 @@ public class Sudoku {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main2(String[] args) {
         // Sudoku seed = Sudoku.configSeed();
         Sudoku seed = new Sudoku("1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......");
         debug(seed.toString());
