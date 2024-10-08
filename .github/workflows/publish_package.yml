@@ -28,8 +28,8 @@ jobs:
             mod_found=false;
 
             # Try to match against hard-coded list of current modules.
-            for valid_mod in "$VALID_MODULES"; do
-              if [ "$valid_mod" == "$MODULE" ]; then
+            for valid_mod in "$VALID_MODULES[@]"; do
+              if [ "$valid_mod" = "$MODULE" ]; then
                 mod_found=true;
                 echo "Deploying module: $MODULE";
                 ./mvnw -B deploy -pl "$MODULE";
