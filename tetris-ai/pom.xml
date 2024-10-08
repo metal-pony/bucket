@@ -3,23 +3,23 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <artifactId>root</artifactId>
-    <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.3</version>
+    <groupId>com.metal_pony.bucket</groupId>
+    <version>1.0.4</version>
   </parent>
 
   <name>Tetris AI</name>
-  <groupId>com.sparklicorn.bucket</groupId>
+  <groupId>com.metal_pony.bucket</groupId>
   <artifactId>tetris-ai</artifactId>
   <version>${tetris-ai.version}</version>
 
   <dependencies>
     <dependency>
       <artifactId>bucket</artifactId>
-      <groupId>com.sparklicorn.bucket</groupId>
+      <groupId>com.metal_pony.bucket</groupId>
       <version>${bucket.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.sparklicorn.bucket</groupId>
+      <groupId>com.metal_pony.bucket</groupId>
       <artifactId>tetris</artifactId>
       <version>${tetris.version}</version>
     </dependency>

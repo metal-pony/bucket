@@ -3,12 +3,12 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <artifactId>root</artifactId>
-    <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.3</version>
+    <groupId>com.metal_pony.bucket</groupId>
+    <version>1.0.4</version>
   </parent>
 
   <name>Tetris</name>
-  <groupId>com.sparklicorn.bucket</groupId>
+  <groupId>com.metal_pony.bucket</groupId>
   <artifactId>tetris</artifactId>
   <!-- This does not need to be up to date -->
   <version>1.0.0</version>
@@ -16,7 +16,7 @@
   <dependencies>
     <dependency>
       <artifactId>bucket</artifactId>
-      <groupId>com.sparklicorn.bucket</groupId>
+      <groupId>com.metal_pony.bucket</groupId>
       <version>${bucket.version}</version>
     </dependency>
   </dependencies>

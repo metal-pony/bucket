@@ -3,19 +3,19 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <artifactId>root</artifactId>
-    <groupId>com.sparklicorn.bucket</groupId>
-    <version>1.0.3</version>
+    <groupId>com.metal_pony.bucket</groupId>
+    <version>1.0.4</version>
   </parent>
 
   <name>Sudoku</name>
-  <groupId>com.sparklicorn.bucket</groupId>
+  <groupId>com.metal_pony.bucket</groupId>
   <artifactId>sudoku</artifactId>
   <version>1.0.0</version>
 
   <dependencies>
     <dependency>
       <artifactId>bucket</artifactId>
-      <groupId>com.sparklicorn.bucket</groupId>
+      <groupId>com.metal_pony.bucket</groupId>
       <version>${bucket.version}</version>
     </dependency>
   </dependencies>

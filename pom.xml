@@ -5,17 +5,17 @@
 
   <name>Bucket Root</name>
 
-  <groupId>com.sparklicorn.bucket</groupId>
+  <groupId>com.metal_pony.bucket</groupId>
   <artifactId>root</artifactId>
-  <version>1.0.3</version>
+  <version>1.0.4</version>
   <packaging>pom</packaging>
 
   <properties>
-    <revision>1.0.3</revision>
-    <bucket.version>1.6.0</bucket.version>
-    <sudoku.version>1.0.2</sudoku.version>
-    <tetris.version>1.0.4</tetris.version>
-    <tetris-ai.version>3.0.1</tetris-ai.version>
+    <revision>1.0.4</revision>
+    <bucket.version>1.7.0</bucket.version>
+    <sudoku.version>1.1.0</sudoku.version>
+    <tetris.version>1.1.0</tetris.version>
+    <tetris-ai.version>3.1.0</tetris-ai.version>
 
     <!-- Environment -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -78,17 +78,17 @@
   <distributionManagement>
     <repository>
       <id>github</id>
-      <name>GH sparklicorn</name>
-      <url>https://maven.pkg.github.com/sparklicorn/bucket</url>
+      <name>GH metal-pony</name>
+      <url>https://maven.pkg.github.com/metal-pony/bucket</url>
     </repository>
   </distributionManagement>
 
   <developers>
     <developer>
-      <id>sparklicorn</id>
+      <id>metal-pony</id>
       <name>Jeff</name>
       <email>jeffymoose@gmail.com</email>
-      <url>https://sparklicorn.com/</url>
+      <url>https://metal-pony.com/</url>
       <timezone>America/Chicago</timezone>
     </developer>
   </developers>
