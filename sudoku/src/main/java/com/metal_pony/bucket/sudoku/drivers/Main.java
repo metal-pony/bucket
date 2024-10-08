@@ -106,6 +106,8 @@ public class Main {
           // solution.normalize();
         }
 
+        System.out.println(solution.toString());
+
         return false;
       });
     }
