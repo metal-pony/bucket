@@ -92,7 +92,7 @@ public class Main {
     "benchmark", Main::benchmark,
     "generateBands", Main::generateInitialBands,
     "adhoc", Main::doThing,
-    "search17", Main::search17
+    "search", Main::search
   ));
 
   private static void play(ArgsMap args) {
@@ -688,7 +688,7 @@ public class Main {
     });
   }
 
-  public static void search17(ArgsMap args) {
+  public static void search(ArgsMap args) {
     String gridStr = args.get("grid");
     Sudoku2 grid = new Sudoku2(gridStr);
 
@@ -697,7 +697,7 @@ public class Main {
     System.out.println("\n ➡️ Press ENTER to continue...\n");
     try (Scanner scanner = new Scanner(System.in)) {
       scanner.nextLine();
-      Sudoku2.genPuzz2(grid, 17);
+      Sudoku2.sieveSearch(grid);
     } catch (Exception ex) {
       ex.printStackTrace(System.out);
     }

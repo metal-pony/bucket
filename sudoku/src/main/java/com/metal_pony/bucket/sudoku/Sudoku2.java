@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.random.RandomGenerator;
 
 import com.metal_pony.bucket.sudoku.game.SudokuUtility;
 import com.metal_pony.bucket.util.Counting;
@@ -1194,9 +1195,11 @@ public class Sudoku2 {
             }
             return true;
         }
+
         boolean isValidSudoku() {
             return config.filter(puzzleMask).solutionsFlag() == 1;
         }
+
         @Override
         public String toString() {
             return config.filter(puzzleMask).toString();
@@ -1282,37 +1285,32 @@ public class Sudoku2 {
     }
 
     // priority DFS - where priority value is some aggregate of satisfied/unsatisfied constraints
-    public static Sudoku2 genPuzz2(Sudoku2 grid, int numClues) {
-        debug("> genPuzz2(numClues = %d)\n", numClues);
-        debug("> genPuzz2: Generating config...%s ", "");
+    public static Sudoku2 sieveSearch(Sudoku2 grid) {
+        debug("> genPuzz2(grid=%s)\n", grid.toString());
+        // debug("> genPuzz2: Generating config...%s ", "");
 
-        // static vars for debug
         // config = configSeed().firstSolution();
         config = grid;
         configDigits = config.getBoard();
-
         debug(config.toString());
-        int level = (numClues > 24) ? 2 : 3;
+
+        int level = 3; // (numClues > 24) ? 2 : 3;
         debug("> genPuzz2: Generating sieve (level %d)... ", level);
-
-        // static var for debug
         sieve = new SudokuSieve(config.getBoard());
-
         for (int r = DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
             BigInteger pMask = config.maskForDigits(DIGIT_COMBOS_MAP[level][r]);
             sieve.addFromFilter(pMask);
         }
         // The main sieve will be manipulated by the DFS, so cache the items - they'll be needed later.
         sieve.items(sieveItems = new BigInteger[sieve.size()]);
+
         debug("Done. Populated sieve with %d items.\n", sieve.size());
         debug("> genPuzz2: Searching...");
-
-        // static var for debug
         mask = new PuzzleMask();
 
-        // Seen sets, indexed by number of clues (bits)
+        // Seen sets, indexed by #clues
         List<HashSet<BigInteger>> seen = new ArrayList<>();
-        for (int i = 0; i <= numClues; i++) {
+        for (int i = 0; i <= SPACES; i++) {
             seen.add(new HashSet<>());
         }
 
@@ -1321,21 +1319,31 @@ public class Sudoku2 {
         stack.push(rootNode);
 
         while (!stack.isEmpty()) {
-            int choiceCount = stack.size();
-            Node top = stack.peek();
+            // int choiceCount = stack.size();
+            // Node top = stack.peek();
 
             // System.out.println("            " + " ".repeat(mask.numClues()) + mask.toString());
 
             // If puzzleMask bits == target, run the checks and callback if puzzle found, then pop (or swap with alt) and continue
             // { checks: (1) digitsMask bits >= 8, (2) puzzleMask satisfies sieve, (3) puzzle is valid }
-            if (choiceCount == numClues || sieve.isEmpty()) {
-                boolean _seen = false, _satisfies = false, _valid = false;
+            if (
+                // choiceCount == numClues ||
+                sieve.isEmpty()
+            ) {
+                // boolean _seen = false, _satisfies = false, _valid = false;
                 if (
-                    !(_seen = seen.get(mask.numClues()).contains(mask.puzzleMask)) &&
-                    (_satisfies = mask.satisfiesSieve()) &&
-                    (_valid = mask.isValidSudoku())
+                    !seen.get(mask.numClues()).contains(mask.puzzleMask) &&
+                    mask.digitsUsed() >= 8
+                    // (_satisfies = mask.satisfiesSieve()) &&
+                    // (_valid = mask.isValidSudoku())
                 ) {
-                    System.out.printf("@@@ > genPuzz2: ⭐️ [%24s] %s\n", mask.puzzleMask.toString(), mask.toString());
+                    // System.out.printf("@@@ > genPuzz2: ⭐️ [%24s] %s\n", mask.puzzleMask.toString(), mask.toString());
+                    System.out.printf(
+                        "[%2d] %s %s\n",
+                        stack.size(),
+                        (stack.size() >= MIN_CLUES && mask.isValidSudoku()) ? "⭐️" : "  ",
+                        mask.toString()
+                    );
                 } else {
                     // System.out.printf(
                     //     "> genPuzz2: ❌ [%20s] _seen=%b; _satisfies=%b; _valid=%b; %s\n",
@@ -1358,14 +1366,14 @@ public class Sudoku2 {
             // Bits less than target
             // Can short-circuit early and pop if there's not enough choices left to satisfy digits constraint
             // (DIGITS - #digits used - 1) > (numClues - puzzleMask bits)
-            if ((DIGITS - mask.digitsUsed() - 1) > (numClues - choiceCount)) {
-                int lastCellChoice = top.cellIndex;
-                int lastDigitChoice = top.digit;
-                System.out.println("> genPuzz2: Not enough choices left to satisfy digits constraint");
-                top.sub();
-                stack.pop();
-                continue;
-            }
+            // if ((DIGITS - mask.digitsUsed() - 1) > (numClues - choiceCount)) {
+            //     int lastCellChoice = top.cellIndex;
+            //     int lastDigitChoice = top.digit;
+            //     System.out.println("> genPuzz2: Not enough choices left to satisfy digits constraint");
+            //     top.sub();
+            //     stack.pop();
+            //     continue;
+            // }
 
             // also if there's not enough choices left to satisfy disjoint UAs left in the sieve, but this may take compute time.
             // i.e., need to check how many non-overlapping sieve items are remaining
@@ -1382,18 +1390,16 @@ public class Sudoku2 {
         return null;
     }
 
-    public static Sudoku2 generatePuzzle(int numClues) {
+    public static Sudoku2 generatePuzzle(Sudoku2 grid, int numClues) {
         if (numClues < MIN_CLUES) {
             throw new IllegalArgumentException("cannot generate puzzle with less than " + MIN_CLUES + " clues");
-        } else if (numClues > SPACES) {
-            throw new IllegalArgumentException("cannot generate puzzle with more than " + SPACES + " clues");
-        } else if (numClues == SPACES) {
-            return configSeed().firstSolution();
+        } else if (numClues >= SPACES) {
+            throw new IllegalArgumentException("cannot generate puzzle with " + SPACES + " or greater clues");
         }
 
-        debug("> generatePuzzle(numClues = %d)", numClues);
+        debug("> generatePuzzle(grid = %s, numClues = %d)", grid.toString(), numClues);
         debug("> generatePuzzle: Generating config...");
-        Sudoku2 config = configSeed().firstSolution();
+        Sudoku2 config = grid; //configSeed().firstSolution();
         debug("> generatePuzzle: Done. config: %s", config.toString());
         int level = (numClues >= 24) ? 2 : 3;
         debug("> generatePuzzle: Generating sieve (level %d)...", level);
@@ -1402,14 +1408,40 @@ public class Sudoku2 {
             BigInteger pMask = config.maskForDigits(DIGIT_COMBOS_MAP[level][r]);
             sieve.addFromFilter(pMask);
         }
+        BigInteger[] sieveItems = sieve.items(new BigInteger[sieve.size()]);
         debug("> generatePuzzle: Done. Populated sieve with %d items.", sieve.size());
         debug("> generatePuzzle: Initiating puzzle search...");
 
-        HashSet<BigInteger> seen = new HashSet<>();
-        BigInteger mask = Counting.nChooseK(SPACES, numClues);
 
 
+        class Node2 {
+            int[] choices;
+            int index;
+            Node2(Node2 prev) {
+                if (prev == null) {
+                    this.choices = new int[SPACES];
+                    for (int i = 0; i < SPACES; i++) {
+                        this.choices[i] = i;
+                    }
+                } else {
+                    this.choices = new int[prev.choices.length - 1];
+                    System.arraycopy(prev.choices, 0, sieveItems, numClues, level);
+                }
+                Shuffler.shuffle(this.choices);
+                this.index = SPACES - 1;
+            }
+        }
+        BigInteger mask = BigInteger.ONE.shiftLeft(SPACES).subtract(BigInteger.ONE);
 
+        Stack<Node2> stack = new Stack<>();
+        // stack.push(new Node2())
+        // Start by choosing a cell at random.
+        int initialCell = RandomGenerator.getDefault().nextInt(SPACES);
+
+
+        while (!stack.isEmpty()) {
+
+        }
 
         return null;
     }
