@@ -1337,6 +1337,8 @@ public class Sudoku2 {
                     // (_satisfies = mask.satisfiesSieve()) &&
                     // (_valid = mask.isValidSudoku())
                 ) {
+                    // TODO Search DFS search to remove cells while sieve is satisfied
+
                     // System.out.printf("@@@ > genPuzz2: ⭐️ [%24s] %s\n", mask.puzzleMask.toString(), mask.toString());
                     System.out.printf(
                         "[%2d] %s %s\n",
