@@ -20,7 +20,7 @@ import static com.metal_pony.bucket.sudoku.game.Board.*;
 import org.junit.jupiter.api.Test;
 
 public class TestBoard {
-	private static final List<String> VALID_CONFIGS = Collections.unmodifiableList(
+	public static final List<String> VALID_CONFIGS = Collections.unmodifiableList(
 		Arrays.asList(
 			"793458261218963754456271893634712589185649327927385146541836972872194635369527418",
 			"523419687916837245478562391234678159681945732795321864352796418169284573847153926",
@@ -53,7 +53,7 @@ public class TestBoard {
 	/**
 	 * Invalid sudoku configurations for which each row, column, and region are invalid.
 	 */
-	private static final List<String> INVALID_CONFIGS = Collections.unmodifiableList(
+	public static final List<String> INVALID_CONFIGS = Collections.unmodifiableList(
 		Arrays.asList(
 			"1".repeat(CELLS),
 			"2".repeat(CELLS),
@@ -102,7 +102,7 @@ public class TestBoard {
 	/**
 	 * Invalid sudoku boards for which each row, column, and region are invalid.
 	 */
-	private static final List<String> INVALID_INCOMPLETE_BOARD_STRS = Collections.unmodifiableList(
+	public static final List<String> INVALID_INCOMPLETE_BOARD_STRS = Collections.unmodifiableList(
 		Arrays.asList(
 			".7.2.2.161.73.91.....11.8.....34...42.2.3.84.2.2.....6.7.9.9.1.9.....3.3.9..3...9",
 			"..9.3.83.7.9...7.8...33.......7..33..3.3....73..475.4..3.4.5.3....43.3.73.....66.",
@@ -150,10 +150,10 @@ public class TestBoard {
 		)
 	);
 
-	private static final List<Integer>
+	public static final List<Integer>
 		INVALID_BOARD_SIZES, INVALID_CELL_INDICES, INVALID_DIGITS,
 		AREA_INDICES, INVALID_AREA_INDICES;//, DIGITS;
-	private static final List<int[]>
+	public static final List<int[]>
 		VALID_BOARDS, VALID_COMPLETE_BOARDS, VALID_INCOMPLETE_BOARDS,
 		VALID_AREA_VALUES, VALID_COMPLETE_AREA_VALUES, VALID_INCOMPLETE_AREA_VALUES,
 		INVALID_BOARDS, INVALID_COMPLETE_BOARDS, INVALID_INCOMPLETE_BOARDS,

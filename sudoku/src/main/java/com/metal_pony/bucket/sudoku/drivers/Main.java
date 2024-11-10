@@ -12,22 +12,28 @@ import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.metal_pony.bucket.sudoku.game.Board;
-// import com.metal_pony.bucket.sudoku.game.SudokuUtility;
 import com.metal_pony.bucket.sudoku.game.generators.*;
 import com.metal_pony.bucket.sudoku.game.solvers.Solver;
 import com.metal_pony.bucket.sudoku.puzzles.GeneratedPuzzles;
 import com.metal_pony.bucket.sudoku.Sudoku;
+import com.metal_pony.bucket.sudoku.Sudoku2;
 import com.metal_pony.bucket.sudoku.drivers.gui.SudokuGuiDemo;
 
 /**
@@ -83,7 +89,10 @@ public class Main {
     "generatePuzzles", Main::generatePuzzles,
     "solve", Main::solve,
     "generate", Main::generate,
-    "benchmark", Main::benchmark
+    "benchmark", Main::benchmark,
+    "generateBands", Main::generateInitialBands,
+    "adhoc", Main::doThing,
+    "search17", Main::search17
   ));
 
   private static void play(ArgsMap args) {
@@ -103,7 +112,7 @@ public class Main {
       Sudoku seed = Sudoku.configSeed();
       seed.searchForSolutions3((solution) -> {
         if (normalize) {
-          // solution.normalize();
+          solution.normalize();
         }
 
         System.out.println(solution.toString());
@@ -441,5 +450,256 @@ public class Main {
     runnable.run();
     long end = bean.getCurrentThreadCpuTime();
     return end - start;
+  }
+
+  static class Node2 {
+    Sudoku2 sudoku;
+    int index = -1;
+    int values = -1;
+    public Node2(Sudoku2 sudoku) {
+      this.sudoku = sudoku;
+      if (sudoku.reduce()) {
+        // debug("reduced > %s\n", sudoku.toString());
+      }
+      index = sudoku.pickEmptyCell(0, 27);
+      if (index != -1) {
+        values = sudoku.candidates[index];
+      }
+    }
+    public Node2 next() {
+      if (values <= 0) {
+          return null;
+      }
+      Sudoku2 s = new Sudoku2(sudoku);
+      int d = Sudoku2.CANDIDATES_ARR[values][0];
+      s.setDigit(index, d);
+      values &= ~(Sudoku2.ENCODER[d]);
+      return new Node2(s);
+    }
+  }
+
+  public static void generateInitialBands(ArgsMap args) {
+    HashSet<String> fullBandSet = new HashSet<>();
+    final int N = Sudoku.DIGITS * 3;
+    long time = timeCpuExecution(() -> {
+      Sudoku2 root = new Sudoku2("123456789--------");
+      root.resetEmptyCells();
+      Stack<Node2> q = new Stack<>();
+      q.push(new Node2(root));
+
+      while (!q.isEmpty()) {
+        Node2 top = q.peek();
+        Node2 next = top.next();
+        if (next == null) {
+          boolean hasEmptyInBand = top.sudoku.pickEmptyCell(0, N) >= 0;
+          if (!hasEmptyInBand) {
+            String bandStr = top.sudoku.toString().substring(0, N);
+            if (fullBandSet.add(bandStr)) {
+              System.out.println(bandStr);
+            }
+          }
+          q.pop();
+        } else {
+          q.push(next);
+        }
+      }
+    });
+
+    System.out.printf(
+      " -- found %d initial bands in %s ms --\n",
+      fullBandSet.size(),
+      TimeUnit.NANOSECONDS.toMillis(time)
+    );
+  }
+
+  public static Set<String> reduceFullBandSet(Set<String> fullBandSet) {
+    // TODO Reduce fullBandSet by discovering and removing transforms
+    // For each BAND:
+    //  new queue, new hashset<string> to track seen elements, add BAND
+    //  while queue not empty:
+    //    b = poll
+    //    // always normalize after transform, before adding to queue
+    //    add unseen block permutations to queue,
+    //    add unseen row permutations to queue,
+    //    add unseen column permutations to queue,
+    //    band -> config -> search for UAs(level 2? 3?) -> when found, if (bandMask & ua) == ua -> if unseen, add to queue
+
+    List<String> allBands = new ArrayList<>(fullBandSet);
+    HashSet<String> reducedBands = new HashSet<>();
+    final int N = Sudoku.DIGITS * 3;
+
+    while (!allBands.isEmpty()) {
+      String band = allBands.remove(allBands.size() - 1);
+      // String bandPuzzleStr = band + "0".repeat(Sudoku.SPACES - band.length());
+      // Sudoku2 bandPuzzle = new Sudoku2(bandPuzzleStr);
+      HashSet<String> seen = new HashSet<>();
+      Queue<String> q = new LinkedList<>();
+      seen.add(band);
+      q.offer(band);
+      reducedBands.add(band);
+      int rootCount = countSolutions(new Sudoku2(band + "0".repeat(Sudoku.SPACES - band.length())));
+      System.out.printf("Transforming band %s, all transforms should have %d solutions:\n", band, rootCount);
+
+      while (!q.isEmpty()) {
+        String bStr = q.poll() + "0".repeat(Sudoku.SPACES - band.length());
+
+        // Transforms
+        Sudoku2[] transforms = new Sudoku2[] {
+          new Sudoku2(bStr).swapStacks(1, 2),
+          new Sudoku2(bStr).swapStacks(0, 1),
+          new Sudoku2(bStr).swapStacks(0, 1).swapStacks(1, 2),
+          new Sudoku2(bStr).swapStacks(0, 2).swapStacks(1, 2),
+          new Sudoku2(bStr).swapStacks(0, 2),
+
+          new Sudoku2(bStr).swapBandRows(0, 1, 2),
+          new Sudoku2(bStr).swapBandRows(0, 0, 1),
+          new Sudoku2(bStr).swapBandRows(0, 0, 1).swapBandRows(0, 1, 2),
+          new Sudoku2(bStr).swapBandRows(0, 0, 2).swapBandRows(0, 1, 2),
+          new Sudoku2(bStr).swapBandRows(0, 0, 2),
+
+          new Sudoku2(bStr).swapStackCols(0, 1, 2),
+          new Sudoku2(bStr).swapStackCols(0, 0, 1),
+          new Sudoku2(bStr).swapStackCols(0, 0, 1).swapStackCols(0, 1, 2),
+          new Sudoku2(bStr).swapStackCols(0, 0, 2).swapStackCols(0, 1, 2),
+          new Sudoku2(bStr).swapStackCols(0, 0, 2),
+
+          new Sudoku2(bStr).swapStackCols(1, 1, 2),
+          new Sudoku2(bStr).swapStackCols(1, 0, 1),
+          new Sudoku2(bStr).swapStackCols(1, 0, 1).swapStackCols(1, 1, 2),
+          new Sudoku2(bStr).swapStackCols(1, 0, 2).swapStackCols(1, 1, 2),
+          new Sudoku2(bStr).swapStackCols(1, 0, 2),
+
+          new Sudoku2(bStr).swapStackCols(2, 1, 2),
+          new Sudoku2(bStr).swapStackCols(2, 0, 1),
+          new Sudoku2(bStr).swapStackCols(2, 0, 1).swapStackCols(2, 1, 2),
+          new Sudoku2(bStr).swapStackCols(2, 0, 2).swapStackCols(2, 1, 2),
+          new Sudoku2(bStr).swapStackCols(2, 0, 2)
+        };
+
+        for (Sudoku2 t : transforms) {
+          String tStr = t.normalize().toString().substring(0, N);
+          if (!seen.contains(tStr)) {
+            seen.add(tStr);
+            q.offer(tStr);
+            int count = countSolutions(new Sudoku2(tStr));
+            System.out.printf("%s [%d] %s\n", (rootCount == count) ? "  " : "🚨", count, tStr);
+          }
+        }
+
+        // AtomicReference<Sudoku2> atomicConfig = new AtomicReference<>();
+        // bandPuzzle.searchForSolutions3(solution -> {
+        //   atomicConfig.set(solution);
+        //   return false;
+        // });
+        // Sudoku2 c = atomicConfig.get();
+        // SudokuSieve sieve = new SudokuSieve(c.getBoard());
+        // BigInteger bandMask = new BigInteger("1".repeat(N) + "0".repeat(Sudoku.SPACES - N), 2);
+        // for (int r = Sudoku.DIGIT_COMBOS_MAP[2].length - 1; r >= 0; r--) {
+        //   BigInteger pMask = c.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[2][r]);
+        //   sieve.addFromFilter(pMask, (solution) -> {
+        //     // TODO item may need to be inverted
+        //     BigInteger item = c.diff2(solution);
+        //     if (item.equals(item.and(bandMask))) {
+        //       String tStr = solution.normalize().toString().substring(0, N);
+        //       if (!seen.contains(tStr)) {
+        //         seen.add(tStr);
+        //         q.offer(tStr);
+        //       }
+        //     }
+        //   });
+        // }
+      }
+
+      int sizeBefore = allBands.size();
+      allBands.removeAll(seen);
+      int sizeAfter = allBands.size();
+      System.out.printf("Removed %d permuted bands, (%d remaining).\n", sizeBefore - sizeAfter, allBands.size());
+    }
+
+    // Expecting 12096 - |UA|
+
+    System.out.printf(
+      "Done.\nRemoved %d permuted bands in total.\nReduced band set size: %d.\n",
+      fullBandSet.size() - reducedBands.size(),
+      reducedBands.size()
+    );
+    return reducedBands;
+  }
+
+  public static List<String> getBandPermutations(String band) {
+    String bStr = band + "0".repeat(54);
+
+    // Transforms
+    Sudoku2[] transforms = new Sudoku2[] {
+      new Sudoku2(bStr).swapStacks(1, 2),
+      new Sudoku2(bStr).swapStacks(0, 1),
+      new Sudoku2(bStr).swapStacks(0, 1).swapStacks(1, 2),
+      new Sudoku2(bStr).swapStacks(0, 2).swapStacks(1, 2),
+      new Sudoku2(bStr).swapStacks(0, 2),
+
+      new Sudoku2(bStr).swapBandRows(0, 1, 2),
+      new Sudoku2(bStr).swapBandRows(0, 0, 1),
+      new Sudoku2(bStr).swapBandRows(0, 0, 1).swapBandRows(0, 1, 2),
+      new Sudoku2(bStr).swapBandRows(0, 0, 2).swapBandRows(0, 1, 2),
+      new Sudoku2(bStr).swapBandRows(0, 0, 2),
+
+      new Sudoku2(bStr).swapStackCols(0, 1, 2),
+      new Sudoku2(bStr).swapStackCols(0, 0, 1),
+      new Sudoku2(bStr).swapStackCols(0, 0, 1).swapStackCols(0, 1, 2),
+      new Sudoku2(bStr).swapStackCols(0, 0, 2).swapStackCols(0, 1, 2),
+      new Sudoku2(bStr).swapStackCols(0, 0, 2),
+
+      new Sudoku2(bStr).swapStackCols(1, 1, 2),
+      new Sudoku2(bStr).swapStackCols(1, 0, 1),
+      new Sudoku2(bStr).swapStackCols(1, 0, 1).swapStackCols(1, 1, 2),
+      new Sudoku2(bStr).swapStackCols(1, 0, 2).swapStackCols(1, 1, 2),
+      new Sudoku2(bStr).swapStackCols(1, 0, 2),
+
+      new Sudoku2(bStr).swapStackCols(2, 1, 2),
+      new Sudoku2(bStr).swapStackCols(2, 0, 1),
+      new Sudoku2(bStr).swapStackCols(2, 0, 1).swapStackCols(2, 1, 2),
+      new Sudoku2(bStr).swapStackCols(2, 0, 2).swapStackCols(2, 1, 2),
+      new Sudoku2(bStr).swapStackCols(2, 0, 2)
+    };
+
+    ArrayList<String> result = new ArrayList<>();
+    for (Sudoku2 t : transforms) {
+      String tStr = t.normalize().toString().substring(0, 27);
+      result.add(tStr);
+    }
+    return result;
+  }
+
+  public static int countSolutions(Sudoku2 p) {
+    AtomicInteger count = new AtomicInteger();
+    p.searchForSolutions3(s -> {
+      count.incrementAndGet();
+      return true;
+    });
+
+    return count.get();
+  }
+
+  public static void doThing(ArgsMap args) {
+    Sudoku2 p = new Sudoku2("123456789478932615659817243......................................................");
+    p.searchForSolutions3(s->{
+        System.out.println(s.toString());
+        return true;
+    });
+  }
+
+  public static void search17(ArgsMap args) {
+    String gridStr = args.get("grid");
+    Sudoku2 grid = new Sudoku2(gridStr);
+
+    System.out.println("Confirm grid to search for 17-clue puzzles for:");
+    System.out.println(grid.toFullString());
+    System.out.println("\n ➡️ Press ENTER to continue...\n");
+    try (Scanner scanner = new Scanner(System.in)) {
+      scanner.nextLine();
+      Sudoku2.genPuzz2(grid, 17);
+    } catch (Exception ex) {
+      ex.printStackTrace(System.out);
+    }
   }
 }

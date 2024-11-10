@@ -5,27 +5,32 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.metal_pony.bucket.sudoku.Sudoku;
 import com.metal_pony.bucket.sudoku.Sudoku2;
 import com.metal_pony.bucket.sudoku.SudokuSieve;
+import com.metal_pony.bucket.util.Counting;
+import com.metal_pony.bucket.util.Shuffler;
 
-public class TestSudoku {
+public class TestSudoku2 {
     private final String configFixtureStr = "218574639573896124469123578721459386354681792986237415147962853695318247832745961";
-    private Sudoku configFixture;
+    private Sudoku2 configFixture;
     private SudokuSieve configFixtureSieve;
 
     private final String puzzleFixtureStr = "1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......";
-    private Sudoku puzzleFixture;
+    private Sudoku2 puzzleFixture;
     private String[] puzzleSolutions;
 
     @BeforeEach
     void before() {
-        configFixture = new Sudoku(configFixtureStr);
+        configFixture = new Sudoku2(configFixtureStr);
         configFixtureSieve = new SudokuSieve(configFixture.getBoard());
-        puzzleFixture = new Sudoku(puzzleFixtureStr);
+        puzzleFixture = new Sudoku2(puzzleFixtureStr);
         puzzleSolutions = copyPuzzleFixtureSolutions();
         Arrays.sort(puzzleSolutions);
     }
@@ -33,6 +38,12 @@ public class TestSudoku {
     @Test
     void testThing() {
         populateSieveForAllDigitCombos(2);
+
+        BigInteger[] items = new BigInteger[configFixtureSieve.size()];
+        configFixtureSieve.items(items);
+        for (BigInteger item : items) {
+            System.out.println(configFixture.filter(item));
+        }
 
         BigInteger[] expectedItems = new BigInteger[] {
             new BigInteger("306954992322430055219200"),
@@ -96,55 +107,98 @@ public class TestSudoku {
         BigInteger[] actualItems = configFixtureSieve.items(new BigInteger[configFixtureSieve.size()]);
         Arrays.sort(actualItems);
         Arrays.sort(expectedItems);
-
-        // print discrepencies between actual and expected:
-        // Print expected, not found
-        for (BigInteger e : expectedItems) {
-            boolean found = false;
-            for (BigInteger a : actualItems) {
-                if (a.equals(e)) {
-                    found = true;
-                }
-            }
-            if (!found) {
-                System.out.printf("Expected, not found: %s\n", e.toString());
-            }
-        }
-
-        // Print found, not expected
-        for (BigInteger a : actualItems) {
-            boolean found = false;
-            for (BigInteger e : expectedItems) {
-                if (e.equals(a)) {
-                    found = true;
-                }
-            }
-            if (!found) {
-                // System.out.printf("Unexpected: %s\n", a.toString());
-
-                BigInteger inverted = a.xor(BigInteger.ONE.shiftLeft(Sudoku.SPACES).subtract(BigInteger.ONE));
-                // configFixture.filter(inverted).toFullString();
-
-                Sudoku p = configFixture.filter(inverted);
-                Sudoku2 p2 = new Sudoku2(configFixtureStr).filter(inverted);
-
-                System.out.printf("\nUnexpected: %s\n", a.toString());
-                System.out.println(configFixture.filter(a).toString());
-                System.out.println(new Sudoku2(configFixtureStr).filter(a).toString());
-                System.out.println(new Sudoku2(configFixtureStr).filter(a).toFullString());
-                System.out.printf("p.reduced: %b\n", p.reduce());
-                System.out.printf("p2.reduced: %b\n", p2.reduce());
-                System.out.printf("p.solutionsFlag: %d\n", p.solutionsFlag());
-                System.out.printf("p2.solutionsFlag: %d\n", p2.solutionsFlag());
-                System.out.printf("p.derivativeCheck: %b\n", p.antiDerivatives().stream().allMatch(ad -> (ad.solutionsFlag() == 1)));
-                System.out.printf("p2.derivativeCheck: %b\n", p2.antiDerivatives().stream().allMatch(ad -> (ad.solutionsFlag() == 1)));
-            }
-        }
-
         assertArrayEquals(expectedItems, actualItems);
     }
 
+    @Test
+    void testFingerprint2() {
+        assertEquals("9:9:7:4:2:3::16", configFixture.fingerprint(2));
+    }
+
+    @Test
+    void test_searchForSolutions3_withKnownValidPuzzle_findsSolution() {
+        Sudoku2 p = new Sudoku2("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+        ArrayList<String> solutionSet = new ArrayList<>();
+        p.searchForSolutions3(s -> {
+            System.out.println(s.toString());
+            solutionSet.add(s.toString());
+            return true;
+        });
+        assertEquals(1, solutionSet.size());
+    }
+
+    @Test
+    void searchForSolutions3() {
+        HashSet<String> solutionSet = new HashSet<>();
+        puzzleFixture.searchForSolutions3(s -> {
+            solutionSet.add(s.normalize().toString());
+            return true;
+        });
+        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
+        Arrays.sort(foundSolutions);
+        Arrays.sort(puzzleSolutions);
+        assertArrayEquals(puzzleSolutions, foundSolutions);
+    }
+
+    @Test
+    void searchForSolutionsBranched_withSingleBranch() {
+        HashSet<String> solutionSet = new HashSet<>();
+        int branches = 1;
+        puzzleFixture.searchForSolutionsBranched(s -> {
+            solutionSet.add(s.normalize().toString());
+            return true;
+        }, branches);
+        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
+        Arrays.sort(foundSolutions);
+        Arrays.sort(puzzleSolutions);
+        assertArrayEquals(puzzleSolutions, foundSolutions);
+    }
+
+    @Test
+    void searchForSolutionsBranched() {
+        HashSet<String> solutionSet = new HashSet<>();
+        int branches = 9;
+        puzzleFixture.searchForSolutionsBranched(s -> {
+            solutionSet.add(s.normalize().toString());
+            return true;
+        }, branches);
+        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
+        Arrays.sort(foundSolutions);
+        Arrays.sort(puzzleSolutions);
+        assertArrayEquals(puzzleSolutions, foundSolutions);
+    }
+
+    @Test
+    void shuffleDigits_maintainsFingerprint() {
+        String fp2 = configFixture.fingerprint(2);
+        int N = 4;
+        for (int n = 0; n < N; n++) {
+            configFixture.shuffleDigits();
+            assertEquals(fp2, configFixture.fingerprint(2));
+        }
+    }
+
+    @Test
+    void shuffleDigits_ofPuzzle_hasSameNumberSolutions() {
+        final int expected = puzzleSolutions.length;
+        int N = 10;
+        for (int n = 0; n < N; n++) {
+            puzzleFixture.shuffleDigits();
+            AtomicInteger count = new AtomicInteger();
+            puzzleFixture.searchForSolutions3(s -> {
+                count.incrementAndGet();
+                return true;
+            });
+            assertEquals(expected, count.get());
+        }
+    }
+
     // @Test
+    void testFingerprint3() {
+        assertEquals("9::f::f:1:11:5:e:3:d:5:8:4:26", configFixture.fingerprint(3));
+    }
+
+    @Test
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 
@@ -298,20 +352,80 @@ public class TestSudoku {
             new BigInteger("614535843288562555682945"),
         };
 
-        BigInteger[] actualItems = configFixtureSieve.items(new BigInteger[configFixtureSieve.size()]);
-        Arrays.sort(actualItems);
+        List<BigInteger> actualItems = configFixtureSieve.items(new ArrayList<>());
+        assertEquals(actualItems.size(), expectedItems.length);
+        actualItems.sort((a, b) -> {
+            return a.compareTo(b);
+        });
+        BigInteger[] _actualItems = new BigInteger[actualItems.size()];
+        actualItems.toArray(_actualItems);
         Arrays.sort(expectedItems);
-        assertArrayEquals(expectedItems, actualItems);
+
+        assertArrayEquals(expectedItems, _actualItems);
     }
 
     @Test
-    void testFingerprint2() {
-        assertEquals("9:9:7:4:2:3::16", configFixture.fingerprint(2));
+    void testSwapBands() {
+        Counting.forEachCombo(3, 2, (combo) -> {
+            String[] chopped = configFixtureStr.split("(?<=\\G.{9})");
+            int b1 = combo[0];
+            int b2 = combo[1];
+
+            // To get the expected string, perform 3 swaps within chopped and join("")
+            for (int i = 0; i < 3; i++) {
+                Shuffler.swap(chopped, (b1*3)+i, (b2*3)+i);
+            }
+
+            Sudoku2 test = new Sudoku2(configFixture);
+            test.swapBands(b1, b2);
+
+            assertEquals(String.join("", chopped), test.toString());
+        });
     }
 
-    // @Test
-    void testFingerprint3() {
-        assertEquals("9::f::f:1:11:5:e:3:d:5:8:4:26", configFixture.fingerprint(3));
+    @Test
+    void testSwapStacks() {
+
+    }
+
+    @Test
+    void testBigToCells() {
+        record TestCase(BigInteger big, int[] expected) {};
+        TestCase[] cases = new TestCase[] {
+            new TestCase(
+                new BigInteger("1111" + "0".repeat(77), 2),
+                new int[] { 3, 2, 1, 0 }
+            ),
+            new TestCase(
+                new BigInteger("1111", 2),
+                new int[] { 80, 79, 78, 77 }
+            ),
+            new TestCase(
+                new BigInteger(("10000000000000010000000010100000" + "0".repeat(81-32)), 2),
+                new int[] { 26, 24, 15, 0 }
+            ),
+            new TestCase(
+                new BigInteger("0".repeat(81), 2),
+                new int[] {}
+            ),
+            new TestCase(
+                new BigInteger("1".repeat(81), 2),
+                new int[] {
+                    80, 79, 78, 77, 76, 75, 74, 73, 72, 71,
+                    70, 69, 68, 67, 66, 65, 64, 63, 62, 61,
+                    60, 59, 58, 57, 56, 55, 54, 53, 52, 51,
+                    50, 49, 48, 47, 46, 45, 44, 43, 42, 41,
+                    40, 39, 38, 37, 36, 35, 34, 33, 32, 31,
+                    30, 29, 28, 27, 26, 25, 24, 23, 22, 21,
+                    20, 19, 18, 17, 16, 15, 14, 13, 12, 11,
+                    10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+                }
+            ),
+        };
+
+        for (TestCase c : cases) {
+            assertArrayEquals(c.expected, Sudoku2.bigToCells(c.big));
+        }
     }
 
     private void populateSieveForAllDigitCombos(int level) {
@@ -319,38 +433,6 @@ public class TestSudoku {
             BigInteger pMask = configFixture.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]);
             configFixtureSieve.addFromFilter(pMask);
         }
-    }
-
-    @Test
-    public void searchForSolutions3() {
-        HashSet<String> solutionSet = new HashSet<>();
-        puzzleFixture.searchForSolutions3(s -> solutionSet.add(s.normalize().toString()));
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-    }
-
-    @Test
-    public void searchForSolutionsBranched_withSingleBranch() {
-        HashSet<String> solutionSet = new HashSet<>();
-        int branches = 1;
-        puzzleFixture.searchForSolutionsBranched(s -> solutionSet.add(s.normalize().toString()), branches);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-    }
-
-    @Test
-    public void searchForSolutionsBranched() {
-        HashSet<String> solutionSet = new HashSet<>();
-        int branches = 9;
-        puzzleFixture.searchForSolutionsBranched(s -> solutionSet.add(s.normalize().toString()), branches);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
     }
 
     private String[] copyPuzzleFixtureSolutions() {

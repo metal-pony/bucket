@@ -29,6 +29,159 @@ import com.metal_pony.bucket.util.Counting;
 
 public class TestCounting {
 
+    @Test
+    void adhoc2() {
+        // int n = 1010;
+        // BigInteger nFact = Counting.factorial(n);
+        // BigInteger r = Counting.random(nFact, ThreadLocalRandom.current());
+        // int[] perm = Counting.permutation(n, r);
+        // System.out.printf("permutation(%d, %s) = %s\n", n, r.toString(10), Arrays.toString(perm));
+
+        BigInteger NEG_ONE = BigInteger.ZERO.subtract(BigInteger.ONE);
+
+        assertThrows(IllegalArgumentException.class, () -> Counting.bitCombo(-1, -1, BigInteger.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> Counting.bitCombo(-1, 0, BigInteger.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> Counting.bitCombo(1, -1, NEG_ONE));
+        assertThrows(IllegalArgumentException.class, () -> Counting.bitCombo(1, 0, NEG_ONE));
+        assertThrows(IllegalArgumentException.class, () -> Counting.bitCombo(1, 2, BigInteger.ZERO));
+
+        int[][][] expectedCombos = new int[][][] {
+            new int[0][0],
+            new int[][] {
+                new int[] { 0 },
+                new int[] { 1 },
+            },
+            new int[][] {
+                new int[] { 0 },
+                new int[] { 0b10, 0b01 },
+                new int[] { 0b11 },
+            },
+            new int[][] {
+                new int[] { 0 },
+                new int[] { 0b100, 0b010, 0b001 },
+                new int[] { 0b110, 0b101, 0b011 },
+                new int[] { 0b111 },
+            },
+            new int[][] {
+                new int[] { 0 },
+                new int[] { 0b1000, 0b0100, 0b0010, 0b0001 },
+                new int[] { 0b1100, 0b1010, 0b1001, 0b0110, 0b0101, 0b0011 },
+                new int[] { 0b1110, 0b1101, 0b1011, 0b0111 },
+                new int[] { 0b1111 },
+            },
+            new int[][] {
+                new int[] { 0 },
+                new int[] { 0b10000, 0b01000, 0b00100, 0b00010, 0b00001 },
+                new int[] { 0b11000, 0b10100, 0b10010, 0b10001, 0b01100, 0b01010, 0b01001, 0b00110, 0b00101, 0b00011 },
+                new int[] { 0b11100, 0b11010, 0b11001, 0b10110, 0b10101, 0b10011, 0b01110, 0b01101, 0b01011, 0b00111 },
+                new int[] { 0b11110, 0b11101, 0b11011, 0b10111, 0b01111 },
+                new int[] { 0b11111 },
+            },
+        };
+
+        for (int n = 0; n < expectedCombos.length; n++) {
+            for (int k = 0; k < expectedCombos[n].length; k++) {
+                for (int r = 0; r < expectedCombos[n][k].length; r++) {
+                    int expected = expectedCombos[n][k][r];
+                    byte[] expectedArr = intToByteArray(expected);
+                    byte[] bc = Counting.bitCombo(n, k, new BigInteger(Integer.toString(r)));
+                    assertArrayEquals(expectedArr, bc);
+                }
+            }
+        }
+
+        // StringBuilder strb = new StringBuilder();
+        // for (int i = 0; i < bc.length; i++) {
+        //     strb.append(Integer.toString(Byte.toUnsignedInt(bc[i]), 2));
+        // }
+        // System.out.println(strb.toString());
+        // BitSet test = new BitSet(9);
+        // test.set(3);
+        // assertEquals(0L, Long.parseLong(bs.toString(), 2));
+    }
+
+    public static byte[] intToByteArray(int n) {
+        if (n < 0) {
+            n = -n;
+        }
+
+        int numBytes = 0;
+        int _n = n;
+        do {
+            numBytes++;
+            _n >>= Byte.SIZE;
+        } while (_n > 0);
+
+        byte[] result = new byte[numBytes];
+        _n = n;
+        int i = 0;
+        while (_n > 0) {
+            result[i++] = (byte)(_n & 0xff);
+            _n >>= Byte.SIZE;
+        }
+
+        return result;
+    }
+
+    @Test
+    void adhoc() {
+        for (int i = 0; i < 32; i++) {
+            BigInteger r = Counting.random(
+                BigInteger.ONE.shiftLeft(100),
+                ThreadLocalRandom.current()
+            );
+            int bitLength = r.bitLength();
+            System.out.printf(
+                "%s, %d\n",
+                r.toString(),
+                bitLength
+            );
+        }
+
+        int n = 9;
+        for (int k = 0; k < n; k++) {
+            System.out.printf("(%2d c %2d) = %s\n", n, k, Counting.nChooseK(n, k));
+        }
+
+        int k = 5;
+        BigInteger nck = Counting.nChooseK(n, k);
+        System.out.printf("(%d c %d): %s\n", n, k, nck);
+        for (BigInteger r = BigInteger.ZERO; r.compareTo(nck) < 0; r = r.add(BigInteger.ONE)) {
+            System.out.println(Arrays.toString(Counting.combo(n, k, r)));
+        }
+
+        int N = 10;
+        // int[n][k][r] = [combo]
+        String[][][] combos = new String[N][][];
+        for (n = 1; n < N; n++) {
+            combos[n] = new String[n + 1][];
+            for (k = 0; k <= n; k++) {
+                nck = Counting.nChooseK(n, k);
+                combos[n][k] = new String[nck.intValue()];
+                for (BigInteger r = BigInteger.ZERO; r.compareTo(nck) < 0; r = r.add(BigInteger.ONE)) {
+                    // join(Counting.combo(n, k, r), "");
+                    combos[n][k][r.intValue()] = Arrays.stream(Counting.combo(n, k, r))
+                        .mapToObj(String::valueOf)
+                        .reduce("", (a, b) -> a + b);
+                }
+            }
+        }
+
+        Gson gson = new Gson();
+        String json = gson.toJson(combos);
+        System.out.println(json);
+        // try (
+        //     PrintWriter pw = new PrintWriter("combos.json");
+        // ) {
+        //     pw.println(json);
+        // } catch (FileNotFoundException e) {
+        //     e.printStackTrace();
+        // } finally {
+        // }
+
+        System.out.println(Arrays.toString(Counting.combo(22, 9, new BigInteger("273864"))));
+    }
+
     @Nested
     @DisplayName("factorial")
     class Factorial {
@@ -45,6 +198,14 @@ public class TestCounting {
         """)
         void testFactorial(int n, int expected) {
             assertEquals(expected, Counting.factorial(n).intValue());
+        }
+
+        @Test
+        void testFact() {
+            for (int n = 0; n < 33; n++) {
+                String fact = Counting.factorial(n).toString();
+                System.out.printf("|%d|%s|\n", n, fact);
+            }
         }
     }
 

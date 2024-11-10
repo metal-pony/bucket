@@ -3,18 +3,21 @@ package com.metal_pony.bucket.sudoku;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import com.metal_pony.bucket.sudoku.game.SudokuUtility;
+import com.metal_pony.bucket.util.Array;
+import com.metal_pony.bucket.util.Counting;
 import com.metal_pony.bucket.util.Shuffler;
 
 public class Sudoku {
-    static final boolean isDebugging = false;
+    static final boolean isDebugging = true;
     static void debug(String formatMsg, Object... args) {
         if (isDebugging) {
             System.out.printf(formatMsg, args);
@@ -26,67 +29,60 @@ public class Sudoku {
         }
     }
 
-    public static void main2(String[] args) {
-        // Sudoku seed = Sudoku.configSeed();
-        Sudoku seed = new Sudoku("1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......");
-        debug(seed.toString());
-        debug(seed.toFullString());
+    // public static void main(String[] args) {
+    //     // Sudoku seed = Sudoku.configSeed();
+    //     Sudoku seed = new Sudoku("1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......");
+    //     debug(seed.toString());
+    //     debug(seed.toFullString());
 
-        ArrayList<Sudoku> solutions = new ArrayList<>();
-        HashSet<String> solutionSet = new HashSet<>();
-        seed.searchForSolutions3((solution) -> {
-            solutions.add(solution);
-            String str = solution.toString();
-            if (solutionSet.add(str)) {
-                debug(str);
-            } else {
-                debug("🚨 DUPLICATE SOLUTION: %s\n", str);
-            }
+    //     ArrayList<Sudoku> solutions = new ArrayList<>();
+    //     HashSet<String> solutionSet = new HashSet<>();
+    //     seed.searchForSolutionsBranched((solution) -> {
+    //         solutions.add(solution);
+    //         String str = solution.toString();
+    //         if (solutionSet.add(str)) {
+    //             debug(str);
+    //         } else {
+    //             debug("🚨 DUPLICATE SOLUTION: %s\n", str);
+    //         }
 
-            return true;
-        });
+    //         return true;
+    //     }, 100);
 
-        debug("Hello Sudoku");
-        debug("Found %d solutions!\n", solutionSet.size());
-    }
+    //     debug("Hello Sudoku");
+    //     debug("Found %d solutions!\n", solutionSet.size());
+    // }
 
-    static final int DIGITS = 9;
-    static final int SPACES = 81;
-    static final int ALL = 511;
-    static final int MIN_CLUES = 17;
+    public static final int DIGITS_SQRT = 3;
+    public static final int DIGITS = 9;
+    public static final int SPACES = 81;
+    public static final int ALL = 511;
+    public static final int MIN_CLUES = 17;
 
     static final int ROW_MASK = ALL << (DIGITS * 2);
     static final int COL_MASK = ALL << DIGITS;
     static final int REGION_MASK = ALL;
-    static final BigInteger FULL_CONSTRAINTS = BigInteger.ONE.shiftLeft(243).subtract(BigInteger.ONE);
 
-    static BigInteger cellMask(int cellIndex) {
-        return BigInteger.ONE.shiftLeft(SPACES - cellIndex - 1);
-    }
-
-    static final BigInteger[] CELL_MASKS = new BigInteger[SPACES];
-    static {
-        for (int ci = 0; ci < SPACES; ci++) {
-            CELL_MASKS[ci] = cellMask(ci);
-        }
-    }
-
-    static int[] getEmptyBoard() {
-        int[] board = new int[SPACES];
-        Arrays.fill(board, 0);
-        return board;
+    public static int[] getEmptyBoard() {
+        return new int[SPACES];
     }
 
     static final int[] ENCODER = new int[] { 0, 1, 2, 4, 8, 16, 32, 64, 128, 256 };
     static final int[] DECODER = new int[1<<DIGITS];
     static {
-        Arrays.fill(DECODER, 0);
         for (int digit = 1; digit <= DIGITS; digit++) {
             DECODER[1 << (digit - 1)] = digit;
         }
     }
 
+    /**
+     * Maps candidates mask to the array of digits it represents.
+     */
     static final int[][] CANDIDATES_ARR = new int[1<<DIGITS][];
+
+    /**
+     * Maps candidates masks to the array of digits (encoded) it represents.
+     */
     static final int[][] CANDIDATES = new int[CANDIDATES_ARR.length][];
     static {
         for (int val = 0; val < CANDIDATES_ARR.length; val++) {
@@ -107,23 +103,197 @@ public class Sudoku {
         }
     }
 
+    /**
+     * Maps indices [0, 511] to its bit count.
+     */
     static final int[] BIT_COUNT_MAP = new int[1<<DIGITS];
+
+    /**
+     * Digit combinations indexed by bit count (aka digit count).
+     */
+    public static final int[][] DIGIT_COMBOS_MAP = new int[DIGITS + 1][];
     static {
+        for (int nDigits = 0; nDigits < DIGIT_COMBOS_MAP.length; nDigits++) {
+            DIGIT_COMBOS_MAP[nDigits] = new int[Counting.nChooseK(DIGITS, nDigits).intValueExact()];
+        }
+        int[] combosCount = new int[DIGITS + 1];
         for (int i = 0; i < BIT_COUNT_MAP.length; i++) {
-            BIT_COUNT_MAP[i] = Integer.bitCount(i);
+            int bits = Integer.bitCount(i);
+            BIT_COUNT_MAP[i] = bits;
+            DIGIT_COMBOS_MAP[bits][combosCount[bits]++] = i;
         }
     }
 
-    static int encode(int digit) {
+    public static int encode(int digit) {
         return ENCODER[digit];
     }
 
-    static int decode(int encoded) {
+    public static int decode(int encoded) {
         return DECODER[encoded];
     }
 
-    static boolean isDigit(int encoded) {
+    public static boolean isDigit(int encoded) {
         return DECODER[encoded] > 0;
+    }
+
+    public static class BitSet {
+        static final int[] BITS_SET_IN_BYTE = new int[1 << Byte.SIZE];
+        static {
+            for (int i = 0; i < BITS_SET_IN_BYTE.length; i++) {
+                BITS_SET_IN_BYTE[i] = Integer.bitCount(i);
+            }
+        }
+
+        int bits;
+        int numBytes;
+        byte[] mag;
+        int bitsSet;
+
+        public BitSet(int bits) {
+            this.bits = bits;
+            this.numBytes = bits / Byte.SIZE;
+            if ((bits % Byte.SIZE) > 0) {
+                this.numBytes++;
+            }
+            this.mag = new byte[this.numBytes];
+            this.bitsSet = 0;
+        }
+
+        public BitSet(int bits, byte[] values) {
+            this.bits = bits;
+            this.numBytes = bits / Byte.SIZE;
+            this.mag = new byte[this.numBytes];
+            if ((bits % Byte.SIZE) > 0) {
+                this.numBytes++;
+            }
+            System.arraycopy(values, 0, this.mag, 0, this.numBytes);
+            this.bitsSet = 0;
+            for (byte b : this.mag) {
+                this.bitsSet += BITS_SET_IN_BYTE[b];
+            }
+        }
+
+        public BitSet(BitSet other) {
+            this(other.bits, other.mag);
+        }
+
+        public boolean isSet(int i) {
+            int magIndex = i / Byte.SIZE;
+            return (this.mag[magIndex] & (1 << (i % Byte.SIZE))) == 1;
+        }
+
+        public int bits() {
+            return bits;
+        }
+
+        public int bitsSet() {
+            return bitsSet;
+        }
+
+        public void set(int i) {
+            int magIndex = i / Byte.SIZE;
+            int mask = 1 << (i % Byte.SIZE);
+
+            if ((mag[magIndex] & mask) == 0) {
+                mag[magIndex] |= mask;
+                bitsSet++;
+            }
+        }
+
+        public void unset(int i) {
+            int magIndex = i / Byte.SIZE;
+            int mask = 1 << (i % Byte.SIZE);
+
+            if ((mag[magIndex] & mask) == 1) {
+                mag[magIndex] &= ~mask;
+                bitsSet--;
+            }
+        }
+
+        public void flip(int i) {
+            int magIndex = i / Byte.SIZE;
+            int mask = 1 << (i % Byte.SIZE);
+
+            if ((mag[magIndex] & mask) == 0) {
+                mag[magIndex] |= mask;
+                bitsSet++;
+            } else {
+                mag[magIndex] &= ~mask;
+                bitsSet--;
+            }
+        }
+
+        public BitSet negate() {
+            // for (int i = 0; i < numBytes; i++) {
+            //     mag[i] = (byte)((~mag[i]) & 0xff);
+            // }
+            // // the last byte may need to be truncated if there are extra bits
+            // if ((bits % Byte.SIZE) > 0) {
+
+            // }
+            for (int i = 0; i < bits; i++) {
+                flip(i);
+            }
+            return this;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) return false;
+            if (this == obj) return true;
+            if (obj instanceof BitSet) {
+                BitSet other = (BitSet) obj;
+                return (
+                    bits == other.bits &&
+                    numBytes == other.numBytes &&
+                    bitsSet == other.bitsSet &&
+                    Arrays.equals(mag, other.mag)
+                );
+            }
+            return false;
+        }
+
+        // TODO This hashcode doesn't necessarily uphold the equals contract
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(mag);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder strb = new StringBuilder();
+            for (byte b : mag) {
+                String bs = Integer.toString(Byte.toUnsignedInt(b), 2);
+                if (bs.length() < Byte.SIZE) {
+                    strb.append("0".repeat(Byte.SIZE - bs.length()));
+                }
+                strb.append(bs);
+            }
+            return strb.toString();
+        }
+
+
+        public String toSudokuString() {
+            StringBuilder strb = new StringBuilder();
+            for (byte b : mag) {
+                String bs = Integer.toString(Byte.toUnsignedInt(b), 2);
+                // if (bs.length() < Byte.SIZE) {
+                //     strb.append("0".repeat(Byte.SIZE - bs.length()));
+                // }
+                String segment = String.format(
+                    "%s%s",
+                    "0".repeat(Byte.SIZE - bs.length()),
+                    Integer.toString(Byte.toUnsignedInt(b), 2)
+                );
+
+                strb.append(Array.reverse(segment));
+            }
+            return strb.substring(0, bits).replaceAll("0", ".");
+        }
+
+        public BigInteger toBigInt() {
+            return new BigInteger(toString(), 2);
+        }
     }
 
     private class Area {
@@ -148,13 +318,13 @@ public class Sudoku {
 
         int digit = 0;
         int candidates = 0;
-        Area row = null;
-        Area col = null;
-        Area region = null;
+        Area row;
+        Area col;
+        Area region;
         Cell[] neighbors = new Cell[20];
-        Cell[] rowNeighbors = null;
-        Cell[] colNeighbors = null;
-        Cell[] regionNeighbors = null;
+        Cell[] rowNeighbors;
+        Cell[] colNeighbors;
+        Cell[] regionNeighbors;
 
         Cell(int index) {
             this.index = index;
@@ -398,6 +568,21 @@ public class Sudoku {
 		}
     }
 
+    public Sudoku(int[] board) {
+        this();
+
+        if (board.length != SPACES) {
+            throw new IllegalArgumentException("board array is invalid length");
+        }
+
+        for (int i = 0; i < SPACES; i++) {
+            int digit = board[i];
+            if (digit > 0) {
+                setDigit(i, digit);
+            }
+        }
+    }
+
     public void setDigit(int cellIndex, int digit) {
         this.cells[cellIndex].setDigit(digit);
     }
@@ -446,7 +631,7 @@ public class Sudoku {
         return board;
     }
 
-    void resetEmptyCells() {
+    public void resetEmptyCells() {
         for (Cell cell : this.cells) {
             if (cell.digit == 0) {
                 cell.candidates = ALL;
@@ -473,7 +658,7 @@ public class Sudoku {
         return result;
     }
 
-    boolean reduce() {
+    public boolean reduce() {
         boolean boardSolutionChanged = false;
         boolean hadReduction = false;
 
@@ -559,6 +744,300 @@ public class Sudoku {
         // return results;
     }
 
+    public void searchForSolutionsBranched(Function<Sudoku,Boolean> solutionFoundCallback, int numBranches) {
+        numBranches = Math.max(1, numBranches);
+
+        Sudoku root = new Sudoku(this);
+        root.resetEmptyCells();
+        // debug("          %s\n", root.toString());
+
+        // ArrayList<Sudoku> results = new ArrayList<>();
+        List<Stack<SudokuNode>> stacks = new ArrayList<Stack<SudokuNode>>(numBranches);
+        List<Stack<SudokuNode>> emptyStackPool = new ArrayList<Stack<SudokuNode>>();
+        for (int n = 1; n < numBranches; n++) {
+            emptyStackPool.add(new Stack<SudokuNode>());
+        }
+        Stack<SudokuNode> initialStack = new Stack<>();
+        initialStack.push(new SudokuNode(root));
+        stacks.add(initialStack);
+
+        boolean keepGoing = true;
+        while (!stacks.isEmpty() && keepGoing) {
+            for (int si = stacks.size() - 1; si >= 0; si--) {
+                Stack<SudokuNode> stack = stacks.get(si);
+                if (stack.isEmpty()) {
+                    emptyStackPool.add(stacks.remove(si));
+                    continue;
+                }
+
+                SudokuNode top = stack.peek();
+                Sudoku sudoku = top.sudoku;
+                // String pred = " ".repeat(stack.size());
+                // debug("%s        > %s\n", pred, sudoku.toString());
+
+                if (sudoku.reduce()) {
+                    // debug("%sreduced > %s\n", pred, sudoku.toString());
+                }
+
+                if (sudoku.isSolved()) {
+                    // results.add(new Sudoku(sudoku));
+                    // debug("%s **⭐️** > %s\n", pred, sudoku.toString());
+                    stack.pop();
+                    if (solutionFoundCallback.apply(sudoku)) {
+                        continue;
+                    } else {
+                        keepGoing = false;
+                        break;
+                    }
+                }
+
+                if (top.nexts == null) {
+                    top.nexts = new ArrayList<>();
+                    sudoku.getNextsAdditive(n -> {
+                        top.nexts.add(new SudokuNode(n));
+                        // debug("%s      + > %s\n", pred, n.toString());
+                    });
+                    Shuffler.shuffle(top.nexts);
+                }
+
+                if (top.nexts.size() > 0) {
+                    stack.push(top.nexts.remove(top.nexts.size() - 1));
+
+                    // Split out the next nodes into separate stacks if there are any empty / ready to go.
+                    // Mitigate thrashing between stacks and emptyStackPool by only allowing mostly empty
+                    //      puzzles to be split.
+                    while (!emptyStackPool.isEmpty() && !top.nexts.isEmpty() && sudoku.numEmptyCells < (SPACES / 2)) {
+                        Stack<SudokuNode> s = emptyStackPool.remove(emptyStackPool.size() - 1);
+                        s.push(top.nexts.remove(top.nexts.size() - 1));
+                        stacks.add(s);
+                    }
+                } else {
+                    stack.pop();
+                    // top.nexts = null;
+                    sudoku.cells = null;
+                    sudoku.rows = null;
+                    sudoku.cols = null;
+                    sudoku.regions = null;
+                }
+            }
+        }
+
+        // return results;
+    }
+
+    public Sudoku normalize() {
+        // TODO Error if top row isn't full
+
+        for (int boardIndex = 1; boardIndex <= DIGITS; boardIndex++) {
+			int digit = this.cells[boardIndex - 1].digit;
+			if (digit != boardIndex) {
+				swapDigits(digit, boardIndex);
+			}
+		}
+
+        return this;
+    }
+
+    public void swapDigits(int a, int b) {
+		if (a == b) {
+            return;
+        }
+
+        for (Cell cell : cells) {
+            if (cell.digit == a) {
+                cell.setDigit(b);
+            } else if (cell.digit == b) {
+                cell.setDigit(a);
+            }
+        }
+	}
+
+    /**
+     * Generates a copy of this sudoku with the specified digits removed.
+     * @param digitsMask A 9-bit mask representing the combination of which digits to remove, where
+     * the least significant bit represents the digit '1'.
+     */
+    public void removeDigits(int digitsMask) {
+        for (Cell cell : cells) {
+            if (((1 << (cell.digit - 1)) & digitsMask) > 0) {
+                cell.setDigit(0);
+            }
+        }
+    }
+
+    public BigInteger maskForDigits(int digitsMask) {
+        BigInteger result = BigInteger.ZERO;
+        for (Cell cell : cells) {
+            if (((1 << (cell.digit - 1)) & digitsMask) > 0) {
+                result = result.setBit(SPACES - 1 - cell.index);
+            }
+        }
+        return result;
+    }
+
+    public String fingerprint(int level) {
+        if (level < 2 || level > 8) {
+            throw new IllegalArgumentException("sudoku fingerprint level (f) must be 2 <= f <= 8");
+        }
+
+        if (!SudokuUtility.isSolved(getBoard())) {
+            throw new IllegalArgumentException("cannot compute fingerprint: sudoku grid must be full");
+        }
+
+        // For each level-digits combo (9 choose level):
+        //      copy the board with the digits removed,
+        //      collect all the solutions
+
+        // HashSet<BigInteger> uas = new HashSet<>();
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+
+        for (int r = DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
+            // Sudoku copy = new Sudoku(this);
+            // copy.removeDigits(DIGIT_COMBOS_MAP[level][r]);
+            // BigInteger puzzleMask = diff2(copy);
+            BigInteger pMask = maskForDigits(DIGIT_COMBOS_MAP[level][r]);
+            // System.out.printf("Searching for solutions:\n%s\n\n", filter(pMask).toString());
+            int numAdded = sieve.addFromFilter(pMask);
+
+            // int sizeBefore = uas.size();
+            // copy.searchForSolutions3((solution) -> {
+            //     BigInteger diff = diff2(solution);
+            //     if (diff.compareTo(BigInteger.ZERO) != 0) {
+            //         if (uas.add(diff)) {
+            //             System.out.printf("solution  ");
+            //             System.out.println(solution.toString());
+            //             System.out.printf(
+            //                 "%s%s\n",
+            //                 "0".repeat(SPACES - diff.toString(2).length()),
+            //                 diff.toString(2)
+            //             );
+            //             // diff = diff.setBit(SPACES);
+            //             // diff = diff.not().abs();
+            //             // System.out.printf(
+            //             //     "%s%s\n",
+            //             //     " ".repeat(Math.max(0, SPACES - diff.toString(2).length())),
+            //             //     diff.toString(2)
+            //             // );
+            //             diff = diff.xor(BigInteger.ONE.shiftLeft(SPACES).subtract(BigInteger.ONE));
+            //             // diff = diff.not(SPACES);
+            //             System.out.printf(
+            //                 "%s%s\n",
+            //                 " ".repeat(Math.max(0, SPACES - diff.toString(2).length())),
+            //                 diff.toString(2)
+            //             );
+            //             Sudoku filtered = filter(diff);
+            //             System.out.printf("%s\n", filtered.toString());
+            //             System.out.println(filtered.toFullString());
+            //             System.out.println();
+            //         }
+            //     }
+            //     return true;
+            // });
+
+            // System.out.printf("-- %d solutions found for --\n%s\n\n", numAdded, filter(pMask).toString());
+        }
+
+        int _sum = 0;
+        int minM = SPACES;
+        int maxM = 0;
+        int[] itemsByM = new int[SPACES];
+
+        for (BigInteger ua : sieve.items(new ArrayList<>())) {
+            int bits = ua.bitCount();
+            itemsByM[bits]++;
+            if (bits < minM) minM = bits;
+            if (bits > maxM) maxM = bits;
+            _sum += bits;
+        }
+
+        ArrayList<String> itemsList = new ArrayList<>();
+        for (int m = 4; m <= maxM; m++) {
+            if (level == 2 && (m % 2) > 0) {
+                continue;
+            }
+
+            int n = itemsByM[m];
+            itemsList.add((n > 0) ? Integer.toString(n, 16) : "");
+        }
+
+        return String.join(":", itemsList);
+    }
+
+    public void shuffleDigits() {
+        // TODO
+    }
+
+    public void rotate(int n) {
+        // TODO
+        // Rotate (clockwise) n times
+        // n = n % 4; and ensure positive
+    }
+
+    public void reflect(int orientation) {
+        // TODO
+        // preset orientations: HORIZONTAL, VERTICAL, DIAGONAL, ANTIDIAGONAL
+    }
+
+    public Sudoku filter(BitSet mask) {
+        // Throw if this is not full grid
+        Sudoku copy = new Sudoku();
+        for (int ci = 0; ci < SPACES; ci++) {
+            if (mask.isSet(ci)) {
+                copy.setDigit(ci, this.cells[ci].digit);
+            }
+        }
+        return copy;
+    }
+
+    public Sudoku filter(BigInteger mask) {
+        // Throw if this is not full grid
+        Sudoku copy = new Sudoku();
+        for (int ci = 0; ci < SPACES; ci++) {
+            if (mask.testBit(SPACES - 1 - ci)) {
+                copy.setDigit(ci, this.cells[ci].digit);
+            }
+        }
+        return copy;
+    }
+
+    // Returns a mask representing the difference in cells between this Sudoku and the one given.
+    public BitSet diff(Sudoku other) {
+        BitSet result = new BitSet(SPACES);
+        // byte[] result = new byte[(Sudoku.SPACES / Byte.SIZE) + 1];
+        for (int ci = 0; ci < SPACES; ci++) {
+            if (this.cells[ci].digit != other.cells[ci].digit) {
+                result.set(ci);
+                // result[ci / Byte.SIZE] |= 1 << (ci % Byte.SIZE);
+            }
+        }
+        return result;
+    }
+
+    public BigInteger diff2(Sudoku other) {
+        // BitSet result = new BitSet(SPACES);
+        BigInteger result = BigInteger.ZERO;
+        // byte[] result = new byte[(Sudoku.SPACES / Byte.SIZE) + 1];
+        for (int ci = 0; ci < SPACES; ci++) {
+            if (this.cells[ci].digit != other.cells[ci].digit) {
+                // result = result.setBit(ci);
+                result = result.setBit(SPACES - 1 - ci);
+                // result[ci / Byte.SIZE] |= 1 << (ci % Byte.SIZE);
+            }
+        }
+        return result;
+    }
+
+    public int solutionsFlag() {
+        if (numEmptyCells > SPACES - MIN_CLUES) {
+            return 2;
+        }
+
+        AtomicInteger count = new AtomicInteger();
+        // TODO Do this with single thread, multiple DFS search branches
+        searchForSolutions3(_s -> (count.incrementAndGet() < 2));
+        return count.get();
+    }
+
     void getNextsAdditive(Consumer<Sudoku> callback) {
         Cell emptyCell = this.pickEmptyCell();
         if (emptyCell != null) {
@@ -568,6 +1047,23 @@ public class Sudoku {
                 callback.accept(next);
             }
         }
+    }
+
+    public List<Sudoku> antiDerivatives() {
+        ArrayList<Sudoku> result = new ArrayList<>();
+        Sudoku p = new Sudoku(this);
+        p.resetEmptyCells();
+        p.reduce();
+        for (Cell cell : p.cells) {
+            if (cell.digit == 0) {
+                for (int candidateDigit : CANDIDATES_ARR[cell.candidates]) {
+                    Sudoku next = new Sudoku(p);
+                    next.setDigit(cell.index, candidateDigit);
+                    result.add(next);
+                }
+            }
+        }
+        return result;
     }
 
     Cell pickEmptyCell() {
