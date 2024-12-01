@@ -7,47 +7,28 @@ import java.awt.Dimension;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 
-import com.metal_pony.bucket.sudoku.game.Board;
-// import com.metal_pony.bucket.sudoku.game.generators.Generator;
-import com.metal_pony.bucket.sudoku.game.solvers.Solver;
+import com.metal_pony.bucket.sudoku.Sudoku;
 
 public class SudokuGuiDemo {
-	// public static void main(String[] args) {
-	// 	int numClues = 27;
-	// 	if (args != null && args.length >= 1) {
-	// 		numClues = Integer.parseInt(args[0]);
-	// 	}
-
-	// 	Board puzzle = Generator.generatePuzzle(numClues);
-	// 	System.out.println(puzzle == null ?
-	// 		"Error. Timed out while generating puzzle." :
-	// 		puzzle.toString()
-	// 	);
-
-	// 	if (puzzle != null) {
-	// 		show(puzzle);
-	// 	}
-	// }
-
-	public static void show(Board puzzle) {
+	public static void show(Sudoku sudoku) {
 		JFrame f = new JFrame();
 		f.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		f.setBackground(Color.white);
-		SudokuBoard panel = new SudokuBoard(puzzle);
+		SudokuBoard panel = new SudokuBoard(sudoku);
 		panel.setPreferredSize(new Dimension(600, 600));
 		f.getContentPane().add(panel, BorderLayout.CENTER);
 
 		JButton btn = new JButton("Solve");
 		btn.addActionListener((event) -> {
-			Board solution = Solver.solve(panel.board);
+			Sudoku solution = sudoku.firstSolution();
 
 			if (solution == null) {
 				System.out.println("null solution");
 				return;
 			}
 
-			for (int i = 0; i < Board.CELLS; i++) {
-				panel.cells[i].digit = solution.getValueAt(i);
+			for (int i = 0; i < Sudoku.SPACES; i++) {
+				panel.cells[i].digit = solution.getDigit(i);
 			}
 			panel.repaint();
 		});
@@ -56,6 +37,6 @@ public class SudokuGuiDemo {
 		f.pack();
 		f.setVisible(true);
 
-		System.out.println(Solver.solve(puzzle).getSimplifiedString());
+		System.out.println(sudoku.firstSolution().toString());
 	}
 }

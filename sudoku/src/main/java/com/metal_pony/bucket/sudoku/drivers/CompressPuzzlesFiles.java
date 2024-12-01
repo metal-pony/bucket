@@ -7,7 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import com.metal_pony.bucket.sudoku.game.Board;
+import com.metal_pony.bucket.sudoku.Sudoku;
 import com.metal_pony.bucket.sudoku.util.FileUtil;
 
 public class CompressPuzzlesFiles {
@@ -21,7 +21,7 @@ public class CompressPuzzlesFiles {
     public static Consumer<Path> compressPuzzlesFile = (puzzleFilePath) -> {
         String from = puzzleFilePath.toString();
         String to = puzzleFilePath.getFileName().toString().replaceFirst("puzzles", "puzzles-compressed");
-        Function<String,String> puzzleStrTransformer = (puzzleStr) -> new Board(puzzleStr).getCompressedString();
+        Function<String,String> puzzleStrTransformer = (puzzleStr) -> new Sudoku(puzzleStr).toString();
         System.out.printf("Compressing puzzle file \"%s\" -> \"%s\"\n", from, to);
         FileUtil.transformLinesInFile(from, to, puzzleStrTransformer, true);
     };

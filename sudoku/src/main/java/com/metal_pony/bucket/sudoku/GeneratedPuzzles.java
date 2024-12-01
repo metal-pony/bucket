@@ -1,17 +1,15 @@
-package com.metal_pony.bucket.sudoku.puzzles;
+package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import com.metal_pony.bucket.sudoku.game.Board;
-
 public class GeneratedPuzzles {
 
-  public static List<Board> convertStringsToBoards(String[] strs) {
-    ArrayList<Board> boards = new ArrayList<>();
+  public static List<Sudoku> convertStringsToBoards(String[] strs) {
+    ArrayList<Sudoku> boards = new ArrayList<>();
     for (String s : strs) {
-      boards.add(new Board(s));
+      boards.add(new Sudoku(s));
     }
     return boards;
   }

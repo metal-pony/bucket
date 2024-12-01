@@ -20,8 +20,7 @@ import java.awt.event.MouseWheelListener;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 
-import com.metal_pony.bucket.sudoku.game.Board;
-import static com.metal_pony.bucket.sudoku.game.Board.*;
+import com.metal_pony.bucket.sudoku.Sudoku;
 
 public class SudokuBoard extends JPanel implements ComponentListener {
 
@@ -43,7 +42,7 @@ public class SudokuBoard extends JPanel implements ComponentListener {
 
 	protected float fillRatio;
 
-	protected Board board;
+	protected Sudoku sudoku;
 	protected Font font;
 
 	protected int borderSize = 2;
@@ -154,11 +153,10 @@ public class SudokuBoard extends JPanel implements ComponentListener {
 		@Override public void mouseWheelMoved(MouseWheelEvent e) {}
 	}
 
-	public SudokuBoard(Board board) {
-
+	public SudokuBoard(Sudoku sudoku) {
 		this.fillRatio = 0.8f;
-		this.board = board;
-		this.cells = new SudokuCell[CELLS];
+		this.sudoku = sudoku;
+		this.cells = new SudokuCell[Sudoku.SPACES];
 
 		font = new Font("Consolas", Font.PLAIN, 24);
 		SudokuCell.font = font.deriveFont(24f);
@@ -231,8 +229,8 @@ public class SudokuBoard extends JPanel implements ComponentListener {
 		addComponentListener(this);
 
 		this.setLayout(null);
-		for (int i = 0; i < CELLS; i++) {
-			cells[i] = new SudokuCell(board.getValueAt(i));
+		for (int i = 0; i < Sudoku.SPACES; i++) {
+			cells[i] = new SudokuCell(sudoku.getDigit(i));
 			add(cells[i]);
 		}
 
@@ -320,7 +318,7 @@ public class SudokuBoard extends JPanel implements ComponentListener {
 		SudokuCell.font = font.deriveFont((float) cellSize);
 
 		//POSITION ALL CELLS
-		for (int i = 0; i < CELLS; i++) {
+		for (int i = 0; i < Sudoku.SPACES; i++) {
 			int r = i / 9;
 			int c = i % 9;
 			cells[i].setBounds(
