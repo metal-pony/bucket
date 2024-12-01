@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Contains utility functions pertaining to counting, including
@@ -206,6 +207,11 @@ public class Counting {
 		return _result;
 	}
 
+	public static BigInteger randomBitCombo(int n, int k) {
+		BigInteger r = random(nChooseK(n, k), new Random());
+		return new BigInteger(bitCombo(n, k, r));
+	}
+
 	/**
 	 * Generates a random permutation of the numbers 0 to n.
 	 */
@@ -245,5 +251,36 @@ public class Counting {
 		}
 
 		return result;
+	}
+
+	public static List<int[]> allPermutations(int n) {
+		List<int[]> result = new ArrayList<>();
+
+		BigInteger nFact = factorial(n);
+		BigInteger r = BigInteger.ZERO;
+		while (r.compareTo(nFact) < 0) {
+			result.add(permutation(n, r));
+			r = r.add(BigInteger.ONE);
+		}
+
+		return result;
+	}
+
+	public static void forEachPermutation(int n, Consumer<int[]> consumer) {
+		BigInteger nFact = factorial(n);
+		BigInteger r = BigInteger.ZERO;
+		while (r.compareTo(nFact) < 0) {
+			consumer.accept(permutation(n, r));
+			r = r.add(BigInteger.ONE);
+		}
+	}
+
+	public static void forEachCombo(int n, int k, Consumer<int[]> consumer) {
+		BigInteger nChooseK = nChooseK(n, k);
+		BigInteger r = BigInteger.ZERO;
+		while (r.compareTo(nChooseK) < 0) {
+			consumer.accept(combo(n, k, r));
+			r = r.add(BigInteger.ONE);
+		}
 	}
 }
