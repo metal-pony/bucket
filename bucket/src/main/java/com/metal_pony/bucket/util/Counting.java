@@ -194,7 +194,7 @@ public class Counting {
 		for (int _n = n - 1, _k = k - 1; _n >= 0 && _k >= 0; _n--) {
 			BigInteger _nck = nChooseK(_n, _k);
 			if (_r.compareTo(_nck) < 0) {
-				int arrIndex = _n / Byte.SIZE;
+				int arrIndex = nBytes - 1 - (_n / Byte.SIZE);
 				int bIndex = _n % Byte.SIZE;
 				_result[arrIndex] |= (1 << bIndex);
 				_k--;
