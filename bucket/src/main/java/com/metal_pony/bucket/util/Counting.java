@@ -38,7 +38,7 @@ public class Counting {
 
 		for (i++; i <= n; i++) {
 			result = result.multiply(BigInteger.valueOf(i));
-			factMap.add(result);
+			if (factMap.size() < 1000) factMap.add(result);
 		}
 
 		return result;
