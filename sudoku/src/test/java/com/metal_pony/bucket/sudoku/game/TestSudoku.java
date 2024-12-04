@@ -144,9 +144,10 @@ public class TestSudoku {
         assertArrayEquals(expectedItems, actualItems);
     }
 
-    // @Test
+    @Test
     void testFingerprint2() {
         assertEquals("9:f:b:d:3:7::1c", configFixture.fingerprint(2));
+        assertEquals("9::f::18:6:3b:d:36:6:32:9:d:5:39:2", configFixture.fingerprint(3));
     }
 
     @Test
@@ -282,11 +283,6 @@ public class TestSudoku {
             });
             assertEquals(expected, count.get());
         }
-    }
-
-    // @Test
-    void testFingerprint3() {
-        assertEquals("9::f::18:6:3b:d:36:6:32:9:d:5:39:2", configFixture.fingerprint(3));
     }
 
     @Test
