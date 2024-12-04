@@ -267,7 +267,7 @@ public class Sudoku {
                     "fingerprint2": "%s",
                     "fingerprint3": "%s"
                   }""",
-                puzzle, solution, fingerprint2, fingerprint3
+                puzzle, solution(), fingerprint2(), fingerprint3()
             );
         }
 
@@ -1498,14 +1498,12 @@ public class Sudoku {
             throw new IllegalArgumentException("cannot compute fingerprint: sudoku grid must be full");
         }
 
-        // For each level-digits combo (9 choose level):
-        //      copy the board with the digits removed,
-        //      collect all the solutions
         SudokuSieve sieve = new SudokuSieve(getBoard());
 
         for (int combo : DIGIT_COMBOS_MAP[level]) {
             sieve.addFromFilter(this.maskForDigits(combo));
 
+            // TODO Get masks without creating sudoku instances
             Sudoku g = new Sudoku(this);
             g.removeRows(combo);
             BigInteger m = g.getMask();
@@ -1522,32 +1520,30 @@ public class Sudoku {
             sieve.addFromFilter(invertMask(m));
         }
 
-        // for (int r = DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
-        //     BigInteger pMask = maskForDigits(DIGIT_COMBOS_MAP[level][r]);
-        //     sieve.addFromFilter(pMask);
-        // }
-
-        // int _sum = 0;
-        int minM = SPACES;
-        int maxM = 0;
-        int[] itemsByM = new int[SPACES];
-
+        //
+        // Track the maximum number of cells used by any unavoidable set
+        // int minNumCells = SPACES;
+        int maxNumCells = 0;
+        int[] itemCountByNumCells = new int[SPACES];
         for (BigInteger ua : sieve.items(new ArrayList<>())) {
-            int bits = ua.bitCount();
-            itemsByM[bits]++;
-            if (bits < minM) minM = bits;
-            if (bits > maxM) maxM = bits;
-            // _sum += bits;
+            int numCells = ua.bitCount();
+            itemCountByNumCells[numCells]++;
+            // if (numCells < minNumCells) minNumCells = numCells;
+            if (numCells > maxNumCells) maxNumCells = numCells;
         }
 
         ArrayList<String> itemsList = new ArrayList<>();
-        for (int m = 4; m <= maxM; m++) {
-            if (level == 2 && (m % 2) > 0) {
+        // An item (unavoidable set) includes a minimum of 4 cells
+        for (int numCells = 4; numCells <= maxNumCells; numCells++) {
+            // In level 2, there can be no UAs using an odd number of cells,
+            // because each cell must have at least one complement.
+            // Skipping odd numbers avoids "::", keeping the fingerprint short.
+            if (level == 2 && (numCells % 2) > 0) {
                 continue;
             }
 
-            int n = itemsByM[m];
-            itemsList.add((n > 0) ? Integer.toString(n, 16) : "");
+            int count = itemCountByNumCells[numCells];
+            itemsList.add((count > 0) ? Integer.toString(count, 16) : "");
         }
 
         return String.join(":", itemsList);
