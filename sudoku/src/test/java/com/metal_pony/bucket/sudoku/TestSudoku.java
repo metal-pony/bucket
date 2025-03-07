@@ -1,4 +1,4 @@
-package com.metal_pony.bucket.sudoku.game;
+package com.metal_pony.bucket.sudoku;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
