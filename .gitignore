@@ -5,3 +5,11 @@
 # Maven
 target
 dependency-reduced-pom.xml
+
+# output and logs
+out/
+log/
+logs/
+
+# ...
+.DS_Store
