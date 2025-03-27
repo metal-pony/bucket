@@ -1,11 +1,5 @@
 package com.metal_pony.bucket.sudoku;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,7 +9,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
-import java.util.Scanner;
 import java.util.Stack;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -30,171 +23,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import com.google.gson.Gson;
-import com.metal_pony.bucket.sudoku.drivers.Main;
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 import com.metal_pony.bucket.util.Counting;
 import com.metal_pony.bucket.util.Shuffler;
 import com.metal_pony.bucket.util.ThreadPool;
 
 public class Sudoku {
-    static final String PUZZLES_17_RESOURCE = "17-puzzle-records.json";
-
-    public static List<Sudoku> readSudokusFromFile(String filename, boolean log) throws FileNotFoundException {
-        if (log) {
-            System.out.print("Reading sudoku file...");
-        }
-
-        List<Sudoku> list = new ArrayList<>();
-        Scanner scanner = new Scanner(new File(filename));
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine().trim();
-            list.add(new Sudoku(line));
-        }
-        scanner.close();
-
-        if (log) {
-            System.out.println("Done.");
-            System.out.printf("Read %d sudokus.\n", list.size());
-        }
-
-        return list;
-    }
-
-    public static class PuzzleEntry {
-        String puzzle;
-        String solution;
-        String fingerprint2;
-        String fingerprint3;
-        String fingerprint4;
-
-        public PuzzleEntry(
-            String puzzle,
-            String solution,
-            String fingerprint2,
-            String fingerprint3,
-            String fingerprint4
-        ) {
-            this.puzzle = puzzle;
-            this.solution = solution;
-            this.fingerprint2 = fingerprint2;
-            this.fingerprint3 = fingerprint3;
-            this.fingerprint4 = fingerprint4;
-        }
-
-        public Sudoku puzzle() {
-            return new Sudoku(puzzle);
-        }
-
-        public void clear() {
-            solution = null;
-            fingerprint2 = null;
-            fingerprint3 = null;
-            fingerprint4 = null;
-        }
-
-        public String solution() {
-            if (solution == null) {
-                solution = new Sudoku(puzzle).firstSolution().toString();
-            }
-            return solution;
-        }
-
-        public String fingerprint2() {
-            if (fingerprint2 == null) {
-                fingerprint2 = new Sudoku(solution()).fingerprint(2);
-            }
-            return fingerprint2;
-        }
-
-        public String fingerprint3() {
-            if (fingerprint3 == null) {
-                fingerprint3 = new Sudoku(solution()).fingerprint(3);
-            }
-            return fingerprint3;
-        }
-
-        public String fingerprint4() {
-            if (fingerprint4 == null) {
-                fingerprint4 = new Sudoku(solution()).fingerprint(4);
-            }
-            return fingerprint4;
-        }
-
-        @Override
-        public String toString() {
-            return String.format(
-                """
-                {
-                  "puzzle":       "%s",
-                  "solution":     "%s",
-                  "fingerprint2": "%s",
-                  "fingerprint3": "%s",
-                  "fingerprint4": "%s"
-                }""",
-                puzzle, solution(), fingerprint2(), fingerprint3(), fingerprint4()
-            );
-        }
-
-        public static PuzzleEntry[] readFromJsonInStream(InputStream inStream) {
-            try (Reader reader = new InputStreamReader(inStream)) {
-                Gson gson = new Gson();
-                return gson.fromJson(reader, PuzzleEntry[].class);
-            } catch (IOException ioEx) {
-                ioEx.printStackTrace();
-                return new PuzzleEntry[0];
-            }
-        }
-
-        public static PuzzleEntry[] all17() {
-            return PuzzleEntry.readFromJsonInStream(Main.resourceStream(PUZZLES_17_RESOURCE));
-        }
-    }
-
-    /* ************************************
-     *           !! IGNORE !!
-     * Used for adhoc testing.
-     * ************************************/
-    public static void main2(String[] args) {
-        // Read puzzle entries from JSON file and recalculate solutions and fingerprints.
-        PuzzleEntry[] records = PuzzleEntry.readFromJsonInStream(Main.resourceStream(PUZZLES_17_RESOURCE));
-        int numThreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 4);
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(numThreads, numThreads, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-        Object sysoutLock = new Object();
-        for (PuzzleEntry record : records) {
-            pool.submit(() -> {
-                record.clear();
-                String recordStr = record.toString();
-                synchronized (sysoutLock) {
-                    System.out.printf("%s,\n", recordStr);
-                }
-            });
-        }
-        pool.shutdown();
-
-        // 218574639573896124469123578721459386354681792986237415147962853695318247832745961
-
-        // // Load from file
-        // String bandsFileName = "initial-bands.txt";
-        // File bandsFile = new File(bandsFileName);
-        // try (Scanner scanner = new Scanner(bandsFile)) {
-		// 	while(scanner.hasNextLine()) {
-		// 		String line = scanner.nextLine().trim();
-		// 		if (line.isEmpty()) {
-		// 			continue;
-		// 		}
-        //         // allBands.add(new BigInteger(line));
-        //         fullBandSet.add(line);
-		// 	}
-        // } catch (IOException ex) {
-		// 	ex.printStackTrace();
-		// }
-        // System.out.printf("Loaded %d bands from %s\n", fullBandSet.size(), bandsFileName);
-
-        // // Run through reduction func
-        // Set<String> reduced = Main.reduceFullBandSet(fullBandSet);
-    }
-
     static final boolean isDebugging = true;
     static void debug(String formatMsg, Object... args) {
         if (isDebugging) {
