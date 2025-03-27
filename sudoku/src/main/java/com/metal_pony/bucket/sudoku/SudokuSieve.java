@@ -1,23 +1,20 @@
 package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 
 public class SudokuSieve {
+    /**
+     * Filters the grid with the given mask, adding the solution diffs to the sieve
+     * if they validate as unavoidable sets.
+     * @param grid Sudoku grid associated with the sieve.
+     * @param sieve List of unavoidable sets.
+     * @param mask Applied to grid to create a puzzle.
+     * @param announce Whether to print out when items are added.
+     */
     public static void searchForItemsFromMask(
         Sudoku grid,
         List<SudokuMask> sieve,
@@ -46,7 +43,7 @@ public class SudokuSieve {
             if (p.solutionsFlag() != 2)
                 return true;
             // (3) for each empty cell, filling it with one of its remaining candidates and solving yields a solution
-            if (!p.allAntiesSolve())
+            if (!p.allBranchesSolveUniquely())
                 return true;
 
             // We've made it this far, so this diff is an Unavoidable Set ('UA' or 'sieve item')
@@ -58,6 +55,14 @@ public class SudokuSieve {
         });
     }
 
+    /**
+     * Populates a sieve for a given grid.
+     * @param grid Full and valid sudoku grid.
+     * @param sieve (Optional) List of existing sieve items.
+     * @param level 2 through 5. Higher numbers will search for more unavoidable sets, and will
+     * take more time. Not recommended beyond 4.
+     * @return The given sieve list of unavoidable sets, if provided, or a newly allocated list.
+     */
     public static List<SudokuMask> seedSieve(Sudoku grid, List<SudokuMask> sieve, int level) {
         if (grid == null)
             throw new IllegalArgumentException("Null grid");
@@ -84,10 +89,10 @@ public class SudokuSieve {
                     regionMask.unsetBit(ci);
             }
 
-            searchForItemsFromMask(grid, sieve, grid.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]).flip(), true);
-            searchForItemsFromMask(grid, sieve, rowMask, true);
-            searchForItemsFromMask(grid, sieve, colMask, true);
-            searchForItemsFromMask(grid, sieve, regionMask, true);
+            searchForItemsFromMask(grid, sieve, grid.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]).flip(), false);
+            searchForItemsFromMask(grid, sieve, rowMask, false);
+            searchForItemsFromMask(grid, sieve, colMask, false);
+            searchForItemsFromMask(grid, sieve, regionMask, false);
         }
 
         sieve.sort((a, b) -> {
@@ -103,15 +108,17 @@ public class SudokuSieve {
         return sieve;
     }
 
+    /**
+     * Checks whether the given list contains unavoidable sets.
+     * TODO NYI
+     * @param grid
+     * @param sieve
+     * @return True if the list contains all unavoidable sets; otherwise false.
+     */
     public static boolean isSieveValid(Sudoku grid, List<SudokuMask> sieve) {
-
+        // TODO
         return false;
     }
-
-    // public static String maskString(BigInteger mask) {
-    //     String bits = mask.toString(2);
-    //     return ("0".repeat(Sudoku.SPACES - bits.length()) + bits).replaceAll("[0]", ".");
-    // }
 
     private static class ItemGroup {
         final int order;
@@ -122,67 +129,79 @@ public class SudokuSieve {
         }
     }
 
-    // private final String _configStr;
     private final Sudoku _config;
     private int size;
     private final ArrayList<ItemGroup> _itemGroupsByBitCount;
-    // private Set<BigInteger> _cache;
-    // private Map<String,Integer> _validationCache;
     private int[] reductionMatrix;
 
+    /**
+     * Creates a new Sieve for the given sudoku configuration.
+     * @param config Full and valid sudoku.
+     * @throws IllegalArgumentException If the given sudoku is not full and valid.
+     */
     public SudokuSieve(Sudoku config) {
         if (!config.isSolved()) {
             throw new IllegalArgumentException("could not create sieve for malformed grid");
         }
 
-        // this._configStr = config.toString();
         this._config = new Sudoku(config.getBoard());
         this._itemGroupsByBitCount = new ArrayList<>(Sudoku.SPACES + 1);
         for (int n = 0; n <= Sudoku.SPACES; n++) {
             this._itemGroupsByBitCount.add(n, new ItemGroup(n));
         }
-        // this._cache = Collections.synchronizedSet(new HashSet<>());
-        // this._validationCache = Collections.synchronizedMap(new HashMap<>());
         this.reductionMatrix = new int[Sudoku.SPACES];
     }
 
+    /**
+     * Creates a new Sieve for the given sudoku board array.
+     * @param configBoard Full and valid sudoku board.
+     * @throws IllegalArgumentException If the given sudoku board is not full and valid.
+     */
     public SudokuSieve(int[] configBoard) {
         this(new Sudoku(configBoard));
     }
 
+    /**
+     * @return Number of items in the sieve.
+     */
     public int size() {
         return size;
     }
 
+    /**
+     * @return Whether the sieve contains no items.
+     */
     public boolean isEmpty() {
         return size == 0;
     }
 
+    /**
+     * @return A Sudoku instance copy of the grid associated with this sieve.
+     */
     public Sudoku config() {
         return new Sudoku(_config);
     }
 
+    /**
+     * @return A new List containing copies of this sieve's items.
+     */
     public List<SudokuMask> items() {
         return items(new ArrayList<>(size));
     }
 
+    /**
+     * Populates a List with copies of this sieve's items.
+     * @param list A List to copy items into.
+     * @return The given list, for convenience.
+     */
     public List<SudokuMask> items(List<SudokuMask> list) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             group.items.sort(SudokuMask::compareTo);
-            list.addAll(group.items);
-        }
-        return list;
-    }
-
-    public SudokuMask[] items(SudokuMask[] arr) {
-        int i = 0;
-        for (ItemGroup group : _itemGroupsByBitCount) {
-            group.items.sort(SudokuMask::compareTo);
             for (SudokuMask item : group.items) {
-                arr[i++] = item;
+                list.add(new SudokuMask(item.toString()));
             }
         }
-        return arr;
+        return list;
     }
 
     /**
@@ -200,108 +219,67 @@ public class SudokuSieve {
         return arr;
     }
 
-    private List<Integer> maximums = new ArrayList<>();
-    private Random rand = new Random();
-    public int firstImpact() {
-        int max = 0;
-        maximums.clear();
-        for (int i = 0; i < reductionMatrix.length; i++) {
-            int r = reductionMatrix[i];
-            if (r > max) {
-                max = r;
-                maximums.clear();
-                maximums.add(i);
-            } else if (r == max) {
-                maximums.add(i);
-            }
-        }
-        return maximums.get(rand.nextInt(maximums.size()));
-    }
-
+    /**
+     * @return The first item in the sieve; null if the sieve is empty.
+     */
     public SudokuMask first() {
         for (ItemGroup group : _itemGroupsByBitCount) {
             if (group.items.size() > 0) {
-                // return group.items.first();
                 return group.items.get(0);
             }
         }
 
-        return new SudokuMask();
+        return null;
     }
 
-    public SudokuMask firstNonOverlapping(SudokuMask mask) {
+    /**
+     * Searches for and returns the first item in the sieve that satifies the given predicate.
+     * @param predicate Takes a SudokuMask and returns a boolean.
+     * @return The found item; null if no items satisfy the predicate function.
+     */
+    public SudokuMask find(Function<SudokuMask,Boolean> predicate) {
         for (ItemGroup group : _itemGroupsByBitCount) {
-            if (group.items.size() > 0) {
-                for (SudokuMask item : group.items) {
-                    // if (BigInteger.ZERO.equals(item.and(mask))) {
-                    if (mask.overlapsAllOf(item)) {
-                        return item;
-                    }
+            if (group.items.isEmpty()) continue;
+            for (SudokuMask item : group.items) {
+                SudokuMask _item = new SudokuMask(item.toString());
+                if (predicate.apply(_item)) {
+                    return _item;
                 }
             }
         }
-
-        return new SudokuMask();
+        return null;
     }
 
+    /**
+     * Retrieves the group associated with the given bitCount.
+     */
     ItemGroup groupForBitCount(int bitCount) {
         return _itemGroupsByBitCount.get(bitCount);
     }
 
+    /**
+     * Gets a list of items associated with the given number of clues.
+     * @param numClues
+     * @return A new List containing copies of the sieve items associated with the number of clues.
+     * @throws IllegalArgumentException If numClues is out of range.
+     */
     public List<SudokuMask> getItemByNumClues(int numClues) {
         if (numClues < 0 || numClues > Sudoku.SPACES) {
             throw new IllegalArgumentException("Invalid number of clues");
         }
-        return new ArrayList<>(groupForBitCount(numClues).items);
-    }
-
-    public void seed(int level) {
-        seed(level, null);
-    }
-
-    public Set<SudokuMask> genSeedMasks(int level) {
-        Set<SudokuMask> masks = new HashSet<>();
-        int[] board = _config.getBoard();
-        for (int combo : Sudoku.DIGIT_COMBOS_MAP[level]) {
-            SudokuMask digMask = new SudokuMask();
-            SudokuMask rowMask = new SudokuMask();
-            SudokuMask colMask = new SudokuMask();
-            SudokuMask regionMask = new SudokuMask();
-
-            for (int ci = 0; ci < Sudoku.SPACES; ci++) {
-                if ((combo & (1 << (board[ci]) - 1)) > 0) {
-                    digMask.setBit(ci);
-                }
-                if ((combo & (1 << Sudoku.CELL_ROWS[ci])) > 0) {
-                    rowMask.setBit(ci);
-                }
-                if ((combo & (1 << Sudoku.CELL_COLS[ci])) > 0) {
-                    colMask.setBit(ci);
-                }
-                if ((combo & (1 << Sudoku.CELL_REGIONS[ci])) > 0) {
-                    regionMask.setBit(ci);
-                }
-            }
-
-            digMask.flip();
-            rowMask.flip();
-            colMask.flip();
-            regionMask.flip();
-
-            // System.out.println(maskString(digMask));
-            // System.out.println(maskString(rowMask));
-            // System.out.println(maskString(colMask));
-            // System.out.println(maskString(regionMask));
-
-            masks.add(digMask);
-            masks.add(rowMask);
-            masks.add(colMask);
-            masks.add(regionMask);
+        List<SudokuMask> results = new ArrayList<>();
+        for (SudokuMask item : groupForBitCount(numClues).items) {
+            results.add(new SudokuMask(item.toString()));
         }
-        return masks;
+        return results;
     }
 
-    public void seed(int level, ThreadPoolExecutor pool) {
+    /**
+     * Populates the sieve at the given level.
+     * @param level 2 through 5. Higher numbers will search for more unavoidable sets, and will
+     * take more time. Not recommended beyond 4.
+     */
+    public void seed(int level) {
         int[] board = _config.getBoard();
         for (int combo : Sudoku.DIGIT_COMBOS_MAP[level]) {
             SudokuMask digMask = new SudokuMask();
@@ -325,168 +303,37 @@ public class SudokuSieve {
             }
 
             addFromFilter(digMask);
-            // System.out.println(maskString(digMask));
             addFromFilter(rowMask);
-            // System.out.println(maskString(rowMask));
             addFromFilter(colMask);
-            // System.out.println(maskString(colMask));
             addFromFilter(regionMask);
-            // System.out.println(maskString(regionMask));
         }
     }
 
-    public List<SudokuMask> solveMasksForDiffs(Set<SudokuMask> masks) {
-        int numThreads = Runtime.getRuntime().availableProcessors() / 2;
-        // int numThreads = 1;
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(numThreads, numThreads, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-        List<SudokuMask> diffs = new ArrayList<>();
-
-        List<Set<SudokuMask>> diffCatalog = new ArrayList<>();
-        for (int i = 0; i < Sudoku.SPACES; i++) {
-            diffCatalog.add(Collections.synchronizedSet(new HashSet<>()));
-        }
-
-        pool.prestartAllCoreThreads();
-        Object printLock = new Object();
-        for (SudokuMask mask : masks) {
-            pool.submit(() -> {
-                Sudoku puzzle = _config.filter(mask);
-                AtomicInteger solutionCount = new AtomicInteger();
-                puzzle.searchForSolutions3(solution -> {
-                    solutionCount.incrementAndGet();
-                    SudokuMask diff = _config.diff2(solution);
-                    // if (BigInteger.ZERO.compareTo(diff) < 0) {
-                    if (diff.bitCount() == 0) {
-                        diffCatalog.get(diff.bitCount()).add(diff);
-                    }
-                    // diffs.add(_config.diff2(solution));
-                    return true;
-                });
-                synchronized (printLock) {
-                    System.out.printf("[%10d] %s\n", solutionCount.get(), puzzle.toString());
-                }
-            });
-        }
-        pool.shutdown();
-
-        try {
-            pool.awaitTermination(1, TimeUnit.HOURS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        for (Set<SudokuMask> subset : diffCatalog) {
-            diffs.addAll(subset);
-        }
-        return diffs;
-    }
-
-    public void processDiffs(List<SudokuMask> diffs) {
-        System.out.printf("Processing %d diffs...\n", diffs.size());
-
-        System.out.println("Sorting diffs by bit count...");
-        long start = System.currentTimeMillis();
-        diffs.sort((a, b) -> (b.bitCount() - a.bitCount()));
-        System.out.printf("Done (%d ms)\n", System.currentTimeMillis() - start);
-
-        // This is too slow
-        // int diffsSize = diffs.size();
-        // diffs.removeIf(diff -> !validate(diff));
-        // System.out.printf("Removed %d invalid items\n", diffsSize - diffs.size());
-
-        int invalidCount = 0;
-        int addFailures = 0;
-        AtomicInteger derivativeCount = new AtomicInteger();
-        long lastGc = System.currentTimeMillis();
-        long gcInterval = 60000L;
-
-        while (!diffs.isEmpty()) {
-            if (System.currentTimeMillis() - lastGc > gcInterval) {
-                System.gc();
-                lastGc = System.currentTimeMillis();
-            }
-
-            SudokuMask diff = diffs.remove(diffs.size() - 1);
-            if (!validate(diff)) {
-                invalidCount++;
-                System.out.print('.');
-                continue;
-            }
-
-            if (rawAdd(diff)) {
-                // System.out.println(_config.filter(diff).toString());
-                System.out.print('+');
-                // System.out.printf("Added: %s\n", maskString(diff));
-                // diffsSize = diffs.size();
-                AtomicInteger removeCount = new AtomicInteger();
-                diffs.removeIf(d -> {
-                    // boolean remove = diff.and(d).equals(diff);
-                    boolean remove = diff.overlapsAllOf(d);
-                    if (remove) {
-                        removeCount.incrementAndGet();
-                        derivativeCount.incrementAndGet();
-                        // System.out.print('-');
-                    }
-                    return remove;
-                });
-                if (removeCount.get() > 0) {
-                    System.out.printf("-[%d]", removeCount.get());
-                }
-                // System.out.printf("Removed %d items\n", diffsSize - diffs.size());
-            } else {
-                // System.out.println("⚠️ rawAdd failed?");
-                System.out.print('!');
-                addFailures++;
-            }
-        }
-
-        System.out.printf("\nInvalid items: %d\n", invalidCount);
-        System.out.printf("Derivatives removed: %d\n", derivativeCount.get());
-        System.out.printf("Add failures: %d\n", addFailures);
-    }
-
-    // int numThreads = Runtime.getRuntime().availableProcessors() / 2;
-    // ThreadPoolExecutor pool = new ThreadPoolExecutor(numThreads, numThreads, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    /**
+     * Checks whether the given SudokuMask is an unavoidable set.
+     * @param mask Mask representing an unavoidable set.
+     * @return True if the mask is an unavoidable set; otherwise false.
+     */
     boolean validate(SudokuMask mask) {
-        // BigInteger maskInverted = mask.xor(BigInteger.ONE.shiftLeft(Sudoku.SPACES).subtract(BigInteger.ONE));
         SudokuMask maskInverted = new SudokuMask(mask.toString()).flip();
-        // Sudoku _c = new Sudoku(_config.getBoard());
-        // Sudoku p = _config.filter(maskInverted);
         Sudoku p2 = _config.filter(maskInverted);
 
         int pEmptyCells = p2.numEmptyCells;
         p2.reduce();
-        if (p2.numEmptyCells != pEmptyCells) {
-            return false;
-        }
-
-        if (p2.solutionsFlag() != 2) {
-            return false;
-        }
-
-        for (Sudoku anti : p2.antiDerivatives()) {
-            String key = anti.toString();
-            // Integer cacheFlag = _validationCache.get(key);
-            int flag;
-            // if (cacheFlag != null) {
-            //     flag = cacheFlag.intValue();
-            // } else {
-                flag = anti.solutionsFlag();
-            //     _validationCache.put(key, flag);
-            // }
-
-            if (flag != 1) {
-                return false;
-            }
-        }
-
-        return true;
+        if (p2.numEmptyCells != pEmptyCells) return false;
+        if (p2.solutionsFlag() != 2) return false;
+        return p2.allBranchesSolveUniquely();
     }
 
-    public synchronized boolean isDerivative(SudokuMask mask) {
-        if (mask.bitCount() == 0) {
-            return true;
-        }
+    /**
+     * Checks whether the given SudokuMask is derivative of an existing unavoidable set
+     * already in this sieve.
+     * @param mask
+     * @return True if the mask is covered by an unavoidable set mask in this sieve; otherwise false.
+     * Empty masks (0 bitCount are always TRUE).
+     */
+    synchronized boolean isDerivative(SudokuMask mask) {
+        if (mask.bitCount() == 0) return true;
 
         for (ItemGroup group : _itemGroupsByBitCount) {
             if (group.items.size() > 0) {
@@ -501,7 +348,11 @@ public class SudokuSieve {
         return false;
     }
 
-    public synchronized void addToReductionMatrix(SudokuMask item) {
+    /**
+     * Adds the given item to the reduction matrix.
+     * @param item Mask of the item to add.
+     */
+    synchronized void addToReductionMatrix(SudokuMask item) {
         for (int i = 0; i < Sudoku.SPACES; i++) {
             if (item.testBit(i)) {
                 reductionMatrix[i]++;
@@ -509,7 +360,11 @@ public class SudokuSieve {
         }
     }
 
-    public synchronized void subtractFromReductionMatrix(SudokuMask item) {
+    /**
+     * Subtracts the given item from the reduction matrix.
+     * @param item Mask of the item to subtract.
+     */
+    synchronized void subtractFromReductionMatrix(SudokuMask item) {
         for (int i = 0; i < Sudoku.SPACES; i++) {
             if (item.testBit(i)) {
                 reductionMatrix[i]--;
@@ -517,7 +372,12 @@ public class SudokuSieve {
         }
     }
 
-    public synchronized boolean rawAdd(SudokuMask item) {
+    /**
+     * Adds an item directly into the sieve without validating.
+     * @param item Item to add.
+     * @return True if the item was added; otherwise false if the item already exists.
+     */
+    synchronized boolean rawAdd(SudokuMask item) {
         if (!groupForBitCount(item.bitCount()).items.contains(item)) {
             groupForBitCount(item.bitCount()).items.add(item);
             size++;
@@ -527,112 +387,51 @@ public class SudokuSieve {
         return false;
     }
 
-    public boolean add(SudokuMask item) {
-        // if (!_cache.contains(item)) {
-            // // if (isDerivative(item) || !validate(item)) {
-            if (!validate(item)) {
-                return false;
-            } else {
-                // _cache.add(item);
-            }
-        // }
-
-        return rawAdd(item);
+    /**
+     * Attempts to add the given item to this sieve.
+     * @param item Item to add.
+     * @return True if the item was added; otherwise false if the item has not bits set;
+     * if the item is derivative of an existing item;
+     * if the item is not an unavoidable set;
+     * if the item was previously added.
+     */
+    public synchronized boolean add(SudokuMask item) {
+        if (
+            item.bitCount() > 0 &&
+            !isDerivative(item) &&
+            validate(item)
+        ) {
+            rawAdd(item);
+            return true;
+        }
+        return false;
     }
 
-    public boolean add(SudokuMask item, boolean useCache) {
-        // if (!_cache.contains(item)) {
-            // // if (isDerivative(item) || !validate(item)) {
-            if (!validate(item)) {
-                return false;
-            } else {
-                // _cache.add(item);
-            }
-        // }
-
-        return rawAdd(item);
-    }
-
+    /**
+     * Filters the sieve's grid with the given mask, and for each solution,
+     * adds the diff as an item if it validates as an unavoidable set.
+     * @param mask Used to filter the sudoku grid associated with this sieve.
+     */
     public void addFromFilter(SudokuMask mask) {
-        addFromFilter(mask, null, null);
-    }
-
-    public void addFromFilter(SudokuMask mask, ThreadPoolExecutor pool) {
-        addFromFilter(mask, null, pool);
-    }
-
-    public void addFromFilter(SudokuMask mask, Consumer<String> callback, ThreadPoolExecutor pool) {
-        // int initialLength = size;
-        SudokuMask maskInverted = new SudokuMask(mask.toString()).flip();
-        Sudoku puzzle = _config.filter(maskInverted);
-        // List<Future<Boolean>> resultsProcessing = new LinkedList<>();
-        ArrayList<SudokuMask> diffs = new ArrayList<>();
-        puzzle.searchForSolutions3(solution -> {
-            diffs.add(_config.diff2(solution));
-            // if (_cache.contains(diff)) {
-                // rawAdd(diff);
-            // } else
-
-            //  if (!BigInteger.ZERO.equals(diff) && !isDerivative(diff)) {
-            //     Runnable adder = () -> {
-            //         if (!validate(diff)) {
-            //             return;
-            //         }
-            //         // _cache.add(diff);
-            //         if (rawAdd(diff)) {
-            //             if (callback != null) {
-            //                 callback.accept(solution.toString());
-            //             }
-            //             // return true;
-            //         }
-            //         // return false;
-            //     };
-
-            //     if (pool == null) {
-            //         adder.run();
-            //     } else {
-            //         pool.submit(adder);
-            //     }
-            // }
-
+        _config.filter(mask.flip()).searchForSolutions3(solution -> {
+            SudokuMask diff = _config.diff2(solution);
+            if (
+                diff.bitCount() > 0 &&
+                !isDerivative(diff) &&
+                validate(diff)
+            ) {
+                rawAdd(diff);
+            }
             return true;
         });
-
-        diffs.removeIf(diff -> isDerivative(diff));
-        diffs.sort((a, b) -> (b.bitCount() - a.bitCount()));
-        while (!diffs.isEmpty()) {
-            SudokuMask diff = diffs.remove(diffs.size() - 1);
-            if (!validate(diff)) {
-                // invalidCount++;
-                // System.out.print('.');
-                continue;
-            }
-
-            if (rawAdd(diff)) {
-                // System.out.print('+');
-                // System.out.printf("Added: %s\n", maskString(diff));
-                // diffsSize = diffs.size();
-                diffs.removeIf(d -> {
-                    // boolean remove = diff.and(d).equals(diff);
-                    boolean remove = diff.overlapsAllOf(d);
-                    // if (remove) {
-                    //     derivativeCount.incrementAndGet();
-                    //     System.out.print('-');
-                    // }
-                    return remove;
-                });
-                // System.out.printf("Removed %d items\n", diffsSize - diffs.size());
-            } else {
-                // System.out.println("⚠️ rawAdd failed?");
-                // System.out.print('!');
-                // addFailures++;
-            }
-        }
-
-        // return resultsProcessing;
     }
 
-    public boolean remove(SudokuMask item) {
+    /**
+     * Removes the specific item if it exists in the sieve.
+     * @param item Item to remove.
+     * @return True if the item was found and removed; otherwise false.
+     */
+    public synchronized boolean remove(SudokuMask item) {
         if (groupForBitCount(item.bitCount()).items.remove(item)) {
             size--;
             subtractFromReductionMatrix(item);
@@ -643,26 +442,22 @@ public class SudokuSieve {
 
     /**
      * Removes and returns all items that include the given cell index.
+     * Items removed are automatically deducted from the reduction matrix.
+     * @param cellIndex
+     * @return A list containing all items that were removed.
      */
     public List<SudokuMask> removeOverlapping(int cellIndex) {
-        ArrayList<SudokuMask> result = new ArrayList<>();
-
-        for (ItemGroup group : _itemGroupsByBitCount) {
-            group.items.removeIf((i) -> {
-                // boolean shouldRemove = i.testBit(Sudoku.SPACES - 1 - cellIndex);
-                boolean shouldRemove = i.testBit(cellIndex);
-                if (shouldRemove) {
-                    result.add(i);
-                    size--;
-                    subtractFromReductionMatrix(i);
-                }
-                return shouldRemove;
-            });
-        }
-
-        return result;
+        ArrayList<SudokuMask> list = new ArrayList<>();
+        return removeOverlapping(cellIndex, list);
     }
 
+    /**
+     * Removes and returns all items that include the given cell index.
+     * Items removed are automatically deducted from the reduction matrix.
+     * @param cellIndex
+     * @param removedList A list to add the removed items to.
+     * @return The given list for convenience.
+     */
     public List<SudokuMask> removeOverlapping(int cellIndex, List<SudokuMask> removedList) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             group.items.removeIf((i) -> {
@@ -679,10 +474,15 @@ public class SudokuSieve {
         return removedList;
     }
 
+    /**
+     * Checks whether the given mask intersects with all sieve items.
+     * @param mask
+     * @return True if the mask contains at least one bit intersecting with each sieve item.
+     */
     public boolean doesMaskSatisfy(SudokuMask mask) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             for (SudokuMask item : group.items) {
-                // if (item.and(mask).equals(BigInteger.ZERO)) {
+                // TODO There's no way this is correct, right?
                 if (item.overlapsAllOf(mask)) {
                     return false;
                 }
@@ -700,7 +500,6 @@ public class SudokuSieve {
             if (group.items.size() > 0) {
                 strb.append(String.format("  [%d]: [\n", group.order));
                 for (SudokuMask item : group.items) {
-                    // BigInteger itemInverted = item.xor(BigInteger.ONE.shiftLeft(Sudoku.SPACES).subtract(BigInteger.ONE));
                     strb.append(String.format("    %s\n", _config.filter(item).toString()));
                 }
                 strb.append("  ],\n");
@@ -709,65 +508,5 @@ public class SudokuSieve {
 
         strb.append("}");
         return strb.toString();
-    }
-
-    public String toHexString() {
-        StringBuilder strb = new StringBuilder();
-        strb.append("{\n");
-
-        for (ItemGroup group : _itemGroupsByBitCount) {
-            if (group.items.size() > 0) {
-                strb.append(String.format("  [%d]: [\n", group.order));
-                for (SudokuMask item : group.items) {
-                    // BigInteger itemInverted = item.xor(BigInteger.ONE.shiftLeft(Sudoku.SPACES).subtract(BigInteger.ONE));
-                    strb.append(String.format("    %s\n", _config.filter(item).toString()));
-                }
-                strb.append("  ],\n");
-            }
-        }
-
-        strb.append("}");
-        return strb.toString();
-    }
-
-    public Map<Integer, List<SudokuMask>> toMap() {
-        Map<Integer, List<SudokuMask>> map = new HashMap<>();
-        for (ItemGroup group : _itemGroupsByBitCount) {
-            if (group.items.size() > 0) {
-                map.put(group.order, new ArrayList<>(group.items));
-            }
-        }
-        return map;
-    }
-
-    public int[] orderCellsByNumOccurrences() {
-        Map<Integer,Integer> r = new HashMap<>();
-
-        for (int i = 0; i < Sudoku.SPACES; i++) {
-            r.put(i, 0);
-        }
-
-        List<SudokuMask> items = items(new ArrayList<>());
-        for (SudokuMask item : items) {
-            for (int ci = 0; ci < Sudoku.SPACES; ci++) {
-                // int bit = Sudoku.SPACES - 1 - ci;
-                // if (item.testBit(bit)) {
-                if (item.testBit(ci)) {
-                    // Possible NullPointerException, but all indices should be seeded 0 above.
-                    int count = r.get(ci);
-                    r.put(ci, count+1);
-                }
-            }
-        }
-
-        ArrayList<Entry<Integer,Integer>> list = new ArrayList<>();
-        list.addAll(r.entrySet());
-        list.sort((a, b) -> (b.getValue() - a.getValue()));
-        int[] indicesSorted = new int[list.size()];
-        for (int i = 0; i < indicesSorted.length; i++) {
-            indicesSorted[i] = list.get(i).getKey();
-        }
-
-        return indicesSorted;
     }
 }
