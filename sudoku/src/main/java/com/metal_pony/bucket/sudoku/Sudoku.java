@@ -1,14 +1,11 @@
 package com.metal_pony.bucket.sudoku;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Stack;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -19,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -29,18 +25,6 @@ import com.metal_pony.bucket.util.Shuffler;
 import com.metal_pony.bucket.util.ThreadPool;
 
 public class Sudoku {
-    static final boolean isDebugging = true;
-    static void debug(String formatMsg, Object... args) {
-        if (isDebugging) {
-            System.out.printf(formatMsg, args);
-        }
-    }
-    static void debug(String msg) {
-        if (isDebugging) {
-            System.out.println(msg);
-        }
-    }
-
     static final char EMPTY_CHAR = '.';
 
     public static final int RANK = 3;
@@ -1127,54 +1111,28 @@ public class Sudoku {
         return result.get();
     }
 
-    public Sudoku normalize() {
-        // TODO Board must have top row full
-
-        for (int d = 1; d <= DIGITS; d++) {
-			int cellDigit = digits[d - 1];
-			if (cellDigit != d) {
-				swapDigits(cellDigit, d);
-			}
-		}
-
-        return this;
-    }
-
-    public boolean allAntiesSolve() {
+    /**
+     * Checks whether all branches of this puzzle solve uniquely.
+     * Branches are created by filling in each cell with each of its possible candidates.
+     * TODO Not 100% confident this is working as intended.
+     * @return True if all branches of this puzzle are solvable with a unique solution.
+     */
+    public boolean allBranchesSolveUniquely() {
         for (int ci = 0; ci < SPACES; ci++) {
             int originalVal = candidates[ci];
-            if (originalVal == 0)
-                return false;
-
+            if (originalVal == 0) return false;
             if (digits[ci] == 0) {
                 for (int candidateDigit : CANDIDATES_ARR[originalVal]) {
                     setDigit(ci, candidateDigit); // mutates constraints
                     int flag = solutionsFlag();
                     setDigit(ci, 0); // undo the constraints mutation
                     candidates[ci] = originalVal;
-                    if (flag != 1)
-                        return false;
+                    if (flag != 1) return false;
                 }
             }
         }
-
         return true;
-      }
-
-    public void swapDigits(int a, int b) {
-		if (a == b) {
-            return;
-        }
-
-        for (int ci = 0; ci < SPACES; ci++) {
-            int d = digits[ci];
-            if (d == a) {
-                setDigit(ci, b);
-            } else if (d == b) {
-                setDigit(ci, a);
-            }
-        }
-	}
+    }
 
     /**
      * Generates a copy of this sudoku with the specified digits removed.
@@ -1189,6 +1147,9 @@ public class Sudoku {
         }
     }
 
+    /**
+     * @return A SudokuMask where bits are set for each digit on the board.
+     */
     public SudokuMask getMask() {
         if (isFull()) return SudokuMask.full();
         if (isEmpty()) return new SudokuMask();
@@ -1202,6 +1163,11 @@ public class Sudoku {
         return result;
     }
 
+    /**
+     * Gets a SudokuMask where bits are set for each digit in digitsMask on the board.
+     * @param digitsMask Bitmask representing multiple digits. Same as the candidate values.
+     * @return A new SudokuMask with bits set for select digits on the board.
+     */
     public SudokuMask maskForDigits(int digitsMask) {
         SudokuMask result = new SudokuMask();
         for (int ci = 0; ci < SPACES; ci++) {
@@ -1212,6 +1178,15 @@ public class Sudoku {
         return result;
     }
 
+    /**
+     * Generates a code for the solved sudoku.
+     * The code will be the same regardless of how the board is manipulated by
+     * symmetry-preserving transforms (rotating, mirroring, digit-swapping).
+     * This Sudoku must be solved before generating, or an exception will be thrown.
+     * The level indicates granularity. Higher levels involve exponentially more calculation.
+     * @param level From 2-4, Not recommended higher than 4.
+     * @return A 'fingerprint' code.
+     */
     public String fingerprint(int level) {
         if (level < 2 || level > 8) {
             throw new IllegalArgumentException("sudoku fingerprint level (f) must be 2 <= f <= 8");
@@ -1252,113 +1227,154 @@ public class Sudoku {
         return String.join(":", itemsList);
     }
 
-    public void shuffleDigits() {
-        // TODO prereq: puzzle must contain every distinct digit
-        Shuffler.shuffle(_digitsArr);
+    /***********************************************
+     *
+     * Transformations
+     *
+     * The following transformations are symmetry-preserving,
+     * i.e. they do not change the number of solutions.
+     * Transformed grids will retain the same fingerprint.
+     *
+     * After any transformation, 'constraints' may be out of sync
+     * and require reseting via 'resetConstraints()'.
+     ***********************************************/
 
-        for (int i = 0; i < DIGITS; i++) {
-            int a = i + 1;
-            int b = _digitsArr[i];
-            swapDigits(a, b);
+    /**
+     * Swaps all of digit 'a' on the board with digit 'b'.
+     * Does nothing if digits are the same, either are negative,
+     * or either are a number greater than 9.
+     * @param a 1 through 9
+     * @param b 1 through 9
+     */
+    public void swapDigits(int a, int b) {
+		if (a == b) return;
+        if (a <= 0 || a > 9 || b <= 0 || b > 9) return;
+        for (int i = 0; i < SPACES; i++) {
+            int d = digits[i];
+            if (d == a) {
+                setDigit(i, b);
+            } else if (d == b) {
+                setDigit(i, a);
+            }
         }
-    }
+	}
 
-    public void rotate(int n) {
-        // TODO
-        // Rotate (clockwise) n times
-        // n = n % 4; and ensure positive
-    }
-
-    public void reflect(int orientation) {
-        // TODO
-        // preset orientations: HORIZONTAL, VERTICAL, DIAGONAL, ANTIDIAGONAL
-    }
-
-    public Sudoku swapBandRows(int bi, int ri1, int ri2) {
-        if (ri1 == ri2) return this;
-        if (bi < 0 || bi > 2 || ri1 < 0 || ri2 < 0 || ri1 > 2 || ri2 > 2) {
-            throw new IllegalArgumentException("swapBandRows error, specified band or row(s) out of bounds");
-        }
-
-        int[] board = getBoard();
-
-        for (int i = 0; i < DIGITS; i++) {
-            setDigit(BAND_ROW_INDICES[bi][ri1][i], 0);
-            setDigit(BAND_ROW_INDICES[bi][ri2][i], 0);
-            Shuffler.swap(board, BAND_ROW_INDICES[bi][ri1][i], BAND_ROW_INDICES[bi][ri2][i]);
-        }
-
-        for (int i = 0; i < DIGITS; i++) {
-            setDigit(BAND_ROW_INDICES[bi][ri1][i], board[BAND_ROW_INDICES[bi][ri1][i]]);
-            setDigit(BAND_ROW_INDICES[bi][ri2][i], board[BAND_ROW_INDICES[bi][ri2][i]]);
-        }
-
+    /**
+     * Rearranges the board digits so the top row is sequential.
+     * Empty top row cells are skipped.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku normalize() {
+        for (int d = 1; d <= DIGITS; d++) {
+			int cellDigit = digits[d - 1];
+			if (cellDigit > 0 && cellDigit != d) {
+				swapDigits(cellDigit, d);
+			}
+		}
         return this;
     }
 
-    public Sudoku swapStackCols(int si, int ci1, int ci2) {
-        if (ci1 == ci2) return this;
-        if (si < 0 || ci1 < 0 || ci2 < 0 || si > 2 || ci1 > 2 || ci2 > 2) {
-            throw new IllegalArgumentException("swapStackCols error, specified stack or col(s) out of bounds");
+    /**
+     * Rotates the board clockwise the given number of turns, up to 3.
+     * @param turns Number of times to rotate the board.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku rotate(int turns) {
+        turns = ((turns % 4) + 4) % 4;
+        for (int t = 0; t < turns; t++) {
+            SudokuUtility.rotate90(candidates);
+            SudokuUtility.rotate90(digits);
         }
-
-        int[] board = getBoard();
-
-        for (int i = 0; i < DIGITS; i++) {
-            setDigit(STACK_COL_INDICES[si][ci1][i], 0);
-            setDigit(STACK_COL_INDICES[si][ci2][i], 0);
-            Shuffler.swap(board,STACK_COL_INDICES[si][ci1][i], STACK_COL_INDICES[si][ci2][i]);
-        }
-
-        for (int i = 0; i < DIGITS; i++) {
-            setDigit(STACK_COL_INDICES[si][ci1][i], board[STACK_COL_INDICES[si][ci1][i]]);
-            setDigit(STACK_COL_INDICES[si][ci2][i], board[STACK_COL_INDICES[si][ci2][i]]);
-        }
-
         return this;
     }
 
+    /**
+     * Reflects the board values over the horizontal.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku reflectHorizontal() {
+        SudokuUtility.reflectOverHorizontal(candidates, DIGITS);
+        SudokuUtility.reflectOverHorizontal(digits, DIGITS);
+        return this;
+    }
+
+    /**
+     * Reflects the board values over the vertical.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku reflectVertical() {
+        SudokuUtility.reflectOverVertical(candidates, DIGITS);
+        SudokuUtility.reflectOverVertical(digits, DIGITS);
+        return this;
+    }
+
+    /**
+     * Reflects the board values over the diagonal.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku reflectDiagonal() {
+        SudokuUtility.reflectOverDiagonal(candidates);
+        SudokuUtility.reflectOverDiagonal(digits);
+        return this;
+    }
+
+    /**
+     * Reflects the board values over the antidiagonal.
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku reflectAntiDiagonal() {
+        SudokuUtility.reflectOverAntiDiagonal(candidates);
+        SudokuUtility.reflectOverAntiDiagonal(digits);
+        return this;
+    }
+
+    /**
+     * Swaps the given bands. Bands are groups of 3 regions, horizontally.
+     * @param b1 Band index (0, 1, or 2)
+     * @param b2 Band index (0, 1, or 2) Different than b1
+     * @return This sudoku instance for convenience.
+     */
     public Sudoku swapBands(int b1, int b2) {
-        if (b1 == b2) return this;
-        if (b1 < 0 || b2 < 0 || b1 > 2 || b2 > 2) {
-            throw new IllegalArgumentException("swapBands error, specified band(s) out of bounds");
-        }
-
-        int[] board = getBoard();
-
-        for (int i = 0; i < 27; i++) {
-            setDigit(BAND_INDICES[b1][i], 0);
-            setDigit(BAND_INDICES[b2][i], 0);
-            Shuffler.swap(board, BAND_INDICES[b1][i], BAND_INDICES[b2][i]);
-        }
-
-        for (int i = 0; i < 27; i++) {
-            setDigit(BAND_INDICES[b1][i], board[BAND_INDICES[b1][i]]);
-            setDigit(BAND_INDICES[b2][i], board[BAND_INDICES[b2][i]]);
-        }
-
+        SudokuUtility.swapBands(candidates, b1, b2);
+        SudokuUtility.swapBands(digits, b1, b2);
         return this;
     }
 
+    /**
+     * Swaps the given rows within a band.
+     * @param b1 Band index (0, 1, or 2)
+     * @param ri1 Row index (0, 1, or 2)
+     * @param ri2 Row index (0, 1, or 2) Different than ri1
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku swapBandRows(int bi, int ri1, int ri2) {
+        SudokuUtility.swapBandRows(candidates, bi, ri1, ri2);
+        SudokuUtility.swapBandRows(digits, bi, ri1, ri2);
+        return this;
+    }
+
+    /**
+     * Swaps the given stacks. Stacks are groups of 3 regions, vertically.
+     * @param s1 Stack index (0, 1, or 2)
+     * @param s2 Stack index (0, 1, or 2) Different than s1
+     * @return This sudoku instance for convenience.
+     */
     public Sudoku swapStacks(int s1, int s2) {
-        if (s1 == s2) return this;
-        if (s1 < 0 || s2 < 0 || s1 > 2 || s2 > 2) {
-            throw new IllegalArgumentException("swapStacks error, specified stack(s) out of bounds");
-        }
+        SudokuUtility.swapStacks(candidates, s1, s2);
+        SudokuUtility.swapStacks(digits, s1, s2);
+        return this;
+    }
 
-        int[] board = getBoard();
-
-        for (int i = 0; i < 27; i++) {
-            setDigit(STACK_INDICES[s1][i], 0);
-            setDigit(STACK_INDICES[s2][i], 0);
-            Shuffler.swap(board, STACK_INDICES[s1][i], STACK_INDICES[s2][i]);
-        }
-
-        for (int i = 0; i < 27; i++) {
-            setDigit(STACK_INDICES[s1][i], board[STACK_INDICES[s1][i]]);
-            setDigit(STACK_INDICES[s2][i], board[STACK_INDICES[s2][i]]);
-        }
-
+    /**
+     * Swaps the given columns within a stack.
+     * @param b1 Stack index (0, 1, or 2)
+     * @param ri1 Column index (0, 1, or 2)
+     * @param ri2 Column index (0, 1, or 2) Different than si1
+     * @return This sudoku instance for convenience.
+     */
+    public Sudoku swapStackCols(int si, int ci1, int ci2) {
+        SudokuUtility.swapStackCols(candidates, si, ci1, ci2);
+        SudokuUtility.swapStackCols(digits, si, ci1, ci2);
         return this;
     }
 
@@ -1380,6 +1396,11 @@ public class Sudoku {
         return result;
     }
 
+    /**
+     * Gets a string representation of this board filtered through the given mask.
+     * @param mask A mask indicating which digits to keep in the result.
+     * @return A new Sudoku instance with filtered board values.
+     */
     public String filterStr(SudokuMask mask) {
         StringBuilder strb = new StringBuilder();
         for (int ci = 0; ci < SPACES; ci++) {
@@ -1444,9 +1465,13 @@ public class Sudoku {
     }
 
     /**
-     * Finds and returns the index of an empty cell, or -1 if no empty cells exist.
+     * Finds and returns the index of an empty cell within a given cell range,
+     * or -1 if no empty cells exist.
      * Prioritizes empty cells with the fewest number of candidates. If multiple cells
      * have the fewest number of candidates, chooses one of them at random.
+     * @param startIndex Starting cell index of the range to check (inclusive).
+     * @param endIndex Ending cell index of the range to check (exclusive).
+     * @return Index of an empty cell, or -1 if no empty cells exist.
      */
     // Hoisting this list up here actually runs slightly slower...
     // private List<Integer> _minimums = new ArrayList<>();
