@@ -506,7 +506,34 @@ public class Sudoku {
         return 0;
     }
 
-    public static Sudoku generatePuzzle2(
+    /**
+     * Generates a puzzle with the given number of clues.
+     * If numClues is less than the minimum 17, returns null.
+     * Generally not recommended to attempt puzzle generation with less than 20 clues.
+     * @return A new Sudoku instance (the puzzle).
+     */
+    public static Sudoku generatePuzzle(int numClues) {
+        if (numClues < MIN_CLUES) return null;
+        Sudoku grid = configSeed().firstSolution();
+        if (numClues >= SPACES) return grid;
+        return generatePuzzle(grid, numClues, null, 0, 0L, true);
+    }
+
+    /**
+     * Generates a puzzle.
+     * If numClues is less than the minimum 17, returns null.
+     * @param grid (Optional) The solution. If provided, must be full and valid.
+     * @param numClues Number of clues.
+     * @param sieve A list of SudokuMask to use as a sieve of unavoidable sets.
+     * @param difficulty From 0 to 4.
+     * @param timeoutMs Amount of system time(ms) to spend generating. 0 for no limit.
+     * @param useSieve Whether a sieve may be seeded progressively at certain points.
+     * @return A new Sudoku instance (the puzzle); or null if the time limit is exceeded.
+     * @throws IllegalArgumentException If a populated sieve is given without a grid;
+     * if a grid is given but is invalid or not full;
+     * if difficulty is out of range.
+     */
+    public static Sudoku generatePuzzle(
         Sudoku grid,
         int numClues,
         List<SudokuMask> sieve,
@@ -514,19 +541,22 @@ public class Sudoku {
         long timeoutMs,
         boolean useSieve
     ) {
-        if (numClues < MIN_CLUES || numClues > SPACES)
+        if (numClues < MIN_CLUES)
             return null;
+        if (sieve != null && !sieve.isEmpty() && grid == null)
+            throw new IllegalArgumentException("Sieve provided without grid");
         if (grid == null)
             grid = configSeed().firstSolution();
-        if (numClues == SPACES)
-            return grid;
         if (!grid.isSolved())
             throw new IllegalArgumentException("Solution grid is invalid");
+        if (numClues >= SPACES)
+            return grid;
         if (difficulty < 0 || difficulty > 4)
             throw new IllegalArgumentException(String.format("Invalid difficulty (%d); expected 0 <= difficulty <= 4", difficulty));
         if (sieve == null)
             sieve = new ArrayList<>();
 
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
         long start = System.currentTimeMillis();
         // const FULLMASK = (1n << BigInt(SPACES)) - 1n;
         // SudokuMask FULLMASK = SudokuMask.full();

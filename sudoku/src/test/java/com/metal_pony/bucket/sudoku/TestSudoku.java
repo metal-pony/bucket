@@ -1,6 +1,7 @@
 package com.metal_pony.bucket.sudoku;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -30,6 +31,85 @@ import com.metal_pony.bucket.util.Counting;
 import com.metal_pony.bucket.util.Shuffler;
 
 public class TestSudoku {
+
+    @Nested
+    class Static {
+
+        @Test
+        void generatePuzzle_whenSieveHasItems_butGridNull_throws() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                List<SudokuMask> sieve = new ArrayList<>();
+                SudokuMask mask = new SudokuMask("000000011001010000001001000000001100100000010100010000000100001010100000010000100");
+                sieve.add(mask);
+                Sudoku.generatePuzzle(null, 27, sieve, 0, 0L, true);
+            });
+        }
+
+        @Test
+        void generatePuzzle_whenNumCluesLessThanMin_returnsNull() {
+            for (int clues = 16; clues > -100; clues--) {
+                assertNull(
+                    Sudoku.generatePuzzle(null, clues, null, 0, 0L, true)
+                );
+            }
+        }
+
+        @Test
+        void generatePuzzles_whenNumCluesMoreThanSpaces_returnsFullGrid() {
+            for (int clues = 82; clues < 100; clues++) {
+                Sudoku p = Sudoku.generatePuzzle(null, clues, null, 0, 0L, true);
+                assertTrue(p.isFull());
+                assertEquals(0, p.numEmptyCells());
+            }
+        }
+
+        @Test
+        void generatePuzzles_whenGridInvalid_throws() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                Sudoku.generatePuzzle(
+                    new Sudoku("999999999648937152957182364435279618296813475781645293364798521812564937579321846"),
+                    27, null, 0, 0L, true
+                );
+            });
+        }
+
+        @Test
+        void generatePuzzles_whenDifficultyOutOfRange_throws() {
+            int[] invalidDiffs = new int[]{-10, -5, -3, -2, -1, 5, 6, 7, 8, 9, 10};
+            for (int invalidDiff : invalidDiffs) {
+                final int _invalidDiff = invalidDiff;
+                assertThrows(IllegalArgumentException.class, () -> {
+                    Sudoku.generatePuzzle(null, 27, null, _invalidDiff, 0L, true);
+                });
+            }
+        }
+
+        @Test
+        void generatePuzzles_stressTest() {
+            for (int clues = 81; clues >= 24; clues--) {
+                for (int t = 0; t < 100; t++) {
+                    Sudoku p = Sudoku.generatePuzzle(clues);
+                    int[] board = p.getBoard();
+
+                    // Validity
+                    assertTrue(SudokuUtility.isValid(board));
+
+                    // Has expected number of clues
+                    int digitCount = 0;
+                    for (int boardValue : board) {
+                        if (boardValue > 0) {
+                            digitCount++;
+                        }
+                    }
+                    assertEquals(clues, digitCount);
+
+                    // Has single solution
+                    assertEquals(1, p.solutionsFlag());
+                }
+            }
+        }
+    }
+
     private final String configFixtureStr = "218574639573896124469123578721459386354681792986237415147962853695318247832745961";
     private Sudoku configFixture;
     private SudokuSieve configFixtureSieve;
