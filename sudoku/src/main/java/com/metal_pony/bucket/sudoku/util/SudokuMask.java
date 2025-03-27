@@ -276,6 +276,35 @@ public class SudokuMask {
         return mask;
     }
 
+    /**
+     * Applies the mask to the given sudoku grid string.
+     * @param sudokuConfigStr 81-length string representing sudoku grid.
+     * @return A new string containing the input's characters at the positions where
+     * this mask has set bits. Everywhere else will be '.'.
+     * @throws IllegalArgumentException If the input string is not the proper length.
+     */
+    public String applyTo(String sudokuConfigStr) {
+        if (sudokuConfigStr.length() != N) {
+            throw new IllegalArgumentException("input string must be length 81");
+        }
+        StringBuilder strb = new StringBuilder();
+        for (int i = 0; i < N; i++) {
+            strb.append(testBit(i) ? sudokuConfigStr.charAt(i) : '.');
+        }
+        return strb.toString();
+    }
+
+    /**
+     * @return An 81-length array of this mask, containing 0s and 1s.
+     */
+    public int[] toArray() {
+        int[] result = new int[N];
+        for (int i = 0; i < N; i++) {
+            result[i] = vals[i] - '0';
+        }
+        return result;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null || !(obj instanceof SudokuMask)) return false;
