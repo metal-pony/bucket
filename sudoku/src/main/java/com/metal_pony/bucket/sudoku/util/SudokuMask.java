@@ -224,6 +224,58 @@ public class SudokuMask {
         return new String(vals);
     }
 
+    private static String padLeft(String str, int length, char fillChar) {
+        return Character.toString(fillChar).repeat(length - str.length()) + str;
+    }
+
+    /**
+     * A hexadecimal representation of this mask.
+     */
+    public String toHexString() {
+        String first = Long.toHexString(bits[1]);
+        boolean usePad = !("0".equals(first));
+        return String.format(
+            "%s%s",
+            "0".equals(first) ? "" : first,
+            usePad ? padLeft(Long.toHexString(bits[0]), 16, '0') : Long.toHexString(bits[0])
+        );
+    }
+
+    /**
+     * Parses a hexadecimal mask string into a SudokuMask.
+     * The string should not contain the '0x' prefix.
+     * Only the first 21 characters of the hex string will be used.
+     * @param maskHexStr Hexadecimal mask string.
+     * @returns A new SudokuMask.
+     * @throws RangeException If the resulting mask string represents bits
+     * outside of the mask space.
+     */
+    public static SudokuMask parseHexString(String maskHexStr) {
+        // Ensure the input is 21 characters.
+        maskHexStr = padLeft(maskHexStr, 21, '0').substring(0, 21);
+        SudokuMask mask = new SudokuMask();
+        long bits0 = Long.parseUnsignedLong(maskHexStr.substring(maskHexStr.length() - 16), 16);
+        long bits1 = Long.parseUnsignedLong(maskHexStr.substring(0, maskHexStr.length() - 16), 16);
+        int bit = N - 64 - 1;
+        while (bits1 != 0L) {
+            if ((bits1 & 1L) == 1L) {
+                // error if mask str was too big
+                mask.setBit(bit);
+            }
+            bits1 >>>= 1;
+            bit--;
+        }
+        bit = N - 1;
+        while (bits0 != 0L) {
+            if ((bits0 & 1L) == 1L) {
+                mask.setBit(bit);
+            }
+            bits0 >>>= 1;
+            bit--;
+        }
+        return mask;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null || !(obj instanceof SudokuMask)) return false;

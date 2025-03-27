@@ -198,6 +198,24 @@ public class TestSudokuMask {
     }
 
     @Test
+    void toHexString() {
+        assertEquals("0", new SudokuMask().toHexString());
+        assertEquals("1ffffffffffffffffffff", SudokuMask.full().toHexString());
+
+        String[][] cases = new String[][]{
+            new String[]{"1".repeat(17)+"0".repeat(64), "1ffff0000000000000000"},
+            new String[]{"0".repeat(17)+"1".repeat(64), "ffffffffffffffff"},
+            new String[]{"1".repeat(17)+"101".repeat(21)+"1", "1ffffb6db6db6db6db6db"},
+        };
+
+        for (String[] c : cases) {
+            String maskStr = c[0];
+            String expectedHexStr = c[1];
+            assertEquals(expectedHexStr, new SudokuMask(maskStr).toHexString());
+        }
+    }
+
+    @Test
     void bitCount() {
         for (Entry<String,Integer> c : cases.entrySet()) {
             mask = new SudokuMask(c.getKey());
