@@ -123,6 +123,7 @@ public class Shuffler {
 	 * @return the same List, for convenience
 	 */
 	public static <T> List<T> shuffle(List<T> list) {
+		if (list.isEmpty()) return list;
 		ThreadLocalRandom rand = ThreadLocalRandom.current();
 
 		for(int i = list.size() - 1; i > 0; i--) {
