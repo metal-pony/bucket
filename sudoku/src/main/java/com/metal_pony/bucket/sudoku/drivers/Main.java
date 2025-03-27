@@ -2,15 +2,20 @@ package com.metal_pony.bucket.sudoku.drivers;
 
 import java.io.File;
 import java.io.FileInputStream;
+// import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+// import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,22 +28,32 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+// import java.util.concurrent.ExecutionException;
+// import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+// import java.util.concurrent.TimeoutException;
+// import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+// import com.google.gson.Gson;
+// import com.google.gson.JsonIOException;
+// import com.google.gson.JsonSyntaxException;
 import com.metal_pony.bucket.sudoku.GeneratedPuzzles;
 import com.metal_pony.bucket.sudoku.Sudoku;
-import com.metal_pony.bucket.sudoku.SudokuSieve.SudokuSearch;
+import com.metal_pony.bucket.sudoku.SudokuSieve;
+import com.metal_pony.bucket.sudoku.Sudoku.SolutionCountResult;
 import com.metal_pony.bucket.sudoku.drivers.gui.SudokuGuiDemo;
+// import com.metal_pony.bucket.sudoku.util.Sudoku17Database;
+import com.metal_pony.bucket.sudoku.util.SudokuMask;
+// import com.metal_pony.bucket.sudoku.util.Sudoku17Database.JsonPuzzleRecord2;
+import com.metal_pony.bucket.util.Counting;
+// import com.metal_pony.bucket.util.ThreadPool;
 
 /**
  * Sudoku command-line interface. Commands:
@@ -83,28 +98,59 @@ import com.metal_pony.bucket.sudoku.drivers.gui.SudokuGuiDemo;
  *        probably not super useful.
  */
 public class Main {
+  static final String RESOURCES_DIR = "resources";
+  public static InputStream resourceStream(String name) {
+    return Main.class.getResourceAsStream(String.format("/%s/%s", RESOURCES_DIR, name));
+  }
+
+  public static List<String> readAllLines(InputStream inStream) {
+    List<String> lines = new ArrayList<>();
+
+    Scanner scanner = new Scanner(inStream);
+    while (scanner.hasNextLine()) {
+      String line = scanner.nextLine().trim();
+      if (!line.isEmpty()) {
+        lines.add(line);
+      }
+    }
+    scanner.close();
+
+    return lines;
+  }
+
   public static final String DEFAULT_COMMAND = "generateConfigs";
 
   private static final class ArgsMap extends HashMap<String,String> {}
 
-  private static final Map<String, Consumer<ArgsMap>> COMMANDS = Collections.unmodifiableMap(Map.of(
-    "play", Main::play,
-    "generateConfigs", Main::generateConfigs,
-    "generatePuzzles", Main::generatePuzzles,
-    "solve", Main::solve,
-    "generate", Main::generate,
-    "benchmark", Main::benchmark,
-    "generateBands", Main::generateInitialBands,
-    "adhoc", Main::doThing, // TODO Temporary - for testing / experimentation
-    "search", Main::search
-  ));
+  private static final Map<String, Consumer<ArgsMap>> COMMANDS = new HashMap<>() {{
+    // --clues %d
+    put("play", Main::play);
+    // --amount %d --normalize
+    put("generateConfigs", Main::generateConfigs);
+    // --amount %d --clues %d --threads %d
+    put("generatePuzzles", Main::generatePuzzles);
+    // --puzzle %s --threads %d --timeout %d
+    put("solve", Main::solve);
+    // --amount %d
+    put("generate", Main::generate);
+    put("benchmark", Main::benchmark);
+    put("generateBands", Main::generateInitialBands);
+    put("adhoc", Main::doThing); // TODO Temporary - for testing / experimentation
+    // --level %d --grid %s --threads %d
+    put("sieve", Main::createSieve);
+    // --level %d --grid %s --threads %d
+    put("fingerprint", Main::fingerprint);
+    put("stats", Main::stats);
+    put("gen", Main::gen2);
+
+  }};
 
   static boolean verbose;
 
   private static void play(ArgsMap args) {
     defaultInMap(args, "clues", "27");
-    int clues = inBounds(Integer.parseInt(args.get("clues")), 19, 81);
-    Sudoku puzzle = Sudoku.generatePuzzle(Sudoku.configSeed(), clues);
+    int clues = inBounds(Integer.parseInt(args.get("clues")), 17, 81);
+    Sudoku puzzle = Sudoku.generatePuzzle(null, clues, 1, 3);
     SudokuGuiDemo.show(puzzle);
   }
 
@@ -113,19 +159,17 @@ public class Main {
     final int numConfigs = Math.max(Integer.parseInt(args.get("amount")), 1);
     final boolean normalize = args.containsKey("normalize");
 
+    long startTime = System.currentTimeMillis();
     for (int n = 0; n < numConfigs; n++) {
       // Board config = Generator.generateConfig();
-      Sudoku seed = Sudoku.configSeed();
-      seed.searchForSolutions3((solution) -> {
-        if (normalize) {
-          solution.normalize();
-        }
-
-        System.out.println(solution.toString());
-
-        return false;
-      });
+      Sudoku config = Sudoku.configSeed().firstSolution();
+      if (normalize) {
+        config.normalize();
+      }
+      System.out.println(config.toString());
     }
+    long endTime = System.currentTimeMillis();
+    System.out.printf("Generated %d configs in %d ms.\n", numConfigs, endTime - startTime);
   }
 
   private static void generatePuzzles(ArgsMap args) {
@@ -137,6 +181,18 @@ public class Main {
     final int clues = inBounds(Integer.parseInt(args.get("clues")), 19, Sudoku.SPACES);
     final int threads = inBounds(Integer.parseInt(args.get("threads")), 1, 4);
 
+    // String gridStr = args.get("grid");
+    // Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
+
+    for (int n = 0; n < amount; n++) {
+      Sudoku puzzle = Sudoku.generatePuzzle2(null, clues, new ArrayList<SudokuMask>(), 0, 60*1000L, true);
+      if (puzzle == null) {
+        // Timed out
+        return;
+      } else {
+        System.out.println(puzzle);
+      }
+    }
     // TODO Implement analog to GeneratePuzzles.generatePuzzles(amount, clues, threads);
   }
 
@@ -185,8 +241,8 @@ public class Main {
 
     if (usingThreads) {
       // List<PrintWriter> writers = new ArrayList<>();
-      ThreadPoolExecutor pool = new ThreadPoolExecutor(threads, threads, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-      try {
+      // ThreadPoolExecutor pool = new ThreadPoolExecutor(threads, threads, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+      // try {
         System.out.println("🧵".repeat(threads));
         // pool.prestartAllCoreThreads();
         Object lock = new Object();
@@ -205,41 +261,49 @@ public class Main {
         //   });
         // }
 
-        AtomicInteger t = new AtomicInteger();
-        AtomicLong count = new AtomicLong();
-        AtomicLong billions = new AtomicLong();
-        Consumer<List<Sudoku>> solutionsCallback = (solutions) -> {
-          // TODO FIX -- threads will block while waiting for this lock
-          synchronized (lock) {
-            // StringBuilder strb = new StringBuilder();
-            // solutions.forEach(solution -> {
-            //   strb.append(solution.toString());
-            //   strb.append(newline);
-            // });
-            // System.out.println(strb.toString());
-            // writers.get(t.getAndIncrement() % threads).write(strb.toString());
-            long c = count.addAndGet(solutions.size());
-            // long b = c / 10_000_000L;
-            // if (b > billions.get()) {
-              System.out.printf("Found %d so far...\n", c);
-            //   billions.incrementAndGet();
-            // }
-          }
-        };
+        // Consumer<List<Sudoku>> solutionsCallback = (solutions) -> {
+        //   // TODO FIX -- threads will block while waiting for this lock
+        //   synchronized (lock) {
+        //     // StringBuilder strb = new StringBuilder();
+        //     // solutions.forEach(solution -> {
+        //     //   strb.append(solution.toString());
+        //     //   strb.append(newline);
+        //     // });
+        //     // System.out.println(strb.toString());
+        //     // writers.get(t.getAndIncrement() % threads).write(strb.toString());
+        //     long c = count.addAndGet(solutions.size());
+        //     // long b = c / 10_000_000L;
+        //     // if (b > billions.get()) {
+        //       System.out.printf("Found %d so far...\n", c);
+        //     //   billions.incrementAndGet();
+        //     // }
+        //   }
+        // };
         // puzzle.searchForSolutionsAsync(pool, solutionsCallback, 1<<20);
 
-        puzzle.searchForSolutionsAsync(pool, count);
-        pool.shutdown();
-        pool.awaitTermination(1L, TimeUnit.DAYS);
-        System.out.printf(" -- Found %d solutions -- \n", count.get());
-      } catch (InterruptedException ex) {
-        ex.printStackTrace();
-      } finally {
-        pool.shutdownNow();
+        SolutionCountResult count = puzzle.countSolutionsAsync(threads, 1L, TimeUnit.DAYS);
+        try {
+          boolean complete = count.await();
+          if (complete) {
+            System.out.printf(" -- Complete. Found %d solutions -- \n", count.get());
+          } else {
+            System.out.printf(" -- Count incomplete {%d} --\n", count.get());
+          }
+        } catch (InterruptedException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+          System.out.printf(" -- Count interrupted {%d} --\n", count.get());
+        }
+        // pool.shutdown();
+        // pool.awaitTermination(1L, TimeUnit.DAYS);
+      // } catch (InterruptedException ex) {
+      //   ex.printStackTrace();
+      // } finally {
+        // pool.shutdownNow();
         // writers.forEach(writer -> {
         //   writer.close();
         // });
-      }
+      // }
     } else {
       puzzle.searchForSolutions3(solution -> {
         System.out.println(solution.toString());
@@ -566,9 +630,7 @@ public class Main {
     int values = -1;
     public Node2(Sudoku sudoku) {
       this.sudoku = sudoku;
-      if (sudoku.reduce()) {
-        // debug("reduced > %s\n", sudoku.toString());
-      }
+      sudoku.reduce();
       index = sudoku.pickEmptyCell(0, 27);
       if (index != -1) {
         values = sudoku.candidates[index];
@@ -817,149 +879,677 @@ public class Main {
     return count.get();
   }
 
-  public static void doThing(ArgsMap args) {
-    // Sudoku p = new Sudoku("123456789478932615659817243......................................................");
-    // p.searchForSolutions3(s->{
-    //     System.out.println(s.toString());
-    //     return true;
-    // });
-    // Sudoku.main2(null);
+  private static HashMap<String,Integer> PUZZLESTRS_TO_NUM_SOLUTIONS = new HashMap<>() {{
+    put("...45.7...5........4......3.8...3.1.9..241..85.69...3.2..3...7.3...7..........3..", 1463);
+    put("....5..89..8...16......1..2..76.3..............1..5..45...6..73.......4..74..89.1", 2361);
+    put("..3.5.7.9..7..8.4...8............8.6.8...54.2...8..........932.3.42..6......3.1..", 25339);
+    put("12..5..8..7.3.9........7..6...56..9.....4.8......92..1....2...8.6.1.......8...6.5", 996);
+    put("1..45...96...1......7...1..3......5.9....531.......6...9.16.......3.4.6.2...7...1", 5076);
+    put(".2..56...8..3..56........3..1.2...........64.....9..239.........81.2....26..314..", 3171);
+    put(".2.4.6..99...........79213.........1..9...3.........5.3.8....72...5......65.29..4", 4004);
+    put("....5..89....3.......2...........9..2......75..9.8.6.2.51...8.6....9...1.92..1.57", 7535);
+    put("....5.7..56...8.4...9.7..61...6.....65...94.8..4....2.4.....836.3...7............", 1509);
+    put("....56...76....52..95.2...3.......7.2.78...455...9.1...3.....5...8...3.......5...", 2132);
+    put("..3.....9.7....65...9.71.345.1..78..9.43.2......54.......9..3............4.1.....", 322);
+    put("...4..7......1...6.........3.....8..7.584......8.3..6.5...7....43...51.897.1...3.", 27462);
+    put("1.......9.......4...4...2....2.....8..92..4.14.8....9..365...1.8.....5.6..56.8...", 5338);
+    put("...45.................8..1..1...4...63......8..8...195...7..8.1.5..9.3.48.16...5.", 1589);
+    put(".....6..9........2.84.97....1...23...9..85..62...61.4.3...2........38..4.....4...", 8244);
+    put("..3..6........8..69.67..1..5.....96.8.9.....7.67....1....8.....4.8...6......94..3", 25661);
+    put("..3.5.7.....2......4891..6.812.3.........5....9..8...........252.5.....1.795.....", 448);
+    put("1..4..7.9......3...75.8.6143........8.43...6......4...2..1....6..8.........9.5..2", 3383);
+    put("...4..7.9...7.8....681...4.....1.9....6......931.4.....8.2.4...2...6..7....3...9.", 7506);
+    put(".2.......9.6.175..........34.....961.....5....7.9.4.......42...237.8...5....3..2.", 243);
+  }};
+
+  static Map<String,String[]> parseData(List<String> lines) {
+    // captures:
+    // [1] solution
+    // [2] fingerprint level 2
+    // [3] fingerprint level 3
+    // [4] fingerprint level 4
+    String regex = "\\(.+\\)\\s+(\\d+)\\s+([\\w:]+)\\s+([\\w:]+)\\s+([\\w:]+)";
+
+    // String testStr = "(fp2:   9ms, fp3:  120ms, fp4:   5497ms) 425368917896571342713942856239156784578294631164783295947635128682419573351827469     5:15:8:7:4:4::24               5::15::11:6:2c:d:31:12:29:8:f:6:5d 5::15::11:6:39:26:8b:6a:c1:4e:ad:74:d8:2e:2f:10:a:1";
+
+    Pattern pattern = Pattern.compile(regex);
+    Matcher matcher = pattern.matcher("");
+
+    Map<String,String[]> fpMap = new HashMap<>();
+
+    lines.forEach(line -> {
+      matcher.reset(line);
+      if (matcher.matches()) {
+        String solution = matcher.group(1);
+        String sNormal = new Sudoku(solution).normalize().toString();
+        String fp2 = "\""+matcher.group(2)+"\"";
+        String fp3 = "\""+matcher.group(3)+"\"";
+        String fp4 = "\""+matcher.group(4)+"\"";
+        // System.out.printf("%s,%s,%s,%s%n", sNormal, fp2, fp3, fp4);
+        if (fpMap.containsKey(sNormal)) {
+          if (!Arrays.equals(fpMap.get(sNormal), new String[]{fp2, fp3, fp4})) {
+            System.out.printf(
+              "🚨 Duplicate solution with different fingerprints:\n  %s\n  > %s\n  > %s\n",
+              sNormal,
+              Arrays.toString(fpMap.get(sNormal)),
+              Arrays.toString(new String[]{fp2, fp3, fp4})
+            );
+          }
+        } else {
+          fpMap.put(sNormal, new String[]{fp2, fp3, fp4});
+        }
+      } else {
+        // System.out.println("🚨 Not a match:\n"+line);
+      }
+    });
+
+    return fpMap;
   }
 
-  public static void search(ArgsMap args) {
-    defaultInMap(args, "numClues", Integer.toString(Sudoku.MIN_CLUES));
+  public static void solveAndFingerprintAsync(List<String> pStrs, int numThreads) {
+    ThreadPoolExecutor pool = new ThreadPoolExecutor(numThreads, numThreads, 100L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+    Object sysoutLock = new Object();
+    pStrs.forEach(pStr -> {
+      // Skip empty strings
+      if (pStr.trim().isEmpty())
+        return;
+
+      pool.submit(() -> {
+        Sudoku p = new Sudoku(pStr);
+        Sudoku s = p.firstSolution();
+
+        long start = System.currentTimeMillis();
+        String fp2 = s.fingerprint(2);
+        long fp2Time = System.currentTimeMillis() - start;
+
+        start = System.currentTimeMillis();
+        String fp3 = s.fingerprint(3);
+        long fp3Time = System.currentTimeMillis() - start;
+
+        start = System.currentTimeMillis();
+        String fp4 = s.fingerprint(4);
+        long fp4Time = System.currentTimeMillis() - start;
+
+        String record = String.format(
+          "(fp2: %3dms, fp3: %4dms, fp4: %6dms) %s %20s %48s %s",
+          fp2Time, fp3Time, fp4Time, s.toString(),
+          fp2, fp3, fp4
+        );
+        synchronized (sysoutLock) {
+          System.out.println(record);
+        }
+      });
+    });
+
+    pool.shutdown();
+    try {
+      pool.awaitTermination(1L, TimeUnit.DAYS);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+  }
+
+  static Map<String,String[]> readFingerprintsFile(String filename) {
+    System.out.println("Parsing fingerprint file...");
+    Map<String,String[]> fpMap = null;
+    long start = System.currentTimeMillis();
+    try {
+      fpMap = parseData(Files.readAllLines(new File("./adhoc-fp4.txt").toPath()));
+      long parseTime = System.currentTimeMillis() - start;
+      System.out.printf("Done. (%d ms)%n", parseTime);
+    } catch (IOException e) {
+      System.out.println("🚨 Error. Did not parse.");
+      e.printStackTrace();
+    }
+    return fpMap;
+  }
+
+  public static void doThing(ArgsMap args) {
+    // Sudoku.main2(null);
+
+    // Read in sudoku-17 strings and print solution and fingerprints and time taken to generate, multithreaded
+    // [Macbook Pro, M2 Max] fp2 only, ~1min; fp3 ~5min; fp4 ~6hr.
+    // List<String> sudokuStrs = readAllLines(resourceStream("sudoku-17.txt"));
+    // solveAndFingerprintAsync(sudokuStrs, Runtime.getRuntime().availableProcessors() - 1);
+
+    // long start;
+
+    // try {
+    //   Gson gson = new Gson();
+    //   System.out.println("Loading sudoku17 puzzle records json...");
+    //   JsonPuzzleRecord2[] records = gson.fromJson(new FileReader("./sudoku17.json"), JsonPuzzleRecord2[].class);
+    //   System.out.println("Done! Loaded " + records.length + " records.\nVerifying puzzle solutions and fingerprint(2)...");
+
+    //   Set<String> puzzleSet = Collections.synchronizedSet(new HashSet<>());
+    //   Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
+    //   Set<String> f2Set = Collections.synchronizedSet(new HashSet<>());
+    //   Set<String> f3Set = Collections.synchronizedSet(new HashSet<>());
+    //   Set<String> f4Set = Collections.synchronizedSet(new HashSet<>());
+    //   int[] solutionPuzzlesCount = new int[81];
+
+    //   ThreadPool.useMaxThreads();
+    //   AtomicBoolean passing = new AtomicBoolean(true);
+    //   Object sysoutLock = new Object();
+    //   List<Future<Boolean>> ftrs = new ArrayList<>();
+
+    //   for (JsonPuzzleRecord2 r : records) {
+    //     solutionSet.add(r.solution);
+    //     for (String p : r.puzzles) {
+    //       if (puzzleSet.contains(p)) {
+    //         synchronized (sysoutLock) {
+    //           System.out.println("🚨 Duplicate puzzle: " + p);
+    //         }
+    //       }
+    //       puzzleSet.add(p);
+    //       ftrs.add(ThreadPool.submit(() -> {
+    //         Sudoku puzzle = new Sudoku(p);
+    //         int flag = puzzle.solutionsFlag();
+    //         String pSolution = puzzle.firstSolution().toString();
+    //         if (flag != 1 || !r.solution.equals(pSolution)) {
+    //           passing.set(false);
+    //           synchronized (sysoutLock) {
+    //             System.out.printf(
+    //               "\n🚨 BAD RECORD:\n                    %s\n                    flag == %s\nexpected solution   %s\n",
+    //               p,
+    //               flag,
+    //               r.solution
+    //             );
+    //           }
+    //           return false;
+    //         }
+    //         return true;
+    //       }));
+    //     }
+    //     f2Set.add(r.fingerprints[0]);
+    //     f3Set.add(r.fingerprints[1]);
+    //     f4Set.add(r.fingerprints[2]);
+    //     solutionPuzzlesCount[r.puzzles.length]++;
+
+    //     // ftrs.add(ThreadPool.submit(() -> {
+    //     //   Sudoku solution = new Sudoku(r.solution);
+    //     //   String fp2 = solution.fingerprint(2);
+    //     //   if (!r.fingerprints[0].equals(fp2)) {
+    //     //     passing.set(false);
+    //     //     synchronized (sysoutLock) {
+    //     //       System.out.printf(
+    //     //         "\n🚨 BAD RECORD:\n                    %s\n                fp2 %s\n       expected fp2 %s\n",
+    //     //         r.solution,
+    //     //         fp2,
+    //     //         r.fingerprints[0]
+    //     //       );
+    //     //     }
+    //     //     return false;
+    //     //   }
+    //     //   return true;
+    //     // }));
+    //   }
+
+    //   ThreadPool.shutdown();
+    //   System.out.print("[" + "=".repeat(100) + "]\n[");
+    //   AtomicInteger failCounter = new AtomicInteger();
+    //   int i = 0;
+    //   int rPerDot = ftrs.size() / 100;
+    //   for (Future<Boolean> f : ftrs) {
+    //     if ((i++ % rPerDot) == rPerDot - 1) {
+    //       System.out.print('.');
+    //     }
+    //     try {
+    //       boolean success = f.get(1L, TimeUnit.MINUTES);
+    //       if (!success) {
+    //         failCounter.incrementAndGet();
+    //         synchronized (sysoutLock) {
+    //           // Redraw progress bar because why not?
+    //           System.out.printf("\n[");
+    //           int j = 0;
+    //           while (j < i) {
+    //             if ((j++ % rPerDot) == rPerDot - 1) {
+    //               System.out.print('.');
+    //             }
+    //           }
+    //         }
+    //       }
+    //     } catch (InterruptedException | ExecutionException | TimeoutException e) {
+    //       synchronized (sysoutLock) {
+    //         System.out.println("🚨 Something went wrong while processing the file.");
+    //         e.printStackTrace();
+    //       }
+    //     }
+    //   }
+
+    //   System.out.println("]");
+    //   if (passing.get()) {
+    //     System.out.println("✅ All json puzzle records verified correct hydration!");
+    //   }
+
+    //   System.out.println("Finished.");
+    //   System.out.println("Puzzles: " + puzzleSet.size());
+    //   System.out.println("Solutions: " + solutionSet.size());
+    //   System.out.println("Unique fp2: " + f2Set.size());
+    //   System.out.println("Unique fp3: " + f3Set.size());
+    //   System.out.println("Unique fp4: " + f4Set.size());
+    //   System.out.println("Spread of [Num Puzzles]: Num Solutions");
+    //   for (int countIndex = 0; countIndex < solutionPuzzlesCount.length; countIndex++) {
+    //     if (solutionPuzzlesCount[countIndex] > 0) {
+    //       System.out.printf("[%2d]: %d\n", countIndex, solutionPuzzlesCount[countIndex]);
+    //     }
+    //   }
+    // } catch (JsonSyntaxException | JsonIOException | FileNotFoundException e) {
+    //   System.out.println("🚨 Failed to parse file. Aborting...");
+    //   e.printStackTrace();
+    //   return;
+    // }
+
+
+    // Sudoku17Database.init();
+
+
+    // Map<String,String[]> fpMap = readFingerprintsFile("./adhoc-fp4.txt");
+
+    // System.out.print("Loading sudoku-17.txt... ");
+    // start = System.currentTimeMillis();
+    // List<String> sudokuStrs = readAllLines(resourceStream("sudoku-17.txt"));
+    // long readTime = System.currentTimeMillis() - start;
+    // System.out.printf("Done. (%d ms)%n", readTime);
+
+    // System.out.println("Solving sudoku-17s...");
+    // // sudoku17 -> solution
+    // // Map<String,String> solutionMap = new HashMap<>();
+    // start = System.currentTimeMillis();
+    // for (String sudoku17 : sudokuStrs) {
+    //   Sudoku p17 = new Sudoku(sudoku17);
+    //   Sudoku p17Solution = p17.firstSolution().normalize();
+    //   // p17.getMask()
+    //   String solution = p17Solution.toString();
+    //   String[] fpses = fpMap.get(solution);
+    //   if (fpses == null) {
+    //     System.out.println("🚨 Error. Solution not found in fingerprint map: " + solution);
+    //     return;
+    //   }
+    //   if (fpses.length == 0) {
+    //     System.out.println("🚨 Error. Solution fingerprints empty: " + solution);
+    //     return;
+    //   }
+    //   // System.out.printf(
+    //   //   "%s,%s,%s,%s,%s\n",
+    //   //   new SudokuMask(sudoku17).toHexString(),
+    //   //   solution.substring(9),
+    //   //   fpses[0], fpses[1], fpses[2]
+    //   // );
+    //   System.out.printf(
+    //     "{\"puzzle\":\"%s\",\"solution\":\"%s\",\"fingerprints\":[%s]},\n",
+    //     new SudokuMask(sudoku17).toHexString(),
+    //     solution,
+    //     String.join(",", fpses)
+    //   );
+    //   // String prev = solutionMap.put(sudoku17, solution);
+    //   // if (prev != null)
+    //   //   System.out.println("🚨 SOLUTION OVERWRITTEN FOR " + sudoku17);
+    // }
+    // long solveTime = System.currentTimeMillis() - start;
+    // System.out.printf("Done. (%d ms)%n", solveTime);
+
+    // Connect and output record json
+    // System.out.println("Matching sudoku-17s with solution fingerprints...");
+    // final Map<String,String[]> _fpMap = fpMap;
+    // start = System.currentTimeMillis();
+    // solutionMap.forEach((p17,solution) -> {
+    //   String[] fpses = _fpMap.get(solution);
+    //   if (fpses == null) {
+    //     System.out.println("🚨 Error. Solution not found in fingerprint map: " + solution);
+    //     return;
+    //   }
+    //   if (fpses.length == 0) {
+    //     System.out.println("🚨 Error. Solution fingerprints empty: " + solution);
+    //     return;
+    //   }
+
+    //   System.out.printf("%s,%s,%s,%s,%s\n", new SudokuMask(p17).toHexString(), solution.substring(9), fpses[0], fpses[1], fpses[2]);
+    // });
+    // long outputTime = System.currentTimeMillis() - start;
+    // System.out.printf("Done. (%d ms)%n", outputTime);
+
+
+    // Sudoku p = new Sudoku("............2......4..1..6.812.3.........5....9..8...........252.5.....1.795.....");
+    // Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
+
+    // final int tests = 10;
+    // ArrayList<Long> ts = new ArrayList<>();
+    // for (int t = 0 ; t < 10; t++) {
+    //   long start = System.currentTimeMillis();
+    //   p.searchForSolutions3(s -> {
+    //     solutionSet.add(s.toString());
+    //     return true;
+    //   });
+    //   long end = System.currentTimeMillis();
+    //   ts.add(end - start);
+    // }
+    // long sum = 0L;
+    // for (long t : ts) sum += t;
+    // System.out.println(sum/10);
+
+    // ts.clear();
+    // for (int t = 0 ; t < 10; t++) {
+    //   long start = System.currentTimeMillis();
+    //   p.searchForSolutionsAsync(s -> {
+    //     solutionSet.add(s.toString());
+    //   }, 4);
+    //   long end = System.currentTimeMillis();
+    //   ts.add(end - start);
+    // }
+    // sum = 0L;
+    // for (long t : ts) sum += t;
+    // System.out.println(sum/10);
+
+    // ThreadPool.useMaxThreads();
+
+    // ts.clear();
+    // for (int t = 0 ; t < 10; t++) {
+    //   long start = System.currentTimeMillis();
+    //   List<Future<List<Sudoku>>> futures = p.searchForSolutions4();
+    //   futures.forEach((ftr) -> {
+    //     try {
+    //       for (Sudoku solution : ftr.get(10L, TimeUnit.SECONDS)) {
+    //         solutionSet.add(solution.toString());
+    //       }
+    //     } catch (InterruptedException | ExecutionException | TimeoutException e) {
+    //       // TODO Auto-generated catch block
+    //       e.printStackTrace();
+    //     }
+    //   });
+    //   long end = System.currentTimeMillis();
+    //   // if (solutionSet.size() != n) {
+    //   //   System.out.printf("❌ %d != %d%n", solutionSet.size(), n);
+    //   // }
+    //   ts.add(end - start);
+    // }
+    // sum = 0L;
+    // for (long t : ts) sum += t;
+    // System.out.println(sum/10);
+
+    // ThreadPool.shutdown();
+
+
+
+
+
+    // long[][] avgs = new long[9][];
+    // System.out.print("🟣 ");
+    // AtomicInteger i = new AtomicInteger();
+    // avgs[0] = new long[PUZZLESTRS_TO_NUM_SOLUTIONS.size()];
+    // // PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((str, n) -> {
+    // //   long[] times = new long[tests];
+    // //   for (int t = 0; t < tests; t++) {
+    // //     solutionSet.clear();
+    // //     long start = System.currentTimeMillis();
+    // //     new Sudoku(str).searchForSolutions3((solution) -> {
+    // //       solutionSet.add(solution.toString());
+    // //       return true;
+    // //     });
+    // //     long end = System.currentTimeMillis();
+    // //     if (solutionSet.size() != n) {
+    // //       System.out.printf("❌ %d != %d%n", solutionSet.size(), n);
+    // //     }
+    // //     times[t] = end - start;
+    // //   }
+    // //   // Print averages
+    // //   long total = 0L;
+    // //   for (long t : times)
+    // //     total += t;
+    // //   avgs[0][i.get()] = total/tests;
+    // //   String avgStr = ""+avgs[0][i.get()];
+    // //   System.out.printf("%s%s", " ".repeat(5-avgStr.length()), avgStr);
+    // //   i.incrementAndGet();
+    // // });
+    // // System.out.println();
+
+    // // for (int threads = 1; threads <= 8; threads++) {
+    // //   avgs[threads] = new long[PUZZLESTRS_TO_NUM_SOLUTIONS.size()];
+    // //   final int _threads = threads;
+    // //   i.set(0);
+    // //   System.out.print(_threads+"  ");
+    // //   PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((str, n) -> {
+    // //     long[] times = new long[tests];
+    // //     for (int t = 0; t < tests; t++) {
+    // //       solutionSet.clear();
+    // //       long start = System.currentTimeMillis();
+    // //       new Sudoku(str).searchForSolutionsAsync((solution) -> {
+    // //         solutionSet.add(solution.toString());
+    // //       }, _threads);
+    // //       long end = System.currentTimeMillis();
+    // //       if (solutionSet.size() != n) {
+    // //         System.out.printf("❌ %d != %d%n", solutionSet.size(), n);
+    // //       }
+    // //       times[t] = end - start;
+    // //     }
+    // //     // Print averages
+    // //     long total = 0L;
+    // //     for (long t : times)
+    // //       total += t;
+    // //     avgs[_threads][i.get()] = total/tests;
+    // //     String avgStr = ""+avgs[_threads][i.get()];
+    // //     System.out.printf("%s%s", " ".repeat(5-avgStr.length()), avgStr);
+    // //     i.incrementAndGet();
+    // //   });
+    // //   System.out.println();
+    // // }
+
+
+
+
+
+    // Read all 17 clue puzzle entries from JSON file.
+    // Track how many clues they have after a reduction.
+    // Log and examine the spread.
+    // PuzzleEntry[] entries = PuzzleEntry.all17();
+    // int[] spread = new int[Sudoku.SPACES + 1];
+    // for (PuzzleEntry puzzleEntry : entries) {
+    //   Sudoku p = puzzleEntry.puzzle();
+    //   p.resetEmptyCells();
+    //   p.resetConstraints();
+    //   p.reduce();
+
+    //   spread[p.numClues()]++;
+    //   System.out.printf("[%2d] %s\n", p.numClues(), p.toString());
+    // }
+
+    // System.out.println("Spread of reduced puzzles by numClues:");
+    // for (int numClues = 0; numClues < spread.length; numClues++) {
+    //   if (spread[numClues] == 0) continue;
+    //   System.out.printf("  [%2d]: %6d  (%.4f%%)\n", numClues, spread[numClues], 100.0 * (double)spread[numClues]/(double)entries.length);
+    // }
+  }
+
+  /**
+   * level [2,4] (default: 2)
+   * grid? [str] (default: randomly generated)
+   * threads? [1, #cores - 2] (default: 1 if omitted; MAX if only "--threads" given)
+   */
+  public static void createSieve(ArgsMap args) {
+    final int MIN_LEVEL = 2;
+    final int MAX_LEVEL = 4;
+    final int MAX_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
+    final long DEFAULT_TIMEOUT = 1L;
+    final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
+
+    defaultInMap(args, "level", "2");
+    // defaultInMap(args, "threads", Integer.toString(MAX_THREADS));
 
     String gridStr = args.get("grid");
-    int numClues = inBounds(Integer.parseInt(args.get("numClues")), Sudoku.MIN_CLUES, 24);
+    int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
+    boolean usingThreads = args.containsKey("threads");
+    String threadsStr = usingThreads ? args.get("threads") : "1";
+    int threads = (usingThreads && threadsStr == null) ? MAX_THREADS : inBounds(Integer.parseInt(threadsStr), 1, MAX_THREADS);
 
-    Sudoku grid = new Sudoku(gridStr);
-
-    System.out.printf("Confirm grid to search for %d-clue puzzles for:\n", numClues);
-    System.out.println(grid.toFullString());
-    System.out.println("\n ➡️ Press ENTER to continue...\n");
-    try (Scanner scanner = new Scanner(System.in)) {
-      scanner.nextLine();
-      // Sudoku.completeSearch(grid, 17);
-    } catch (Exception ex) {
-      ex.printStackTrace(System.out);
-      return;
+    ThreadPoolExecutor pool = null;
+    if (usingThreads) {
+      pool = new ThreadPoolExecutor(threads, threads, DEFAULT_TIMEOUT, TIMEOUT_UNIT, new LinkedBlockingQueue<>());
     }
+    Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
+    System.out.println(grid.toString());
+    SudokuSieve sieve = new SudokuSieve(grid);
 
-    int threads = Runtime.getRuntime().availableProcessors() / 2;
-    ThreadPoolExecutor pool = new ThreadPoolExecutor(threads, threads, 10L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-
-    // temp
-    pool.shutdown();
-
-    // List<String> results = Collections.synchronizedList(new ArrayList<>());
-    Object sysoutLock = new Object();
-    AtomicLong counter = new AtomicLong();
-    Set<BigInteger> results = Collections.synchronizedSet(new HashSet<BigInteger>());
-
-    // TODO Adapt this to use DFS instead of BFS
-
-    Queue<BigInteger> q = new LinkedList<>();
-    SudokuSearch _search = new SudokuSearch(grid);
-    HashSet<BigInteger> seen = new HashSet<>();
-    _search.search(3, (maskToCheck) -> {
-      int bitCount = maskToCheck.bitCount();
-      if (bitCount > numClues) {
-        Sudoku puzzle = grid.filter(maskToCheck);
-        int flag = puzzle.solutionsFlag();
-        if (flag == 1) {
-          results.add(maskToCheck);
-          System.out.printf("⭐️ * [%2d] %s\n", bitCount, puzzle.toString());
-        }
-        return;
+    sieve.seed(level, pool);
+    if (usingThreads) {
+      try {
+        pool.awaitTermination(5L, TimeUnit.MINUTES);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
       }
-
-      // If necessary, extrapolate mask to all 17 clues
-      q.offer(maskToCheck);
-      HashSet<BigInteger> masks = new HashSet<>();
-      List<Future<Boolean>> batchFutures = new ArrayList<>();
-      while (!q.isEmpty()) {
-        BigInteger m = q.poll();
-
-        if (seen.contains(m)) {
-          continue;
-        }
-
-        if (m.bitCount() < numClues) {
-          for (BigInteger _m : extrapolatePuzzleMask(m)) {
-            if (!results.contains(_m)) {
-              q.offer(_m);
-              // System.out.printf("++ [%2d] %s\n", _m.bitCount(), grid.filter(_m).toString());
-            }
-          }
-          continue;
-        }
-
-        masks.add(m);
-
-        // counter.incrementAndGet();
-        // batchFutures.add(pool.submit(() -> {
-        //   Sudoku puzzle = grid.filter(m);
-        //   // synchronized (sysoutLock) {
-        //   //   System.out.printf("[%d] %s \n", m.bitCount(), puzzle.toString());
-        //   // }
-        //   if (puzzle.solutionsFlag() == 1) {
-        //     results.add(m);
-        //     synchronized (sysoutLock) {
-        //       System.out.printf("⭐️ * %s\n", puzzle.toString());
-        //     }
-        //     return true;
-        //   }
-        //   return false;
-        // }));
-      }
-
-      for (BigInteger m : masks) {
-        seen.add(m);
-        counter.incrementAndGet();
-        batchFutures.add(pool.submit(() -> {
-          Sudoku puzzle = grid.filter(m);
-          // synchronized (sysoutLock) {
-          //   System.out.printf("[%d] %s \n", m.bitCount(), puzzle.toString());
-          // }
-          if (puzzle.solutionsFlag() == 1) {
-            results.add(m);
-            synchronized (sysoutLock) {
-              System.out.printf("⭐️ * %s\n", puzzle.toString());
-            }
-            return true;
-          }
-          return false;
-        }));
-      }
-      masks.clear();
-      masks = null;
-
-      // Wait for batch work to complete before creating another batch
-      while (!batchFutures.isEmpty()) {
-        try {
-          batchFutures.get(0).get(10L, TimeUnit.SECONDS);
-          batchFutures.remove(0);
-        } catch (
-          TimeoutException |
-          InterruptedException |
-          CancellationException |
-          ExecutionException ex
-        ) {
-          ex.printStackTrace();
-        }
-      }
-      batchFutures.clear();
-      batchFutures = null;
-    }, 17);
+    }
+    System.out.println(sieve.toString());
+    System.out.printf("Added %d items to sieve.\n", sieve.size());
   }
 
-  private static List<BigInteger> extrapolatePuzzleMask(BigInteger mask) {
-    List<BigInteger> list = new ArrayList<>();
-    for (int ci = 0; ci < Sudoku.SPACES; ci++) {
-      if (!mask.testBit(Sudoku.SPACES - 1 - ci)) {
-        list.add(mask.setBit(Sudoku.SPACES - 1 - ci));
+  public static void fingerprint(ArgsMap args) {
+    final int MIN_LEVEL = 2;
+    final int MAX_LEVEL = 4;
+    final int MAX_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
+    final long DEFAULT_TIMEOUT = 1L;
+    final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
+
+    defaultInMap(args, "level", "2");
+
+    String gridStr = args.get("grid");
+    int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
+    boolean usingThreads = args.containsKey("threads");
+    String threadsStr = usingThreads ? args.get("threads") : "1";
+    int threads = (usingThreads && threadsStr == null) ? MAX_THREADS : inBounds(Integer.parseInt(threadsStr), 1, MAX_THREADS);
+
+    ThreadPoolExecutor pool = null;
+    if (usingThreads) {
+      System.out.println("Creating ThreadPool...");
+      pool = new ThreadPoolExecutor(threads, threads, DEFAULT_TIMEOUT, TIMEOUT_UNIT, new LinkedBlockingQueue<>());
+    }
+    Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
+    System.out.println(grid.toString());
+    SudokuSieve sieve = new SudokuSieve(grid);
+
+    sieve.seed(level, pool);
+    if (usingThreads) {
+      pool.shutdown();
+      try {
+        System.out.println("Waiting on ThreadPool...");
+        pool.awaitTermination(1L, TimeUnit.MINUTES);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
       }
     }
-    return list;
+    System.out.println("Done!");
+
+    // int minNumCells = Sudoku.SPACES;
+    int maxNumCells = 0;
+    int[] itemsByNumCells = new int[Sudoku.SPACES];
+
+    for (SudokuMask ua : sieve.items(new ArrayList<>())) {
+      int numCells = ua.bitCount();
+      itemsByNumCells[numCells]++;
+      // if (numCells < minNumCells) minNumCells = numCells;
+      if (numCells > maxNumCells) maxNumCells = numCells;
+    }
+
+    ArrayList<String> itemsList = new ArrayList<>();
+    // An unavoidable set includes a minimum of 4 cells
+    for (int m = 4; m <= maxNumCells; m++) {
+      // In level 2, there can be no UAs using an odd number of cells,
+      // because each cell must have at least one complement.
+      if (level == 2 && (m % 2) > 0) {
+        continue;
+      }
+
+      int count = itemsByNumCells[m];
+      itemsList.add((count > 0) ? Integer.toString(count, 16) : "");
+    }
+
+    System.out.println(String.join(":", itemsList));
+  }
+
+  public static void stats(ArgsMap args) {
+    final int MIN_LEVEL = 2;
+    final int MAX_LEVEL = 4;
+    final int MIN_K = 20;
+    final int MIN_NUM_TESTS = 100;
+    final int MAX_NUM_TESTS = 1_000_000;
+
+    defaultInMap(args, "level", "3");
+    defaultInMap(args, "n", "1000");
+
+    int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
+    int numTests = inBounds(Integer.parseInt(args.get("n")), MIN_NUM_TESTS, MAX_NUM_TESTS);
+    String gridStr = args.get("grid");
+    Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
+    System.out.println(grid.toString());
+
+    SudokuSieve sieve = new SudokuSieve(grid);
+    sieve.seed(level);
+    System.out.println(sieve.toString());
+
+    int[][] results = new int[Sudoku.SPACES][2];
+    HashSet<SudokuMask> seenForK = new HashSet<>();
+    for (int k = Sudoku.SPACES - 1; k >= MIN_K; k--) {
+      seenForK.clear();
+
+      BigInteger nck = Counting.nChooseK(Sudoku.SPACES, k);
+      int n = numTests;
+      if (nck.compareTo(BigInteger.valueOf((long) n)) < 0) {
+        n = nck.intValue();
+        if (n < 1) {
+          throw new RuntimeException("Something dumb happened with numTests (it's negative? idk)");
+        }
+      }
+
+      while (seenForK.size() < n) {
+        SudokuMask r = SudokuMask.random(k);
+        if (seenForK.contains(r)) {
+          continue;
+        }
+
+        results[k][0]++;
+        boolean satisfies = sieve.doesMaskSatisfy(r);
+        Sudoku rPuzz = grid.filter(r);
+        if (satisfies) {
+          seenForK.add(r);
+          int flag = rPuzz.solutionsFlag();
+          if (flag == 1) {
+            results[k][1]++;
+          }
+          System.out.printf("[%d] %s | sieve check: ✅; real sudoku: %s\n", k, rPuzz.toString(), (flag == 1) ? "⭐️" : "❌");
+        } else {
+          System.out.printf("[%d] %s | sieve check: ❌\n", k, rPuzz.toString());
+        }
+      }
+    }
+
+    for (int k = Sudoku.SPACES - 1; k >= MIN_K; k--) {
+      int randomsChecked = results[k][0];
+      // String realSudoku = (results[k][0] > 0) ?
+      //   String.format("%d/%d (%.2f%%)", results[k][1], results[k][0], ((double)results[k][1]) / ((double)results[k][0]) * 100.0) :
+      //   "---"
+      // ;
+
+      System.out.printf(
+        "[%d] satisfied: %d/%d (%.2f%%); real sudoku: %d/%d (%.2f%%)\n",
+        k,
+        numTests, randomsChecked, ((double)numTests) / ((double)randomsChecked) * 100.0,
+        results[k][1], numTests, ((double)results[k][1]) / ((double)numTests) * 100.0
+      );
+    }
+  }
+
+  public static void gen2(ArgsMap args) {
+    final int MIN_LEVEL = 2;
+    final int MAX_LEVEL = 4;
+
+    defaultInMap(args, "level", "3");
+    defaultInMap(args, "numClues", "27");
+    defaultInMap(args, "amount", "1");
+
+    final int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
+    final int numClues = inBounds(Integer.parseInt(args.get("numClues")), Sudoku.MIN_CLUES, Sudoku.SPACES);
+    final int amount = inBounds(Integer.parseInt(args.get("amount")), 1, 1000);
+
+    String gridStr = args.get("grid");
+    Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
+
+    Sudoku.generatePuzzle(grid, numClues, amount, level);
   }
 }
