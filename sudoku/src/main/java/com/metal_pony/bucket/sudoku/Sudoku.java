@@ -43,10 +43,10 @@ public class Sudoku {
 
     static final char EMPTY_CHAR = '.';
 
-    // TODO rename "RANK"
-    public static final int DIGITS_SQRT = 3;
+    public static final int RANK = 3;
     public static final int DIGITS = 9; // rank^2
     public static final int SPACES = 81; // rank^2^2
+    /** Value representing all candidates a cell may be.*/
     static final int ALL = 511; // 2^rank^2 - 1
     public static final int MIN_CLUES = 17; // rank^2 * 2 - 1
 
@@ -150,12 +150,12 @@ public class Sudoku {
             COL_INDICES[col][coli[col]++] = i;
             REGION_INDICES[region][regi[region]++] = i;
 
-            int band = row / DIGITS_SQRT;
-            int rowInBand = row % DIGITS_SQRT;
-		    int stack = col / DIGITS_SQRT;
-            int colInStack = col % DIGITS_SQRT;
-            int indexInBand = i % (DIGITS * DIGITS_SQRT);
-            int indexInStack = (row * DIGITS_SQRT) + colInStack;
+            int band = row / RANK;
+            int rowInBand = row % RANK;
+		    int stack = col / RANK;
+            int colInStack = col % RANK;
+            int indexInBand = i % (DIGITS * RANK);
+            int indexInStack = (row * RANK) + colInStack;
             BAND_INDICES[band][indexInBand] = i;
             STACK_INDICES[stack][indexInStack] = i;
             BAND_ROW_INDICES[band][rowInBand][col] = i;
@@ -614,20 +614,6 @@ public class Sudoku {
                 putBacks++;
             }
         }
-
-        System.out.printf(
-            "{maskFails: %d; puzzleCheckFails: %d; sieveSize: %d; timeMs: %d} %s%n",
-            maskFails,
-            puzzleCheckFails,
-            sieve.size(),
-            (System.currentTimeMillis() - start),
-            grid.filter(mask).toString()
-        );
-        SudokuSieve _sieve = new SudokuSieve(grid.getBoard());
-        for (SudokuMask m : sieve) {
-            _sieve.add(m);
-        }
-        System.out.println(_sieve.toString());
 
         return grid.filter(mask);
     }
