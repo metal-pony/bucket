@@ -1,6 +1,7 @@
 package com.metal_pony.bucket.sudoku.util;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -11,7 +12,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * The bits set in the mask are associated with cells to carry over from the grid
  * to the resulting puzzle.
  */
-public class SudokuMask {
+public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask> {
     static final int N = 81;
     static final String RANGE_EXCEPTION = "";
     static final SudokuMask[] CELL_MASKS = new SudokuMask[N];
@@ -316,5 +317,19 @@ public class SudokuMask {
     @Override
     public int hashCode() {
         return toString().hashCode();
+    }
+
+    @Override
+    public int compareTo(SudokuMask o) {
+        int compare = Long.compareUnsigned(bits[1], o.bits[1]);
+        if (compare == 0) {
+            return Long.compareUnsigned(bits[0], o.bits[0]);
+        }
+        return compare;
+    }
+
+    @Override
+    public int compare(SudokuMask o1, SudokuMask o2) {
+        return o1.compareTo(o2);
     }
 }
