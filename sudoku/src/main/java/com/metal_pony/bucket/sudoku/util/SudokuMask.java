@@ -1,6 +1,7 @@
 package com.metal_pony.bucket.sudoku.util;
 
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Represents a sudoku mask containing 81 bits.
@@ -45,6 +46,23 @@ public class SudokuMask {
         Arrays.fill(mask.vals, '1');
         mask.bits[1] = 0x1FFFFL;
         mask.bits[0] = 0xFFFFFFFFFFFFFFFFL;
+        return mask;
+    }
+
+    /**
+     * Returns a new SudokuMask with the given number of bits set at random.
+     * @param bitCount Number of bits to set.
+     * @throws RangeException If bitCount is negative or greater than 81.
+     */
+    public static SudokuMask random(int bitCount) {
+        if (bitCount < 0 || bitCount > N) throw new RangeException(bitCount);
+        if (bitCount == 0) return new SudokuMask();
+        if (bitCount == N) return full();
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        SudokuMask mask = new SudokuMask();
+        while (mask.bitCount() < bitCount) {
+            mask.setBit(rand.nextInt(N));
+        }
         return mask;
     }
 

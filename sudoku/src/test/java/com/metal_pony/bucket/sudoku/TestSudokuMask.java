@@ -18,6 +18,7 @@ public class TestSudokuMask {
     SudokuMask mask;
     Random rand = new Random();
 
+    // bit string -> bits count
     HashMap<String,Integer> cases = new HashMap<>() {{
         put("0".repeat(81), 0);
         put("011011011100110011001111111110000000101110101111010100010110100100011111111101111", 49);
@@ -55,6 +56,47 @@ public class TestSudokuMask {
             assertEquals("1".repeat(81), mask.toString());
             assertEquals(SudokuMask.full(), mask); // via Object.equals(obj)
             assertEquals(SudokuMask.full().hashCode(), mask.hashCode());
+        }
+
+        @Test
+        void random_whenBitCountOutOfRange_throws() {
+            // Negatives
+            for (int bitCount = -1; bitCount > -100; bitCount--) {
+                final int _bitCount = bitCount;
+                assertThrows(RangeException.class, () -> {
+                    SudokuMask.random(_bitCount);
+                });
+            }
+            // Too large
+            for (int bitCount = 82; bitCount > 200; bitCount++) {
+                final int _bitCount = bitCount;
+                assertThrows(RangeException.class, () -> {
+                    SudokuMask.random(_bitCount);
+                });
+            }
+        }
+
+        @Test
+        void random_returnsMaskWithNumBitsSet() {
+            assertEquals(new SudokuMask(), SudokuMask.random(0));
+            assertEquals(SudokuMask.full(), SudokuMask.random(81));
+
+            for (int numBits = 0; numBits <= 81; numBits++) {
+                for (int t = 0; t < 10; t++) {
+                    mask = SudokuMask.random(numBits);
+                    assertEquals(numBits, mask.bitCount());
+
+                    // For redundancy, count the 1 chars in the string
+                    String maskStr = mask.toString();
+                    int count = 0;
+                    for (char c : maskStr.toCharArray()) {
+                        if (c == '1') {
+                            count++;
+                        }
+                    }
+                    assertEquals(numBits, count);
+                }
+            }
         }
     }
 
