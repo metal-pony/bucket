@@ -61,67 +61,6 @@ public class Sudoku {
         return list;
     }
 
-    public static void batchAndWait(int threads, long waitTime, TimeUnit waitTimeUnit, List<Runnable> work, boolean shouldPrint) {
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(threads, threads, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-        work.forEach(w -> pool.submit(w));
-
-        if (shouldPrint) {
-            long workSize = (long)work.size();
-            long completed = 0L;
-            int numDots = 64;
-            int dotsPrinted = 0;
-            // int workPerDot = work.size() / numDots;
-            long _waitTime = waitTimeUnit.toMillis(waitTime);
-            boolean aborted = false;
-            System.out.printf("[ %s ]\n", "=".repeat(numDots));
-            System.out.print("[ ");
-            long startTime = System.currentTimeMillis();
-            while ((completed = pool.getCompletedTaskCount()) < workSize) {
-                while (dotsPrinted < (completed*numDots)/workSize) {
-                    System.out.print('.');
-                    dotsPrinted++;
-                }
-
-                if (System.currentTimeMillis() - startTime > _waitTime) {
-                    aborted = true;
-                    break;
-                }
-
-                // Thread.onSpinWait();
-
-                try {
-                    Thread.sleep(100L);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (aborted) {
-                System.out.println(" ]\n⚠️ Took too long. Aborted. ⚠️");
-            } else {
-                while (dotsPrinted < numDots) {
-                    System.out.print('.');
-                    dotsPrinted++;
-                    try {
-                        Thread.sleep(25L);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                System.out.println(" ]\nDone.");
-            }
-        }
-
-        pool.shutdown();
-        if (!shouldPrint) {
-            try {
-                pool.awaitTermination(waitTime, waitTimeUnit);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     public static class PuzzleEntry {
         String puzzle;
         String solution;

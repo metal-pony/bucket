@@ -96,4 +96,79 @@ public class ThreadPool {
 		init();
 		return pool.shutdownNow();
 	}
+
+	/**
+	 * Conducts a batch of work in its own ThreadPool, blocking until finished.
+	 * Optionally output a progress bar.
+	 * @param threads Number of threads to use.
+	 * @param waitTime Maximum time to wait for the work batch to complete.
+	 * @param waitTimeUnit
+	 * @param work Batch of Runnables to perform.
+	 * @param shouldPrint Whether to enable output of a progress bar.
+	 */
+	public static void batchAndWait(
+		int threads,
+		long waitTime, TimeUnit waitTimeUnit,
+		List<Runnable> work,
+		boolean shouldPrint
+	) {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(threads, threads, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+        work.forEach(w -> pool.submit(w));
+
+        if (shouldPrint) {
+            long workSize = (long)work.size();
+            long completed = 0L;
+            int numDots = 64;
+            int dotsPrinted = 0;
+            // int workPerDot = work.size() / numDots;
+            long _waitTime = waitTimeUnit.toMillis(waitTime);
+            boolean aborted = false;
+            System.out.printf("[ %s ]\n", "=".repeat(numDots));
+            System.out.print("[ ");
+            long startTime = System.currentTimeMillis();
+            while ((completed = pool.getCompletedTaskCount()) < workSize) {
+                while (dotsPrinted < (completed*numDots)/workSize) {
+                    System.out.print('.');
+                    dotsPrinted++;
+                }
+
+                if (System.currentTimeMillis() - startTime > _waitTime) {
+                    aborted = true;
+                    break;
+                }
+
+                // Thread.onSpinWait();
+
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (aborted) {
+                System.out.println(" ]\n⚠️ Took too long. Aborted. ⚠️");
+            } else {
+                while (dotsPrinted < numDots) {
+                    System.out.print('.');
+                    dotsPrinted++;
+                    try {
+                        Thread.sleep(25L);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                System.out.println(" ]\nDone.");
+            }
+        }
+
+        pool.shutdown();
+        if (!shouldPrint) {
+            try {
+                pool.awaitTermination(waitTime, waitTimeUnit);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 }
