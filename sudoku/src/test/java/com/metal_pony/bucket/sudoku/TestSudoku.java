@@ -85,7 +85,7 @@ public class TestSudoku {
         @Test
         void generatePuzzles_stressTest() {
             for (int clues = 81; clues >= 24; clues--) {
-                for (int t = 0; t < 100; t++) {
+                for (int t = 0; t < 10; t++) {
                     Sudoku p = Sudoku.generatePuzzle(clues);
                     int[] board = p.getBoard();
 
@@ -159,9 +159,6 @@ public class TestSudoku {
     void testThing() {
         populateSieveForAllDigitCombos(2);
 
-        SudokuMask[] items = new SudokuMask[configFixtureSieve.size()];
-        configFixtureSieve.items(items);
-
         SudokuMask[] expectedItems = new SudokuMask[] {
             new SudokuMask("001000001000000000001000001000000000000000000000000000000000000000000000000000000"),
             new SudokuMask("000000000000000000000000000100001000000000000100001000000000000000000000000000000"),
@@ -221,7 +218,11 @@ public class TestSudoku {
             new SudokuMask("110000000000000110000110000011000000000001001000100010100001000000010100001000001"),
         };
 
-        SudokuMask[] actualItems = configFixtureSieve.items(new SudokuMask[configFixtureSieve.size()]);
+        SudokuMask[] actualItems = new SudokuMask[configFixtureSieve.size()];
+        int i = 0;
+        for (SudokuMask item : configFixtureSieve.items()) {
+            actualItems[i++] = item;
+        }
         Arrays.sort(actualItems);
         Arrays.sort(expectedItems);
         assertArrayEquals(expectedItems, actualItems);

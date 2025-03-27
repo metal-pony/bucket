@@ -14,8 +14,6 @@ import java.util.Queue;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -673,35 +671,18 @@ public class Main {
   public static void createSieve(ArgsMap args) {
     final int MIN_LEVEL = 2;
     final int MAX_LEVEL = 4;
-    final int MAX_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-    final long DEFAULT_TIMEOUT = 1L;
-    final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     defaultInMap(args, "level", "2");
-    // defaultInMap(args, "threads", Integer.toString(MAX_THREADS));
 
     String gridStr = args.get("grid");
     int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
-    boolean usingThreads = args.containsKey("threads");
-    String threadsStr = usingThreads ? args.get("threads") : "1";
-    int threads = (usingThreads && threadsStr == null) ? MAX_THREADS : inBounds(Integer.parseInt(threadsStr), 1, MAX_THREADS);
 
-    ThreadPoolExecutor pool = null;
-    if (usingThreads) {
-      pool = new ThreadPoolExecutor(threads, threads, DEFAULT_TIMEOUT, TIMEOUT_UNIT, new LinkedBlockingQueue<>());
-    }
     Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
     System.out.println(grid.toString());
     SudokuSieve sieve = new SudokuSieve(grid);
 
-    sieve.seed(level, pool);
-    if (usingThreads) {
-      try {
-        pool.awaitTermination(5L, TimeUnit.MINUTES);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
+    sieve.seed(level);
+
     System.out.println(sieve.toString());
     System.out.printf("Added %d items to sieve.\n", sieve.size());
   }
@@ -709,37 +690,17 @@ public class Main {
   public static void fingerprint(ArgsMap args) {
     final int MIN_LEVEL = 2;
     final int MAX_LEVEL = 4;
-    final int MAX_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
-    final long DEFAULT_TIMEOUT = 1L;
-    final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     defaultInMap(args, "level", "2");
 
     String gridStr = args.get("grid");
     int level = inBounds(Integer.parseInt(args.get("level")), MIN_LEVEL, MAX_LEVEL);
-    boolean usingThreads = args.containsKey("threads");
-    String threadsStr = usingThreads ? args.get("threads") : "1";
-    int threads = (usingThreads && threadsStr == null) ? MAX_THREADS : inBounds(Integer.parseInt(threadsStr), 1, MAX_THREADS);
 
-    ThreadPoolExecutor pool = null;
-    if (usingThreads) {
-      System.out.println("Creating ThreadPool...");
-      pool = new ThreadPoolExecutor(threads, threads, DEFAULT_TIMEOUT, TIMEOUT_UNIT, new LinkedBlockingQueue<>());
-    }
     Sudoku grid = (gridStr == null) ? Sudoku.configSeed().firstSolution() : new Sudoku(gridStr);
     System.out.println(grid.toString());
     SudokuSieve sieve = new SudokuSieve(grid);
 
-    sieve.seed(level, pool);
-    if (usingThreads) {
-      pool.shutdown();
-      try {
-        System.out.println("Waiting on ThreadPool...");
-        pool.awaitTermination(1L, TimeUnit.MINUTES);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
+    sieve.seed(level);
     System.out.println("Done!");
 
     // int minNumCells = Sudoku.SPACES;
