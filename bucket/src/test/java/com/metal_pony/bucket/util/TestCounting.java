@@ -152,7 +152,7 @@ public class TestCounting {
         }
 
         @ParameterizedTest(name = "n = {0}")
-        @CsvFileSource(resources = "/NChooseK.csv", numLinesToSkip = 1, delimiter = '|', maxCharsPerColumn = 1<<24)
+        @CsvFileSource(resources = "/NChooseK.csv", delimiter = '|', maxCharsPerColumn = 1<<24)
         void nChooseK(int n, String nChooseKArr) {
             Gson gson = new Gson();
             String[] expectedStrs = gson.fromJson(nChooseKArr, String[].class);
