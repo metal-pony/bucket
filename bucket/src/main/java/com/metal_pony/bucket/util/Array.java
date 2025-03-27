@@ -6,6 +6,16 @@ import java.util.function.Function;
  * Provides utilities for working with arrays.
  */
 public class Array {
+    public static String reverse(String str) {
+        char[] arr = str.toCharArray();
+        for (int i = 0, j = arr.length - 1; i < j; i++, j--) {
+            char t = arr[i];
+            arr[i] = arr[j];
+            arr[j] = t;
+        }
+        return new String(arr);
+    }
+
     /**
      * Returns a copy of the given array.
      */
