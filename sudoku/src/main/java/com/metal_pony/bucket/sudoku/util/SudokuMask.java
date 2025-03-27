@@ -214,8 +214,8 @@ public class SudokuMask {
         if (other == null) return false;
         if (bitsSet == 0 || other.bitsSet == 0) return false;
         return (
-            (bits[0] | other.bits[0]) == bits[0] &&
-            (bits[1] | other.bits[1]) == bits[1]
+            (bits[0] & other.bits[0]) == other.bits[0] &&
+            (bits[1] & other.bits[1]) == other.bits[1]
         );
     }
 
