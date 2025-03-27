@@ -44,7 +44,7 @@ public class SudokuUtility {
 			this.index = index;
 		}
 	};
-	static final int[][][] INDICES = new int[Sudoku.DIGITS_SQRT][Sudoku.DIGITS][Sudoku.DIGITS];
+	static final int[][][] INDICES = new int[Sudoku.RANK][Sudoku.DIGITS][Sudoku.DIGITS];
 	static {
 		for (int areaIndex = 0; areaIndex < Sudoku.DIGITS; areaIndex++) {
 			for (int areaCellIndex = 0; areaCellIndex < Sudoku.DIGITS; areaCellIndex++) {
@@ -66,9 +66,9 @@ public class SudokuUtility {
 	public static int cellRow(int ci) { return ci / Sudoku.DIGITS; }
 	public static int cellCol(int ci) { return ci % Sudoku.DIGITS; }
 	public static int cellRegion(int ci) {
-		int regionRow = ci / (Sudoku.DIGITS_SQRT * Sudoku.DIGITS);
-		int regionCol = (ci % Sudoku.DIGITS) / Sudoku.DIGITS_SQRT;
-		return (regionRow * Sudoku.DIGITS_SQRT) + regionCol;
+		int regionRow = ci / (Sudoku.RANK * Sudoku.DIGITS);
+		int regionCol = (ci % Sudoku.DIGITS) / Sudoku.RANK;
+		return (regionRow * Sudoku.RANK) + regionCol;
 	}
 
 	private static void checkBoardArrayLength(int[] board) {
@@ -127,7 +127,7 @@ public class SudokuUtility {
 
 	public static boolean isValid(int[] board) {
 		checkBoardArrayLength(board);
-		int[][] validity = new int[Sudoku.DIGITS_SQRT][Sudoku.DIGITS];
+		int[][] validity = new int[Sudoku.RANK][Sudoku.DIGITS];
 
 		for (int ci = 0; ci < Sudoku.SPACES; ci++) {
 			int digit = board[ci];
@@ -167,7 +167,7 @@ public class SudokuUtility {
 
 	public static boolean isSolved(int[] board) {
 		checkBoardArrayLength(board);
-		int[][] validity = new int[Sudoku.DIGITS_SQRT][Sudoku.DIGITS];
+		int[][] validity = new int[Sudoku.RANK][Sudoku.DIGITS];
 
 		for (int ci = 0; ci < Sudoku.SPACES; ci++) {
 			int digit = board[ci];

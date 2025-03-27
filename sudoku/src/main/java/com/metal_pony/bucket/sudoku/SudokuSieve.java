@@ -46,7 +46,7 @@ public class SudokuSieve {
             if (p.solutionsFlag() != 2)
                 return true;
             // (3) for each empty cell, filling it with one of its remaining candidates and solving yields a solution
-            if (!p.allAntiesSolve())
+            if (!p.allBranchesSolveUniquely())
                 return true;
 
             // We've made it this far, so this diff is an Unavoidable Set ('UA' or 'sieve item')
@@ -84,10 +84,10 @@ public class SudokuSieve {
                     regionMask.unsetBit(ci);
             }
 
-            searchForItemsFromMask(grid, sieve, grid.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]).flip(), true);
-            searchForItemsFromMask(grid, sieve, rowMask, true);
-            searchForItemsFromMask(grid, sieve, colMask, true);
-            searchForItemsFromMask(grid, sieve, regionMask, true);
+            searchForItemsFromMask(grid, sieve, grid.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]).flip(), false);
+            searchForItemsFromMask(grid, sieve, rowMask, false);
+            searchForItemsFromMask(grid, sieve, colMask, false);
+            searchForItemsFromMask(grid, sieve, regionMask, false);
         }
 
         sieve.sort((a, b) -> {
@@ -464,23 +464,7 @@ public class SudokuSieve {
             return false;
         }
 
-        for (Sudoku anti : p2.antiDerivatives()) {
-            String key = anti.toString();
-            // Integer cacheFlag = _validationCache.get(key);
-            int flag;
-            // if (cacheFlag != null) {
-            //     flag = cacheFlag.intValue();
-            // } else {
-                flag = anti.solutionsFlag();
-            //     _validationCache.put(key, flag);
-            // }
-
-            if (flag != 1) {
-                return false;
-            }
-        }
-
-        return true;
+        return p2.allBranchesSolveUniquely();
     }
 
     public synchronized boolean isDerivative(SudokuMask mask) {

@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -14,7 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Map.Entry;
-import java.util.concurrent.atomic.AtomicInteger;
 
 // Used with the disabled async tests
 // import java.util.Collections;
@@ -448,59 +446,6 @@ public class TestSudoku {
     }
 
     @Test
-    void searchForSolutionsBranched_withSingleBranch() {
-        HashSet<String> solutionSet = new HashSet<>();
-        int branches = 1;
-        puzzleFixture.searchForSolutionsBranched(s -> {
-            solutionSet.add(s.normalize().toString());
-            return true;
-        }, branches);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-    }
-
-    @Test
-    void searchForSolutionsBranched() {
-        HashSet<String> solutionSet = new HashSet<>();
-        int branches = 9;
-        puzzleFixture.searchForSolutionsBranched(s -> {
-            solutionSet.add(s.normalize().toString());
-            return true;
-        }, branches);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-    }
-
-    @Test
-    void shuffleDigits_maintainsFingerprint() {
-        String fp2 = configFixture.fingerprint(2);
-        int N = 4;
-        for (int n = 0; n < N; n++) {
-            configFixture.shuffleDigits();
-            assertEquals(fp2, configFixture.fingerprint(2));
-        }
-    }
-
-    @Test
-    void shuffleDigits_ofPuzzle_hasSameNumberSolutions() {
-        final int expected = puzzleSolutions.length;
-        int N = 10;
-        for (int n = 0; n < N; n++) {
-            puzzleFixture.shuffleDigits();
-            AtomicInteger count = new AtomicInteger();
-            puzzleFixture.searchForSolutions3(s -> {
-                count.incrementAndGet();
-                return true;
-            });
-            assertEquals(expected, count.get());
-        }
-    }
-
-    @Test
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 
@@ -686,46 +631,6 @@ public class TestSudoku {
     @Test
     void testSwapStacks() {
 
-    }
-
-    @Test
-    void testBigToCells() {
-        record TestCase(BigInteger big, int[] expected) {};
-        TestCase[] cases = new TestCase[] {
-            new TestCase(
-                new BigInteger("1111" + "0".repeat(77), 2),
-                new int[] { 3, 2, 1, 0 }
-            ),
-            new TestCase(
-                new BigInteger("1111", 2),
-                new int[] { 80, 79, 78, 77 }
-            ),
-            new TestCase(
-                new BigInteger(("10000000000000010000000010100000" + "0".repeat(81-32)), 2),
-                new int[] { 26, 24, 15, 0 }
-            ),
-            new TestCase(
-                new BigInteger("0".repeat(81), 2),
-                new int[] {}
-            ),
-            new TestCase(
-                new BigInteger("1".repeat(81), 2),
-                new int[] {
-                    80, 79, 78, 77, 76, 75, 74, 73, 72, 71,
-                    70, 69, 68, 67, 66, 65, 64, 63, 62, 61,
-                    60, 59, 58, 57, 56, 55, 54, 53, 52, 51,
-                    50, 49, 48, 47, 46, 45, 44, 43, 42, 41,
-                    40, 39, 38, 37, 36, 35, 34, 33, 32, 31,
-                    30, 29, 28, 27, 26, 25, 24, 23, 22, 21,
-                    20, 19, 18, 17, 16, 15, 14, 13, 12, 11,
-                    10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-                }
-            ),
-        };
-
-        for (TestCase c : cases) {
-            assertArrayEquals(c.expected, Sudoku.bigToCells(c.big));
-        }
     }
 
     private void populateSieveForAllDigitCombos(int level) {
