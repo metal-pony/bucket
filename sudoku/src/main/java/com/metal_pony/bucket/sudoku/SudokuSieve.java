@@ -29,7 +29,7 @@ public class SudokuSieve {
                 return true;
             // Filter out solutions already covered by an existing sieve item
             for (SudokuMask item : sieve) {
-                if (mask.overlapsAllOf(item))
+                if (mask.hasBitsSet(item))
                     return true;
             }
             // Now, for a diff to be considered a sieve item...
@@ -338,7 +338,7 @@ public class SudokuSieve {
         for (ItemGroup group : _itemGroupsByBitCount) {
             if (group.items.size() > 0) {
                 for (SudokuMask item : group.items) {
-                    if (mask.overlapsAllOf(item)) {
+                    if (mask.hasBitsSet(item)) {
                         return true;
                     }
                 }
@@ -479,11 +479,11 @@ public class SudokuSieve {
      * @param mask
      * @return True if the mask contains at least one bit intersecting with each sieve item.
      */
-    public boolean doesMaskSatisfy(SudokuMask mask) {
+    public boolean doesMaskSatisfy(SudokuMask puzzleMask) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             for (SudokuMask item : group.items) {
                 // TODO There's no way this is correct, right?
-                if (item.overlapsAllOf(mask)) {
+                if (!item.intersects(puzzleMask)) {
                     return false;
                 }
             }

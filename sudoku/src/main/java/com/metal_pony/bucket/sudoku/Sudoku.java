@@ -562,7 +562,7 @@ public class Sudoku {
                 // Check if mask satisfies sieve
                 boolean satisfies = true;
                 for (SudokuMask item : sieve) {
-                    if (!mask.hasAnyOverlapWith(item)) {
+                    if (!mask.intersects(item)) {
                         satisfies = false;
                         break;
                     }

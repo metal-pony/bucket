@@ -2,6 +2,7 @@ package com.metal_pony.bucket.sudoku;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.Map.Entry;
@@ -113,7 +114,8 @@ public class TestSudokuMask {
         assertThrows(LengthException.class, () -> { new SudokuMask("1".repeat(82).toCharArray()); });
 
         // Check that non-zero digit characters set bits
-        char[] input = "0".repeat(81).toCharArray();
+        char[] input = new char[81];
+        Arrays.fill(input, '0');
         int expectedBitCount = 0;
         mask = new SudokuMask(input);
         for (int i = 0; i < 81; i++) {
@@ -240,14 +242,61 @@ public class TestSudokuMask {
     }
 
     @Test
+    void add() {
+        String originalMask = "000011010000001010011100010111100001011101100100110100101110110110010001010101000";
+        String otherMask    = "000000000000000010100000000000000000000000000001000000000000000000000000000000010";
+        String expectedMask = "000011010000001010111100010111100001011101100101110100101110110110010001010101010";
+
+        mask = new SudokuMask(originalMask);
+        int originalMaskBitCount = mask.bitCount();
+        SudokuMask other = new SudokuMask(otherMask);
+        SudokuMask result;
+
+        // mask.add returns itself, nothing should change
+        result = mask.add(mask);
+        assertTrue(mask == result);
+        assertEquals(originalMaskBitCount, mask.bitCount());
+        assertEquals(originalMask, result.toString());
+
+        // mask.add(new SudokuMask()) returns itself, nothing should change
+        result = mask.add(new SudokuMask());
+        assertTrue(mask == result);
+        assertEquals(originalMaskBitCount, mask.bitCount());
+        assertEquals(originalMask, result.toString());
+
+        // mask.add(SudokuMask.full()) returns itself, all bits are set
+        result = mask.add(SudokuMask.full());
+        assertTrue(mask == result);
+        assertEquals(81, mask.bitCount());
+        assertEquals(SudokuMask.full().toString(), result.toString());
+
+        // mask.add(other) returns itself, some bits were set (+3)
+        // reset mask
+        mask = new SudokuMask(originalMask);
+        result = mask.add(other);
+        assertTrue(mask == result);
+        assertEquals(originalMaskBitCount + 3, mask.bitCount());
+        assertEquals(expectedMask, result.toString());
+    }
+
+    @Test
     void setBit() {
         assertThrows(RangeException.class, () -> { mask.setBit(-2); });
         assertThrows(RangeException.class, () -> { mask.setBit(-1); });
         assertThrows(RangeException.class, () -> { mask.setBit(82); });
         assertThrows(RangeException.class, () -> { mask.setBit(83); });
 
+        char[] expectedVals = new char[81];
+        Arrays.fill(expectedVals, '0');
         for (int i = 0; i < 81; i++) {
+            expectedVals[i] = '1';
+
             assertTrue(mask == mask.setBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
+
+            // Setting again should have no further effect
+            assertTrue(mask == mask.setBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
         }
     }
 
@@ -258,8 +307,18 @@ public class TestSudokuMask {
         assertThrows(RangeException.class, () -> { mask.unsetBit(82); });
         assertThrows(RangeException.class, () -> { mask.unsetBit(83); });
 
+        char[] expectedVals = new char[81];
+        Arrays.fill(expectedVals, '1');
+        mask = SudokuMask.full();
         for (int i = 0; i < 81; i++) {
+            expectedVals[i] = '0';
+
             assertTrue(mask == mask.unsetBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
+
+            // Unsetting again should have no further effect
+            assertTrue(mask == mask.unsetBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
         }
     }
 
@@ -270,8 +329,18 @@ public class TestSudokuMask {
         assertThrows(RangeException.class, () -> { mask.flipBit(82); });
         assertThrows(RangeException.class, () -> { mask.flipBit(83); });
 
+        char[] expectedVals = new char[81];
+        Arrays.fill(expectedVals, '0');
         for (int i = 0; i < 81; i++) {
-            assertTrue(mask == mask.unsetBit(i));
+            expectedVals[i] = '1';
+
+            assertTrue(mask == mask.flipBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
+
+            // Now flip it back
+            expectedVals[i] = '0';
+            assertTrue(mask == mask.flipBit(i));
+            assertEquals(new String(expectedVals), mask.toString());
         }
     }
 
@@ -289,13 +358,13 @@ public class TestSudokuMask {
     }
 
     @Test
-    void hasAnyOverlapWith() {
-        assertFalse(mask.hasAnyOverlapWith(null));
-        // Empty never overlaps
-        assertFalse(mask.hasAnyOverlapWith(new SudokuMask()));
-        assertFalse(mask.hasAnyOverlapWith(SudokuMask.full()));
+    void intersects() {
+        assertFalse(mask.intersects(null));
+        // Empty never intersects
+        assertFalse(mask.intersects(new SudokuMask()));
+        assertFalse(mask.intersects(SudokuMask.full()));
 
-        // Non-overlapping
+        // None of these intersect with one another
         String[] nonOverlapping = new String[] {
             "010100000000000000010001010000000000000001100000000000000000000001010000010100000",
             "000000000010000000000100000101100100100000000100000000000001000000000000000000000",
@@ -310,16 +379,16 @@ public class TestSudokuMask {
 
         for (int i = 0; i < nonOverlapping.length - 1; i++) {
             SudokuMask a = new SudokuMask(nonOverlapping[i]);
-            assertTrue(a.hasAnyOverlapWith(a));
+            assertTrue(a.intersects(a));
             for (int j = i + 1; j < nonOverlapping.length; j++) {
                 SudokuMask b = new SudokuMask(nonOverlapping[j]);
-                assertTrue(b.hasAnyOverlapWith(b));
-                assertFalse(a.hasAnyOverlapWith(b));
-                assertFalse(b.hasAnyOverlapWith(a));
+                assertTrue(b.intersects(b));
+                assertFalse(a.intersects(b));
+                assertFalse(b.intersects(a));
             }
         }
 
-        // All have overlap
+        // All of these intersect with one another
         String[] allOverlapping = new String[] {
             "010100000000000000010001011000000000000001100000000000000000000001010000010100000",
             "000000000010000000000100001101100100100000000100000000000001000000000000000000000",
@@ -334,25 +403,29 @@ public class TestSudokuMask {
 
         for (int i = 0; i < allOverlapping.length - 1; i++) {
             SudokuMask a = new SudokuMask(allOverlapping[i]);
-            assertTrue(a.hasAnyOverlapWith(a));
+            assertTrue(a.intersects(a));
             for (int j = i + 1; j < allOverlapping.length; j++) {
                 SudokuMask b = new SudokuMask(allOverlapping[j]);
-                assertTrue(b.hasAnyOverlapWith(b));
-                assertTrue(a.hasAnyOverlapWith(b));
-                assertTrue(b.hasAnyOverlapWith(a));
+                assertTrue(b.intersects(b));
+                assertTrue(a.intersects(b));
+                assertTrue(b.intersects(a));
             }
         }
     }
 
     @Test
-    void overlapsAllOf() {
-        assertFalse(mask.overlapsAllOf(null));
+    void hasBitsSet() {
+        // No longer supported
+        // assertFalse(mask.hasBitsSet(null));
 
-        // Empty never overlaps
-        assertFalse(mask.overlapsAllOf(mask));
-        assertFalse(mask.overlapsAllOf(new SudokuMask()));
-        assertFalse(mask.overlapsAllOf(SudokuMask.full()));
-        assertFalse(SudokuMask.full().overlapsAllOf(mask));
+        // Empty never has bits set
+        assertFalse(mask.hasBitsSet(mask));
+        assertFalse(mask.hasBitsSet(new int[0]));
+        assertFalse(mask.hasBitsSet(new SudokuMask()));
+        assertFalse(mask.hasBitsSet(SudokuMask.full()));
+        assertFalse(mask.hasBitsSet(SudokuMask.full().toIndices()));
+        assertFalse(SudokuMask.full().hasBitsSet(mask));
+        assertFalse(SudokuMask.full().hasBitsSet(new int[0]));
 
         String[] falseCases = new String[] {
             "010100000000000000010001010000000000000001100000000000000000000001010000010100000",
@@ -368,12 +441,16 @@ public class TestSudokuMask {
 
         for (int i = 0; i < falseCases.length - 1; i++) {
             SudokuMask a = new SudokuMask(falseCases[i]);
-            assertTrue(a.overlapsAllOf(a));
+            assertTrue(a.hasBitsSet(a));
+            assertTrue(a.hasBitsSet(a.toIndices()));
             for (int j = i + 1; j < falseCases.length; j++) {
                 SudokuMask b = new SudokuMask(falseCases[j]);
-                assertTrue(b.overlapsAllOf(b));
-                assertFalse(a.overlapsAllOf(b));
-                assertFalse(b.overlapsAllOf(a));
+                assertTrue(b.hasBitsSet(b));
+                assertTrue(b.hasBitsSet(b.toIndices()));
+                assertFalse(a.hasBitsSet(b));
+                assertFalse(a.hasBitsSet(b.toIndices()));
+                assertFalse(b.hasBitsSet(a));
+                assertFalse(b.hasBitsSet(a.toIndices()));
             }
         }
 
@@ -382,9 +459,45 @@ public class TestSudokuMask {
             SudokuMask other = new SudokuMask(mask.toString());
             for (int n = 0; n < 50; n++) {
                 other.setBit(rand.nextInt(81));
-                assertTrue(other.overlapsAllOf(mask));
+                assertTrue(other.hasBitsSet(mask));
+                assertTrue(other.hasBitsSet(mask.toIndices()));
             }
-            assertFalse(mask.overlapsAllOf(other));
+            assertFalse(mask.hasBitsSet(other));
+            assertFalse(mask.hasBitsSet(other.toIndices()));
+        }
+    }
+
+    @Test
+    void testEquals_and_hash() {
+        assertTrue(new SudokuMask().equals(new SudokuMask()));
+        assertTrue(SudokuMask.full().equals(SudokuMask.full()));
+        assertEquals(new SudokuMask().hashCode(), new SudokuMask().hashCode());
+        assertEquals(SudokuMask.full().hashCode(), SudokuMask.full().hashCode());
+
+        assertTrue(mask.equals(new SudokuMask()));
+        assertTrue(new SudokuMask().equals(mask));
+        assertEquals(mask.hashCode(), new SudokuMask().hashCode());
+
+        assertFalse(mask.equals(SudokuMask.full()));
+        assertFalse(SudokuMask.full().equals(mask));
+        assertNotEquals(SudokuMask.full().hashCode(), mask.hashCode());
+
+        for (String stra : cases.keySet()) {
+            SudokuMask a = new SudokuMask(stra);
+
+            for (String strb : cases.keySet()) {
+                SudokuMask b = new SudokuMask(strb);
+
+                if (stra.equals(strb)) {
+                    assertTrue(a.equals(b));
+                    assertTrue(b.equals(a));
+                    assertEquals(a.hashCode(), b.hashCode());
+                } else {
+                    assertFalse(a.equals(b));
+                    assertFalse(b.equals(a));
+                    assertNotEquals(a.hashCode(), b.hashCode());
+                }
+            }
         }
     }
 
