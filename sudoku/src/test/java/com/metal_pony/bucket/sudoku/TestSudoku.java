@@ -447,6 +447,26 @@ public class TestSudoku {
     }
 
     @Test
+    void countSolutions() {
+        // Invalid puzzles (0 solutions)
+        for (String p : invalidPuzzles) {
+            assertEquals(0, new Sudoku(p).countSolutions());
+        }
+
+        // Invalid puzzles (multiple solutions)
+        for (String p : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
+            assertEquals(
+                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
+                new Sudoku(p).countSolutions()
+            );
+        }
+
+        // Valid sudoku puzzles (single solutions)
+        for (String p : GeneratedPuzzles.PUZZLES_24_1000) {
+            assertEquals(1, new Sudoku(p).countSolutions());
+        }
+    }
+
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 

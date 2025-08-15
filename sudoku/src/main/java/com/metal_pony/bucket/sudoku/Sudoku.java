@@ -708,6 +708,39 @@ public class Sudoku {
         }
     }
 
+    /**
+     * Counts the puzzle's solution. (Synchronous DFS.)
+     * This may take a very long time if the puzzle is sparse.
+     * @return Number of solutions.
+     */
+    public long countSolutions() {
+        Sudoku root = new Sudoku(this);
+        root.resetEmptyCells();
+        root.resetConstraints();
+
+        if (!root.isValid) return 0;
+
+        long count = 0L;
+        Stack<SudokuNode> stack = new Stack<>();
+        stack.push(new SudokuNode(root));
+
+        while (!stack.isEmpty()) {
+            SudokuNode top = stack.peek();
+            Sudoku sudoku = top.sudoku;
+
+            if (sudoku.isSolved()) {
+                stack.pop();
+                count++;
+            } else if (top.hasNext()) {
+                stack.push(top.next());
+            } else {
+                stack.pop();
+            }
+        }
+
+        return count;
+    }
+
     public List<Future<List<Sudoku>>> searchForSolutions4() {
         List<Future<List<Sudoku>>> allResults = new ArrayList<>();
 
