@@ -1,8 +1,10 @@
 package com.metal_pony.bucket.sudoku.util;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.concurrent.ThreadLocalRandom;
+
+import com.metal_pony.bucket.util.Shuffler;
 
 /**
  * Represents a sudoku mask containing 81 bits.
@@ -14,7 +16,6 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask> {
     static final int N = 81;
-    static final String RANGE_EXCEPTION = "";
     static final SudokuMask[] CELL_MASKS = new SudokuMask[N];
     static {
         for (int ci = 0; ci < N; ci++) {
@@ -57,14 +58,19 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      */
     public static SudokuMask random(int bitCount) {
         if (bitCount < 0 || bitCount > N) throw new RangeException(bitCount);
-        if (bitCount == 0) return new SudokuMask();
-        if (bitCount == N) return full();
-        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        if (bitCount <= 0) return new SudokuMask();
+        if (bitCount >= N) return full();
         SudokuMask mask = new SudokuMask();
-        while (mask.bitCount() < bitCount) {
-            mask.setBit(rand.nextInt(N));
+        int[] arr = Shuffler.shuffle(range(new int[N]));
+        for (int i = 0; i < bitCount; i++) {
+            mask.setBit(arr[i]);
         }
         return mask;
+    }
+
+    private static int[] range(int[] arr) {
+        for (int i = 0; i < arr.length; i++) arr[i] = i;
+        return arr;
     }
 
     char[] vals;
@@ -78,9 +84,7 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      * @throws LengthException If the string length is not 81.
      */
     public SudokuMask(String sudokuStr) {
-        this();
-        if (sudokuStr == null || sudokuStr.length() != N) throw new LengthException();
-        setFromCharArr(sudokuStr.toCharArray());
+        this(sudokuStr.toCharArray());
     }
 
     /**
@@ -90,8 +94,10 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      * @throws LengthException If the array length is not 81.
      */
     public SudokuMask(char[] vals) {
-        this();
         if (vals == null || vals.length != N) throw new LengthException();
+        this.vals = new char[N];
+        this.bits = new long[]{0L, 0L};
+        this.bitsSet = 0;
         setFromCharArr(vals);
     }
 
@@ -105,10 +111,26 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
         this.bitsSet = 0;
     }
 
+    /**
+     * Creates a new SudokuMask as a copy of the one given.
+     * @param other The SudokuMask to copy.
+     */
+    public SudokuMask(SudokuMask other) {
+        this.vals = new char[N];
+        System.arraycopy(other.vals, 0, this.vals, 0, N);
+        this.bits = new long[]{other.bits[0], other.bits[1]};
+        this.bitsSet = other.bitsSet;
+    }
+
     private void setFromCharArr(char[] arr) {
         for (int i = 0; i < N; i++) {
+            this.vals[i] = '0';
             if (arr[i] > '0' && arr[i] <= '9') {
-                setBit(i);
+                this.vals[i] = '1';
+                this.bitsSet++;
+                int bsi = i > 16 ? 0 : 1;
+                int bi = (80 - i) % 64;
+                this.bits[bsi] |= 1L<<bi;
             }
         }
     }
@@ -143,6 +165,24 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
             int bsi = bit > (N - 1 - 64) ? 0 : 1;
             int bi = (N - 1 - bit) % 64;
             bits[bsi] |= 1L<<bi;
+        }
+        return this;
+    }
+
+    /**
+     * Behaves like a bitwise OR. Any bits set in the given mask will be set in this one.
+     * @param other The other mask to combine into this one.
+     * @return This SudokuMask for convenience.
+     */
+    public SudokuMask add(SudokuMask other) {
+        for (int b = 0; b < N; b++) {
+            if (other.testBit(b) && !testBit(b)) {
+                bitsSet++;
+                vals[b] = '1';
+                int bsi = b > (N - 1 - 64) ? 0 : 1;
+                int bi = (N - 1 - b) % 64;
+                bits[bsi] |= 1L<<bi;
+            }
         }
         return this;
     }
@@ -184,8 +224,11 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      * @return This SudokuMask for convenience.
      */
     public SudokuMask flip() {
+        bits[1] = ((~bits[1]) & 0x1FFFFL);
+        bits[0] = ~bits[0];
+        bitsSet = N - bitsSet;
         for (int i = N - 1; i >= 0; i--) {
-            flipBit(i);
+            vals[i] = (vals[i] == '0') ? '1' : '0';
         }
         return this;
     }
@@ -198,7 +241,7 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      * @param other The other SudokuMask to compare bits.
      * @return True if this and `other` have any set bits in common; otherwise false.
      */
-    public boolean hasAnyOverlapWith(SudokuMask other) {
+    public boolean intersects(SudokuMask other) {
         if (other == null) return false;
         return ((bits[0] & other.bits[0]) | (bits[1] & other.bits[1])) != 0L;
     }
@@ -211,7 +254,7 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
      * @param other The other SudokuMask to compare bits.
      * @return True if this has all the set bits of `other`; otherwise false.
      */
-    public boolean overlapsAllOf(SudokuMask other) {
+    public boolean hasBitsSet(SudokuMask other) {
         if (other == null) return false;
         if (bitsSet == 0 || other.bitsSet == 0) return false;
         return (
@@ -220,9 +263,32 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
         );
     }
 
+    /**
+     * Checks whether this maks has all the specified bits set.
+     *
+     * If the given array of bits is empty, return true.
+     * @param bits Array of bit indices to check.
+     * @return True if all the given bits are set; otherwise false.
+     */
+    public boolean hasBitsSet(int[] bits) {
+        if (bits == null || bits.length == 0) return false;
+        for (int i = 0; i < bits.length; i++) {
+            if (bits[i] > 80) return false;
+            if (vals[bits[i]] == '0') return false;
+        }
+        return true;
+    }
+
     @Override
     public String toString() {
         return new String(vals);
+    }
+
+    /**
+     * Gets the string representing this mask with 0s replaced by dots '.'.
+     */
+    public String toStringDots() {
+        return toString().replaceAll("0", ".");
     }
 
     private static String padLeft(String str, int length, char fillChar) {
@@ -240,6 +306,13 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
             "0".equals(first) ? "" : first,
             usePad ? padLeft(Long.toHexString(bits[0]), 16, '0') : Long.toHexString(bits[0])
         );
+    }
+
+    /**
+     * A decimal representation of this mask.
+     */
+    public String toBigString() {
+        return new BigInteger(toString(), 2).toString();
     }
 
     /**
@@ -306,6 +379,34 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
         return result;
     }
 
+    /**
+     * Converts this mask to an array of indices where the bits are set.
+     * @return An array of indices corresponding to the set bits in this mask.
+     */
+    public int[] toIndices() {
+        int[] result = new int[bitsSet];
+        for (int bit = 0, i = 0; bit < N; bit++) {
+            if (vals[bit] == '1') {
+                result[i++] = bit;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Splits this mask into an array of SudokuMask components, each containing a single bit set.
+     * @return An array of SudokuMask components, each with one bit set.
+     */
+    public SudokuMask[] split() {
+        SudokuMask[] components = new SudokuMask[bitsSet];
+        for (int bit = 0, i = 0; bit < N; bit++) {
+            if (vals[bit] == '1') {
+                components[i++] = new SudokuMask().setBit(bit);
+            }
+        }
+        return components;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null || !(obj instanceof SudokuMask)) return false;
@@ -316,7 +417,12 @@ public class SudokuMask implements Comparable<SudokuMask>, Comparator<SudokuMask
 
     @Override
     public int hashCode() {
-        return toString().hashCode();
+        long key = bits[0];
+        key = (key ^ (key >>> 32)) * 0x111111111111111L;
+        key = (key ^ (key >>> 32)) * 0x111111111111111L;
+        key = (key ^ (key >>> 32));
+        long key1 = bits[1] * 0x111111111111111L;
+        return ((int)key) ^ ((int)key1);
     }
 
     @Override
