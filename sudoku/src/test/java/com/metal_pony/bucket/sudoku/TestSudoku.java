@@ -467,6 +467,40 @@ public class TestSudoku {
         }
     }
 
+    @Test
+    void countSolutionsAsync() {
+        // Repeat of test above, but with the async method.
+        // Invalid puzzles (0 solutions)
+        for (String p : invalidPuzzles) {
+            assertEquals(0, new Sudoku(p).countSolutionsAsync(1));
+            assertEquals(0, new Sudoku(p).countSolutionsAsync(2));
+            assertEquals(0, new Sudoku(p).countSolutionsAsync(4));
+        }
+
+        // Invalid puzzles (multiple solutions)
+        for (String p : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
+            assertEquals(
+                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
+                new Sudoku(p).countSolutionsAsync(1)
+            );
+            assertEquals(
+                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
+                new Sudoku(p).countSolutionsAsync(2)
+            );
+            assertEquals(
+                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
+                new Sudoku(p).countSolutionsAsync(4)
+            );
+        }
+
+        // Valid sudoku puzzles (single solutions)
+        for (String p : GeneratedPuzzles.PUZZLES_24_1000) {
+            assertEquals(1, new Sudoku(p).countSolutionsAsync(1));
+            assertEquals(1, new Sudoku(p).countSolutionsAsync(2));
+            assertEquals(1, new Sudoku(p).countSolutionsAsync(4));
+        }
+    }
+
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 

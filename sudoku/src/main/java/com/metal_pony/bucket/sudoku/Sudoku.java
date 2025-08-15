@@ -1132,6 +1132,63 @@ public class Sudoku {
     }
 
     /**
+     * Counts the number of solutions to this sudoku with the given number of threads.
+     * Even with multiple threads, a very sparse puzzle may take a long time.
+     */
+    public long countSolutionsAsync(int numThreads) {
+        AtomicLong count = new AtomicLong();
+
+        Sudoku root = new Sudoku(this);
+        // Ensure candidates and constraints are in good order for the search
+        root.resetEmptyCells();
+        root.resetConstraints();
+
+        int maxSplitSize = (1 << 12);
+        Queue<SudokuNode> queue = new LinkedList<>();
+        queue.offer(new SudokuNode(root));
+        while (!queue.isEmpty() && queue.size() < maxSplitSize) {
+            SudokuNode top = queue.poll();
+            Sudoku sudoku = top.sudoku;
+
+            if (sudoku.isSolved()) {
+                count.incrementAndGet();
+            } else {
+                while (top.hasNext()) {
+                    queue.offer(top.next());
+                }
+            }
+        }
+
+        if (queue.isEmpty()) {
+            return count.get();
+        }
+
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            numThreads, numThreads,
+            1L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>()
+        );
+
+        while (!queue.isEmpty()) {
+            SudokuNode node = queue.poll();
+            pool.submit(() -> {
+                long localCount = node.sudoku.countSolutions();
+                count.addAndGet(localCount);
+            });
+        }
+
+        pool.shutdown();
+        try {
+            pool.awaitTermination(1L, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return count.get();
+    }
+
+
+    /**
      * Searches for and returns the first solution.
      * @return A new Sudoku instance (the solution).
      */
