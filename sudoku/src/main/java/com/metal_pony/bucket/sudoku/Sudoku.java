@@ -295,6 +295,21 @@ public class Sudoku {
         }
     }
 
+    private static int[] fromBytes(byte[] bytes) {
+        if (bytes.length != 41) throw new IllegalArgumentException("bytes length must be 41");
+        int[] _digits = new int[SPACES];
+        for (int bi = 0; bi < 40; bi++) {
+            _digits[2*bi] = (int)( (bytes[bi] >>> 4) & 0xf );
+            _digits[2*bi + 1] = (int)( bytes[bi] & 0xf );
+        }
+        _digits[80] = (int)( (bytes[40] >>> 4) & 0xf );
+        return _digits;
+    }
+
+    public Sudoku(byte[] bytes) {
+        this(fromBytes(bytes));
+    }
+
     public int getDigit(int ci) {
         return digits[ci];
     }
@@ -1609,5 +1624,23 @@ public class Sudoku {
      */
     public String toFullString() {
         return SudokuUtility.toFullString(digits);
+    }
+
+    /**
+     * Export this sudoku digits as 41 bytes.
+     * For use with <code>new Sudoku(bytesArr)</code>.
+     * @return A byte array containing this sudoku's digit information.
+     */
+    public byte[] toBytes() {
+        if (numEmptyCells == SPACES) return new byte[41];
+
+        int len = 41;
+        byte[] result = new byte[len];
+        for (int i = 0; i < len - 1; i++) {
+            result[i] = (byte)( ((digits[i*2] & 0xf) << 4) + (digits[i*2 + 1] & 0xf) );
+        }
+        result[40] = (byte)( ((digits[80] & 0xf) << 4) + 0xf );
+
+        return result;
     }
 }

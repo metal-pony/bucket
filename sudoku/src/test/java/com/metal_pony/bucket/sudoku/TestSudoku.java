@@ -688,6 +688,26 @@ public class TestSudoku {
 
     }
 
+    @Test
+    void toAndFromBytes() {
+        Sudoku s = new Sudoku();
+        int[] sBoard = s.getBoard();
+        Sudoku rehydratedS = new Sudoku(s.toBytes());
+        assertArrayEquals(sBoard, rehydratedS.getBoard());
+
+        s = Sudoku.configSeed().firstSolution();
+        sBoard = s.getBoard();
+        rehydratedS = new Sudoku(s.toBytes());
+        assertArrayEquals(sBoard, rehydratedS.getBoard());
+
+        for (String pStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            s = new Sudoku(pStr);
+            sBoard = s.getBoard();
+            rehydratedS = new Sudoku(s.toBytes());
+            assertArrayEquals(sBoard, rehydratedS.getBoard());
+        }
+    }
+
     private void populateSieveForAllDigitCombos(int level) {
         for (int r = Sudoku.DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
             SudokuMask pMask = configFixture.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]);
