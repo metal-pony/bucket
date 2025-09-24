@@ -370,25 +370,15 @@ public class Sudoku {
         ) & ALL;
     }
 
-    private int[] _digitsArr = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    public void fillRegions(int regionsMask) {
-        for (int regIndex = 0; regIndex < DIGITS; regIndex++) {
-            if ((regionsMask & (1<<(DIGITS - 1 - regIndex))) > 0) {
-                Shuffler.shuffle(_digitsArr);
-                for (int i = 0; i < DIGITS; i++) {
-                    this.setDigit(REGION_INDICES[regIndex][i], _digitsArr[i]);
-                }
-            }
-        }
-    }
-
-    private static final int[] regionsMasks = new int[] {
-        0b100010001, 0b100001010, 0b010100001,
-        0b010001100, 0b001100010, 0b001010100
-    };
     public static Sudoku configSeed() {
         Sudoku seed = new Sudoku();
-        seed.fillRegions(regionsMasks[0]);
+        int[] _digitsArr = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[0][i], _digitsArr[i]);
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[4][i], _digitsArr[i]);
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[8][i], _digitsArr[i]);
         return seed;
     }
 
