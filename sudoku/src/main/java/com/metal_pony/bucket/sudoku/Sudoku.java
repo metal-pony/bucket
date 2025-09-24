@@ -234,8 +234,6 @@ public class Sudoku {
      */
     int[] constraints;
 
-    char[] str;
-
     int numEmptyCells = SPACES;
 
     boolean isValid = true;
@@ -249,8 +247,6 @@ public class Sudoku {
         this.candidates = new int[SPACES];
         Arrays.fill(this.candidates, ALL);
         this.constraints = new int[DIGITS];
-        this.str = new char[SPACES];
-        Arrays.fill(this.str, EMPTY_CHAR);
     }
 
     public Sudoku(Sudoku other) {
@@ -260,7 +256,6 @@ public class Sudoku {
         System.arraycopy(other.digits, 0, this.digits, 0, SPACES);
         System.arraycopy(other.candidates, 0, this.candidates, 0, SPACES);
         System.arraycopy(other.constraints, 0, this.constraints, 0, DIGITS);
-        System.arraycopy(other.str, 0, this.str, 0, SPACES);
     }
 
     public Sudoku(String str) {
@@ -320,7 +315,6 @@ public class Sudoku {
 
         digits[ci] = digit;
         candidates[ci] = ENCODER[digit];
-        // str[ci] = (digit > 0) ? (char)(digit + '0') : EMPTY_CHAR;
 
         // Digit removed (or replaced)
         if (prevDigit > 0) {
@@ -1610,11 +1604,9 @@ public class Sudoku {
 
     @Override
     public String toString() {
-        // return new String(str);
-
         StringBuilder strb = new StringBuilder();
         for (int d : this.digits) {
-            strb.append((d > 0) ? Integer.toString(d) : ".");
+            strb.append((d > 0) ? (char)('0' + d) : '.');
         }
         return strb.toString();
     }
