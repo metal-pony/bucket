@@ -438,6 +438,10 @@ public class Sudoku {
         return true;
     }
 
+    public boolean isValid() {
+        return this.isValid;
+    }
+
     public void reduce() {
         for (int i = 0; i < SPACES; i++) reduceCell(i);
     }
