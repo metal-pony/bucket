@@ -1,10 +1,22 @@
 package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
+import com.metal_pony.bucket.util.Shuffler;
 
 public class SudokuSieve {
     /**
@@ -122,14 +134,15 @@ public class SudokuSieve {
 
     private static class ItemGroup {
         final int order;
-        final ArrayList<SudokuMask> items;
+        final TreeSet<SudokuMask> items;
         ItemGroup(int order) {
             this.order = order;
-            this.items = new ArrayList<>();
+            this.items = new TreeSet<>();
         }
     }
 
     private final Sudoku _config;
+    private final int[] board;
     private int size;
     private final ArrayList<ItemGroup> _itemGroupsByBitCount;
     private int[] reductionMatrix;
@@ -144,7 +157,8 @@ public class SudokuSieve {
             throw new IllegalArgumentException("could not create sieve for malformed grid");
         }
 
-        this._config = new Sudoku(config.getBoard());
+        this.board = config.getBoard();
+        this._config = new Sudoku(this.board);
         this._itemGroupsByBitCount = new ArrayList<>(Sudoku.SPACES + 1);
         for (int n = 0; n <= Sudoku.SPACES; n++) {
             this._itemGroupsByBitCount.add(n, new ItemGroup(n));
@@ -194,11 +208,10 @@ public class SudokuSieve {
      * @param list A List to copy items into.
      * @return The given list, for convenience.
      */
-    public List<SudokuMask> items(List<SudokuMask> list) {
+    public synchronized List<SudokuMask> items(List<SudokuMask> list) {
         for (ItemGroup group : _itemGroupsByBitCount) {
-            group.items.sort(SudokuMask::compareTo);
             for (SudokuMask item : group.items) {
-                list.add(new SudokuMask(item.toString()));
+                list.add(new SudokuMask(item));
             }
         }
         return list;
@@ -207,14 +220,14 @@ public class SudokuSieve {
     /**
      * Maps sudoku cell indices to the number of times the cell appears among sieve items.
      */
-    public int[] reductionMatrix() {
+    public synchronized int[] reductionMatrix() {
         return reductionMatrix(new int[Sudoku.SPACES]);
     }
 
     /**
      * Maps sudoku cell indices to the number of times the cell appears among sieve items.
      */
-    public int[] reductionMatrix(int[] arr) {
+    public synchronized int[] reductionMatrix(int[] arr) {
         System.arraycopy(reductionMatrix, 0, arr, 0, Sudoku.SPACES);
         return arr;
     }
@@ -222,10 +235,10 @@ public class SudokuSieve {
     /**
      * @return The first item in the sieve; null if the sieve is empty.
      */
-    public SudokuMask first() {
+    public synchronized SudokuMask first() {
         for (ItemGroup group : _itemGroupsByBitCount) {
             if (group.items.size() > 0) {
-                return group.items.get(0);
+                return group.items.first();
             }
         }
 
@@ -237,7 +250,7 @@ public class SudokuSieve {
      * @param predicate Takes a SudokuMask and returns a boolean.
      * @return The found item; null if no items satisfy the predicate function.
      */
-    public SudokuMask find(Function<SudokuMask,Boolean> predicate) {
+    public synchronized SudokuMask find(Function<SudokuMask,Boolean> predicate) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             if (group.items.isEmpty()) continue;
             for (SudokuMask item : group.items) {
@@ -268,8 +281,10 @@ public class SudokuSieve {
             throw new IllegalArgumentException("Invalid number of clues");
         }
         List<SudokuMask> results = new ArrayList<>();
-        for (SudokuMask item : groupForBitCount(numClues).items) {
-            results.add(new SudokuMask(item.toString()));
+        synchronized (this) {
+            for (SudokuMask item : groupForBitCount(numClues).items) {
+                results.add(new SudokuMask(item.toString()));
+            }
         }
         return results;
     }
@@ -332,7 +347,7 @@ public class SudokuSieve {
      * @return True if the mask is covered by an unavoidable set mask in this sieve; otherwise false.
      * Empty masks (0 bitCount are always TRUE).
      */
-    synchronized boolean isDerivative(SudokuMask mask) {
+    public synchronized boolean isDerivative(SudokuMask mask) {
         if (mask.bitCount() == 0) return true;
 
         for (ItemGroup group : _itemGroupsByBitCount) {
@@ -377,7 +392,7 @@ public class SudokuSieve {
      * @param item Item to add.
      * @return True if the item was added; otherwise false if the item already exists.
      */
-    synchronized boolean rawAdd(SudokuMask item) {
+    public synchronized boolean rawAdd(SudokuMask item) {
         if (!groupForBitCount(item.bitCount()).items.contains(item)) {
             groupForBitCount(item.bitCount()).items.add(item);
             size++;
@@ -446,9 +461,8 @@ public class SudokuSieve {
      * @param cellIndex
      * @return A list containing all items that were removed.
      */
-    public List<SudokuMask> removeOverlapping(int cellIndex) {
-        ArrayList<SudokuMask> list = new ArrayList<>();
-        return removeOverlapping(cellIndex, list);
+    public synchronized List<SudokuMask> removeOverlapping(int cellIndex) {
+        return removeOverlapping(cellIndex, new ArrayList<>());
     }
 
     /**
@@ -458,11 +472,17 @@ public class SudokuSieve {
      * @param removedList A list to add the removed items to.
      * @return The given list for convenience.
      */
-    public List<SudokuMask> removeOverlapping(int cellIndex, List<SudokuMask> removedList) {
+    public synchronized List<SudokuMask> removeOverlapping(int cellIndex, List<SudokuMask> removedList) {
+        SudokuMask mask = new SudokuMask();
+        mask.setBit(cellIndex);
+        return removeOverlapping(mask, removedList);
+    }
+
+    public synchronized List<SudokuMask> removeOverlapping(SudokuMask mask, List<SudokuMask> removedList) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             group.items.removeIf((i) -> {
                 // boolean shouldRemove = i.testBit(Sudoku.SPACES - 1 - cellIndex);
-                boolean shouldRemove = i.testBit(cellIndex);
+                boolean shouldRemove = i.intersects(mask);
                 if (shouldRemove) {
                     removedList.add(i);
                     size--;
@@ -476,10 +496,10 @@ public class SudokuSieve {
 
     /**
      * Checks whether the given mask intersects with all sieve items.
-     * @param mask
+     * @param puzzleMask
      * @return True if the mask contains at least one bit intersecting with each sieve item.
      */
-    public boolean doesMaskSatisfy(SudokuMask puzzleMask) {
+    public synchronized boolean doesMaskSatisfy(SudokuMask puzzleMask) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             for (SudokuMask item : group.items) {
                 // TODO There's no way this is correct, right?
@@ -492,7 +512,7 @@ public class SudokuSieve {
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         StringBuilder strb = new StringBuilder();
         strb.append("{\n");
 
