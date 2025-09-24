@@ -37,6 +37,38 @@ public class SudokuUtility {
         return strb.toString();
     }
 
+	public static String toMedString(int[] digits) {
+        StringBuilder strb = new StringBuilder();
+		String lineSep = System.lineSeparator();
+        for (int i = 0; i < SPACES; i++) {
+            if (digits[i] > 0) {
+                strb.append(digits[i]);
+            } else {
+                strb.append('.');
+            }
+
+            // Print pipe between region columns
+            if ((((i+1)%3) == 0) && (((i+1)%9) != 0)) {
+                strb.append(" | ");
+            } else {
+                strb.append(' ');
+			}
+
+            if (((i+1)%9) == 0) {
+				strb.append(lineSep);
+                if (i < 80) {
+                    // Border between region rows
+                    if (((((i+1)/9)%3) == 0) && (((i/9)%8) != 0)) {
+                        strb.append("------+-------+------");
+						strb.append(lineSep);
+                    }
+                }
+            }
+        }
+
+        return strb.toString();
+    }
+
 	public static enum Area {
 		ROW(0), COL(1), REGION(2);
 		private final int index;

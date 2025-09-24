@@ -1633,6 +1633,13 @@ public class Sudoku {
     }
 
     /**
+     * @return A multi-line string representation of the puzzle.
+     */
+    public String toMedString() {
+        return SudokuUtility.toMedString(digits);
+    }
+
+    /**
      * Export this sudoku digits as 41 bytes.
      * For use with <code>new Sudoku(bytesArr)</code>.
      * @return A byte array containing this sudoku's digit information.
