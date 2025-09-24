@@ -207,6 +207,28 @@ public class Sudoku {
         }
     }
 
+    /**
+     * Checks that the given string is valid to be used to initialize a Sudoku instance.
+     * (i.e. is proper length and contains digits, '.', or '-' chars).
+     *
+     * NOTE: This does NOT check if the grid is a valid sudoku.
+     * For that, check <code>sudoku.solutionsFlag() == 1</code>.
+     * @param gridStr
+     * @return True if the string can be used to instantiate a Sudoku instance; otherwise false.
+     */
+    public static boolean isValidStr(String gridStr) {
+        return conformGridStr(gridStr) != null;
+    }
+
+    private static String conformGridStr(String gridStr) {
+        // Check for NULL and fail fast if length is bad.
+        if (gridStr == null || gridStr.length() > SPACES) return null;
+        // Expand '-' with 9 '0', and replace nonzero chars with '0'
+        gridStr = gridStr.replaceAll("-", "0".repeat(DIGITS)).replaceAll("[^1-9]", "0");
+        // Check for proper length
+        return (gridStr.length() == SPACES) ? gridStr : null;
+    }
+
     /** Cell digits, as one would see on a sudoku board.*/
     int[] digits;
 
@@ -258,18 +280,16 @@ public class Sudoku {
         System.arraycopy(other.constraints, 0, this.constraints, 0, DIGITS);
     }
 
-    public Sudoku(String str) {
+    public Sudoku(String gridStr) {
         this();
 
-        // Replace '-' and '.' with '0's
-        str = str.replaceAll("-", "0".repeat(DIGITS)).replaceAll("[^1-9]", "0");
-
-        if (str.length() != SPACES) {
-            throw new IllegalArgumentException("str is invalid as sudoku grid");
+        gridStr = conformGridStr(gridStr);
+        if (gridStr == null) {
+            throw new IllegalArgumentException("Malformed sudoku grid string");
         }
 
 		for (int i = 0; i < SPACES; i++) {
-            int digit = str.charAt(i) - '0';
+            int digit = gridStr.charAt(i) - '0';
             if (digit > 0) {
                 setDigit(i, digit);
             }
