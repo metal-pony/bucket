@@ -500,14 +500,12 @@ public class Sudoku {
 
     void reduceCell(int ci) {
         if (digits[ci] > 0) return;
-        if (candidates[ci] == 0) {
-            isValid = false;
-            return;
-        }
 
-        // ? If candidate constraints reduces to 0, then the board is likely invalid.
-        int reducedCandidates = (candidates[ci] & ~cellConstraints(ci));
-        if (reducedCandidates <= 0) {
+        int originalCandidates = candidates[ci];
+        // If candidate reduces to 0, then the board is invalid.
+        candidates[ci] &= ~cellConstraints(ci);
+
+        if (candidates[ci] <= 0) {
             isValid = false;
             setDigit(ci, 0);
             return;
@@ -515,20 +513,96 @@ public class Sudoku {
 
         // If by applying the constraints, the number of candidates is reduced to 1,
         // then the cell is solved.
-        if (isDigit(reducedCandidates)) {
-            setDigit(ci, DECODER[reducedCandidates]);
+        if (isDigit(candidates[ci])) {
+            setDigit(ci, DECODER[candidates[ci]]);
         } else {
             int uniqueCandidate = getUniqueCandidate(ci);
             if (uniqueCandidate > 0) {
                 setDigit(ci, DECODER[uniqueCandidate]);
-                reducedCandidates = uniqueCandidate;
             } else {
-                candidates[ci] = reducedCandidates;
+                // If cell[ci] is not a double, then this next part can be skipped.
+                // if (isCandidatePair(reducedCandidates)) {
+                //     // For each area,
+                //     //    Look for candidate pairs
+                //     //    If found,
+                //     //      Remove the pair of digits from candidates in the area (except the pair of cells)
+                //     int ciRow = CELL_ROWS[ci];
+                //     int ciCol = CELL_COLS[ci];
+                //     int ciRegion = CELL_REGIONS[ci];
+                //     for (int col = 0; col < DIGITS; col++) {
+                //         // Look at row neighbors for a potential pair with ci
+                //         if (col == ciCol) continue; // Skip ci
+                //         int rowNi = DIGITS*ciRow + col;
+                //         if (decode(candidates[rowNi]) > 0) continue;
+                //         if (candidates[rowNi] == candidates[ci]) {
+                //             // Found pair (ci, gi)
+                //             // TODO Maintain a collection of 'seen pairs' and if we've seen this pair, skip processing.
+                //             // console.log(`Found pairs within row, value [ ${reducedCandidates.toString(2)} ] at (${ci}, ${rowNi})`);
+
+                //             for (int ei = 0; ei < DIGITS; ei++) {
+                //                 int ki = DIGITS*ciRow + ei;
+                //                 if (ci == ki || rowNi == ki || digits[ki] > 0) continue;
+                //                 int _before = candidates[ki];
+                //                 int _after = (_before & ~reducedCandidates);
+                //                 if (isDigit(_after)) {
+                //                     setDigit(ki, decode(_after));
+                //                     // console.log(`DIGIT resolved after reducing PAIR [${ki}] ${_before.toString(2)} -> ${decode(_after)}`);
+                //                 } else {
+                //                     candidates[ki] = _after;
+                //                 }
+                //                 if (_after < _before) {
+                //                     for (int ni : CELL_NEIGHBORS[ki]) {
+                //                         if (DECODER[candidates[ni]] == 0) reduceCell(ni);
+                //                     }
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
             }
         }
 
-        if (reducedCandidates < candidates[ci]) {
-            for (int n : CELL_NEIGHBORS[ci]) reduceCell(n);
+        if (candidates[ci] < originalCandidates) {
+            for (int n : CELL_NEIGHBORS[ci]) {
+                if (digits[n] == 0) {
+                    reduceCell(n);
+                }
+            }
+        }
+    }
+
+    private void constraintProp() {
+        for (int i = 0; i < SPACES; i++) {
+            _constraintProp(i);
+        }
+    }
+
+    private void _constraintProp(int ci) {
+        if (digits[ci] > 0) {
+            return;
+        }
+
+        int originalCandidates = candidates[ci];
+        // If candidate constraints reduces to 0, then the board is likely invalid.
+        candidates[ci] &= ~cellConstraints(ci);
+        if (candidates[ci] <= 0) {
+            isValid = false;
+            setDigit(ci, 0);
+            return;
+        }
+
+        // If by applying the constraints, the number of candidates is reduced to 1,
+        // then the cell is solved.
+        if (isDigit(candidates[ci])) {
+            setDigit(ci, DECODER[candidates[ci]]);
+        }
+
+        if (candidates[ci] < originalCandidates) {
+            for (int n : CELL_NEIGHBORS[ci]) {
+                if (digits[n] == 0) {
+                    _constraintProp(n);
+                }
+            }
         }
     }
 
