@@ -394,21 +394,73 @@ public class Sudoku {
         return board;
     }
 
-    public void resetEmptyCells() {
-        for (int ci = 0; ci < SPACES; ci++) {
-            if (digits[ci] == 0) candidates[ci] = ALL;
+    //////////////////////////////////////
+    ////// . . . . . . . . . . . . . . .//
+    //// . . .  RESTORE POINTS . . . /////
+    // . . . . . . . . . . . . . . .//////
+    //////////////////////////////////////
+
+    private static class Snapshot {
+        int[] digits = new int[SPACES];
+        int[] candidates = new int[SPACES];
+        int[] constraints = new int[DIGITS];
+        int numEmptyCells = SPACES;
+        boolean isValid = true;
+
+        Snapshot() {}
+        Snapshot(Sudoku sudoku) { set(sudoku); }
+
+        void set(Sudoku sudoku) {
+            for (int i = 0; i < SPACES; i++) {
+                this.digits[i] = sudoku.digits[i];
+                this.candidates[i] = sudoku.candidates[i];
+            }
+            for (int i = 0; i < DIGITS; i++) this.constraints[i] = sudoku.constraints[i];
+            this.numEmptyCells = sudoku.numEmptyCells;
+            this.isValid = sudoku.isValid;
         }
     }
 
-    public void resetConstraints() {
-        isValid = true;
-        constraints = new int[DIGITS];
+    /**
+     * Creates a Snapshot of the current state which can be used as a restore point.
+     */
+    public Snapshot snapshot() {
+        return new Snapshot(this);
+    }
+
+    /**
+     * Copies the snapshot data into this Sudoku instance.
+     * <br></br>
+     * ⚠️ instance state will be overwritten.
+     * @param data Snapshot to copy data from.
+     */
+    public void loadFromSnapshot(Snapshot data) {
         for (int i = 0; i < SPACES; i++) {
-            if (digits[i] > 0) {
-                if ((cellConstraints(i) & encode(digits[i])) > 0) {
+            this.digits[i] = data.digits[i];
+            this.candidates[i] = data.candidates[i];
+        }
+        for (int i = 0; i < DIGITS; i++) this.constraints[i] = data.constraints[i];
+        this.numEmptyCells = data.numEmptyCells;
+        this.isValid = data.isValid;
+    }
+
+    //////////////////////////////////////
+    //////////////////////////////////////
+
+    /**
+     * Resets isValid, rebuilds the constraints and candidates.
+     */
+    void resetCandidatesAndValidity() {
+        isValid = true;
+        Arrays.fill(constraints, 0);
+        for (int ci = 0; ci < SPACES; ci++) {
+            candidates[ci] = ALL;
+            if (digits[ci] > 0) {
+                candidates[ci] = ENCODER[digits[ci]];
+                if ((cellConstraints(ci) & candidates[ci]) > 0) {
                     isValid = false;
                 }
-                addConstraint(i, digits[i]);
+                addConstraint(ci, digits[ci]);
             }
         }
     }
@@ -738,8 +790,7 @@ public class Sudoku {
      */
     public long countSolutions() {
         Sudoku root = new Sudoku(this);
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
         if (!root.isValid) return 0;
 
@@ -769,8 +820,7 @@ public class Sudoku {
 
         Sudoku root = new Sudoku(this);
         // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
         Queue<SudokuNode> q = new LinkedList<>();
         q.offer(new SudokuNode(root));
@@ -842,8 +892,7 @@ public class Sudoku {
 
         Sudoku root = new Sudoku(this);
         // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
         Queue<SudokuNode> q = new LinkedList<>();
         q.offer(new SudokuNode(root));
@@ -1021,8 +1070,7 @@ public class Sudoku {
             return;
         }
         // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
         root.reduce();
         if (root.isSolved()) {
             solutionsCallbackAsync.accept(root);
@@ -1163,8 +1211,7 @@ public class Sudoku {
 
         Sudoku root = new Sudoku(this);
         // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
         int maxSplitSize = (1 << 12);
         Queue<SudokuNode> queue = new LinkedList<>();

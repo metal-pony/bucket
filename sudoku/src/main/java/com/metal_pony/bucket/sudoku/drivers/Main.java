@@ -447,7 +447,10 @@ public class Main {
     final int N = Sudoku.DIGITS * 3;
     long time = timeCpuExecution(() -> {
       Sudoku root = new Sudoku("123456789--------");
-      root.resetEmptyCells();
+
+      // TODO Ensure that this script works properly without needing to call reset.
+      // root.resetCandidatesAndValidity();
+
       Stack<Node2> q = new Stack<>();
       q.push(new Node2(root));
 
