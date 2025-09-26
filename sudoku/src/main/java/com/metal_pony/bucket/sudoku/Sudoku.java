@@ -507,6 +507,20 @@ public class Sudoku {
         return digits;
     }
 
+    public static int[] CANDIDATE_PAIRS = new int[36];
+    // There are (9 choose 2 = 36) pairs of digits.
+    static {
+        int i = 0;
+        for (int n = 0b11; n < ALL; n++) {
+            if (Integer.bitCount(n) == 2) {
+                CANDIDATE_PAIRS[i++] = n;
+            }
+        }
+    }
+    public static boolean isCandidatePair(int n) {
+        return (n > 0) && (n < ALL) && (Integer.bitCount(n) == 2);
+    }
+
     public static final SudokuMask[] BAND_FILTERS;
     public static final SudokuMask[] STACK_FILTERS;
     static {
