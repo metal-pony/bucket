@@ -647,7 +647,7 @@ public class Sudoku {
      * `0b111111111` indicates that the cell can be any digit, and `0b000000000` indicates
      * that the cell cannot be any digit (and the puzzle is likely invalid).
      */
-    public int[] candidates;
+    int[] candidates;
 
     /**
      * Tracks the digits that have been used for each row, column, and region - combined into encoded 27-bit values.
@@ -668,7 +668,7 @@ public class Sudoku {
 
     // TODO Implement isSolved cache
     // This should be cached true when isSolved is called, and invalidated whenever a value is changed
-    private boolean _isSolved = false;
+    boolean isSolved = false;
 
     public Sudoku() {
         this.digits = new int[SPACES];
@@ -733,6 +733,10 @@ public class Sudoku {
 
     public int getDigit(int ci) {
         return digits[ci];
+    }
+
+    public int getCandidate(int ci) {
+        return candidates[ci];
     }
 
     public void setDigit(int ci, int digit) {
