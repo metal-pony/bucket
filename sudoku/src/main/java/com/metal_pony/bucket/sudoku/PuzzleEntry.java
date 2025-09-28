@@ -35,19 +35,7 @@ public class PuzzleEntry {
         return new Sudoku(puzzle);
     }
 
-    public void clear() {
-        solution = null;
-        fingerprint2 = null;
-        fingerprint3 = null;
-        fingerprint4 = null;
-    }
-
-    /**
-     * Gets the puzzle's solution. Computed as firstSolution if not cached.
-     */
-    public String solution() {
-        if (solution == null) {
-            solution = new Sudoku(puzzle).firstSolution().toString();
+            solution = _solution.toString();
         }
         return solution;
     }

@@ -27,7 +27,7 @@ public class TestSudokuSieve {
     void before() {
         configFixture = new Sudoku(configFixtureStr);
         sieve = new SudokuSieve(configFixture.getBoard());
-        validGrid = Sudoku.configSeed().firstSolution();
+        validGrid = Sudoku.configSeed().solution();
         incompleteGrid = Sudoku.configSeed();
     }
 

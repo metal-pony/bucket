@@ -2,12 +2,10 @@ package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Stack;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
@@ -1057,7 +1055,7 @@ public class Sudoku {
      */
     public static Sudoku generatePuzzle(int numClues) {
         if (numClues < MIN_CLUES) return null;
-        Sudoku grid = configSeed().firstSolution();
+        Sudoku grid = configSeed().solution();
         if (numClues >= SPACES) return grid;
         return generatePuzzle(grid, numClues, null, 0, 0L, true);
     }
@@ -1089,7 +1087,7 @@ public class Sudoku {
         if (sieve != null && !sieve.isEmpty() && grid == null)
             throw new IllegalArgumentException("Sieve provided without grid");
         if (grid == null)
-            grid = configSeed().firstSolution();
+            grid = configSeed().solution();
         if (!grid.isSolved())
             throw new IllegalArgumentException("Solution grid is invalid");
         if (numClues >= SPACES)
@@ -1191,14 +1189,10 @@ public class Sudoku {
         return grid.filter(mask);
     }
 
-    static class SudokuNode {
-        // int[] digits;
-        // int[] candidates;
-        // int[] constraints;
+    private static class SudokuNode {
         Sudoku sudoku;
         int index = -1;
         int values = -1;
-        ArrayList<SudokuNode> nexts;
         SudokuNode(Sudoku sudoku) {
             this.sudoku = sudoku;
             sudoku.reduce();
@@ -1207,18 +1201,10 @@ public class Sudoku {
                 values = sudoku.candidates[index];
             }
         }
-        // void generateNextsIfNull() {
-        //     if (nexts == null) {
-        //         nexts = new ArrayList<>();
-        //         sudoku.getNextsAdditive(n -> nexts.add(new SudokuNode(n)));
-        //         Shuffler.shuffle(nexts);
-        //     }
-        // }
         SudokuNode next() {
-            // If this node's sudoku had no emptycells, then `index` and `values` would have never been set, and both would still be -1
-            if (values <= 0 || !sudoku.isValid) {
-                return null;
-            }
+            // If this node's sudoku had no emptycells, then `index` and `values`
+            // would have never been set, and both would still be -1
+            if (values <= 0 || !sudoku.isValid) return null;
 
             Sudoku s = new Sudoku(sudoku);
             int[] candidateDigits = CANDIDATES_ARR[values];
@@ -1226,43 +1212,87 @@ public class Sudoku {
             s.setDigit(index, randomCandidateDigit);
             values &= ~(ENCODER[randomCandidateDigit]);
             return new SudokuNode(s);
-            // generateNextsIfNull();
-            // return (nexts.isEmpty()) ? null : nexts.remove(nexts.size() - 1);
         }
         boolean hasNext() {
             return (values > 0 && sudoku.isValid) ? true : false;
         }
     }
 
-    public void searchForSolutions3(Function<Sudoku,Boolean> solutionFoundCallback) {
-        Sudoku root = new Sudoku(this);
-        root.resetEmptyCells();
-        root.resetConstraints();
+    private static class ANode {
+        Snapshot snapshot = new Snapshot();
+        int emptyCi = -1;
+        int emptyCandidates = -1;
 
-        if (!root.isValid) return;
+        ANode() {}
 
-        Stack<SudokuNode> stack = new Stack<>();
-        stack.push(new SudokuNode(root));
+        void set(Sudoku sudoku) {
+            snapshot.set(sudoku);
+            emptyCi = sudoku.pickEmptyCell();
+            emptyCandidates = -1;
+            if (!sudoku.isValid) return;
+            emptyCandidates = (snapshot.isValid && emptyCi > -1) ? snapshot.candidates[emptyCi] : -1;
+        }
 
-        while (!stack.isEmpty()) {
-            SudokuNode top = stack.peek();
-            Sudoku sudoku = top.sudoku;
-
-            if (sudoku.isSolved()) {
-                stack.pop();
-                if (solutionFoundCallback.apply(sudoku)) {
-                    continue;
-                } else {
-                    break;
-                }
+        boolean loadNext(Sudoku sudoku) {
+            if (emptyCandidates <= 0) {
+                return false;
             }
 
-            SudokuNode next = top.next();
+            do {
+                sudoku.loadFromSnapshot(snapshot);
+                int[] candidateDigits = CANDIDATES_ARR[emptyCandidates];
 
-            if (next == null) {
-                stack.pop();
+                int randomCandidateDigit = candidateDigits[ThreadLocalRandom.current().nextInt(candidateDigits.length)];
+                // int randomCandidateDigit = candidateDigits[candidateDigits.length - 1];
+
+                sudoku.setDigit(emptyCi, randomCandidateDigit);
+                emptyCandidates -= ENCODER[randomCandidateDigit];
+
+                // sudoku.reduce();
+                for (int ni : CELL_NEIGHBORS[emptyCi]) {
+                    if (sudoku.digits[ni] == 0) sudoku.reduceCell(ni);
+                }
+
+            } while (emptyCandidates > 0 && !sudoku.isValid);
+
+            return sudoku.isValid;
+        }
+    }
+
+    public void searchForSolutions3(Function<Sudoku,Boolean> solutionCallback) {
+        Sudoku puzz = new Sudoku(this);
+        puzz.resetCandidatesAndValidity();
+        puzz.reduce();
+
+        // If we can stop early then GREAT!
+        if (!puzz.isValid) return;
+        if (puzz.isSolved()) {
+            solutionCallback.apply(puzz);
+            return;
+        }
+
+        ANode[] stack = new ANode[puzz.numEmptyCells];
+        for (int i = 0; i < stack.length; i++) stack[i] = new ANode();
+        stack[0].set(puzz);
+        stack[0].loadNext(puzz);
+        int curStackIndex = 0;
+
+        while (curStackIndex > -1) {
+            // NOTE: puzz state is modified by ANodes -- it will be kept in sync with the stack top.
+            if (!puzz.isValid) {
+                // While top does NOT have a valid alternative, POP off the stack.
+                while (curStackIndex > -1 && !stack[curStackIndex].loadNext(puzz)) curStackIndex--;
+            } else if (puzz.isSolved()) {
+                // Solution found, send to callback and possibly halt.
+                if (!solutionCallback.apply(new Sudoku(puzz))) break;
+                // While top does NOT have a valid alternative, POP off the stack.
+                while (curStackIndex > -1 && !stack[curStackIndex].loadNext(puzz)) curStackIndex--;
             } else {
-                stack.push(next);
+                // Valid but not solved, PUSH to the stack.
+                curStackIndex++;
+                // Copy puzz state into node, then find/load the next valid state.
+                stack[curStackIndex].set(puzz);
+                stack[curStackIndex].loadNext(puzz);
             }
         }
     }
@@ -1357,76 +1387,51 @@ public class Sudoku {
      * The given callback will be invoked periodically by each thread with a list of
      * at most <code>batchSize</code> solutions as they are accumulated.
      * @param solutionBatchCallback
-     * @param batchSize
      * @param numThreads
      * @param timeout
      * @param timeoutUnit
      * @return True if all solutions were found; otherwise false (due to timeout or interruption).
      */
     public boolean searchForSolutionsAsync(
-        Consumer<List<Sudoku>> solutionBatchCallback,
-        int batchSize,
+        Consumer<Sudoku> solutionCallbackAsync,
         int numThreads,
         long timeout,
         TimeUnit timeoutUnit
     ) {
-        if (batchSize < 1) throw new IllegalArgumentException("batchSize must be positive");
         if (numThreads < 1) throw new IllegalArgumentException("numThreads must be positive");
         if (timeout < 0L) timeout = 1L;
 
         Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
         root.resetCandidatesAndValidity();
 
         Queue<SudokuNode> q = new LinkedList<>();
         q.offer(new SudokuNode(root));
 
-        List<Sudoku> solvedBeforeSplit = new ArrayList<>();
-        final int MAX_QUEUE_SIZE = (1 << 10);
+        final int MAX_QUEUE_SIZE = numThreads * numThreads;
         while (!q.isEmpty() && q.size() < MAX_QUEUE_SIZE) {
-            SudokuNode top = q.poll();
-            Sudoku sudoku = top.sudoku;
+            SudokuNode node = q.poll();
 
-            if (sudoku.isSolved()) {
-                solvedBeforeSplit.add(sudoku);
-                if (solvedBeforeSplit.size() == batchSize) {
-                    solutionBatchCallback.accept(new ArrayList<>(solvedBeforeSplit));
-                    solvedBeforeSplit.clear();
-                }
+            if (node.sudoku.isSolved()) {
+                solutionCallbackAsync.accept(node.sudoku);
                 continue;
             }
 
             SudokuNode next;
-            while ((next = top.next()) != null) {
-                q.offer(next);
-            }
-        }
-
-        if (!solvedBeforeSplit.isEmpty()) {
-            solutionBatchCallback.accept(solvedBeforeSplit);
+            while ((next = node.next()) != null) q.offer(next);
         }
 
         ThreadPoolExecutor pool = new ThreadPoolExecutor(
-            numThreads,
-            numThreads,
-            1L,
-            TimeUnit.SECONDS,
+            numThreads, numThreads,
+            1L, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>()
         );
 
-        final int BATCH_SIZE = batchSize;
         for (SudokuNode node : q) {
             pool.submit(() -> {
-                List<Sudoku> resultBatch = new ArrayList<>();
                 node.sudoku.searchForSolutions3(solution -> {
-                    resultBatch.add(solution);
-                    if (resultBatch.size() == BATCH_SIZE) {
-                        solutionBatchCallback.accept(new ArrayList<>(resultBatch));
-                        resultBatch.clear();
-                    }
+                    solutionCallbackAsync.accept(solution);
                     return true;
                 });
-                solutionBatchCallback.accept(resultBatch);
             });
         }
 
@@ -1435,255 +1440,16 @@ public class Sudoku {
             boolean success = (timeout > 0L) ?
                 pool.awaitTermination(timeout, timeoutUnit) :
                 pool.awaitTermination(1L, TimeUnit.HOURS);
-            if (!success) {
-                pool.shutdownNow();
-            }
+
+            if (!success) pool.shutdownNow();
             return success;
 		} catch (InterruptedException e) {
 			e.printStackTrace();
             pool.shutdownNow();
-            return false;
-		}
-    }
-
-    public static class SolutionCountResult {
-        private ThreadPoolExecutor pool;
-        private long timeout;
-        private TimeUnit timeoutUnit;
-        private List<Future<Boolean>> tasks;
-
-        private AtomicLong longCount;
-        private SolutionCountResult(long timeout, TimeUnit timeoutUnit) {
-            this.longCount = new AtomicLong();
-            this.timeoutUnit = (timeout <= 0L) ? TimeUnit.HOURS : timeoutUnit;
-            this.timeout = (timeout <= 0L) ? 1L : timeout;
-            this.tasks = new ArrayList<>();
+		} finally {
+            pool.close();
         }
-
-        /** Gets the current count.*/
-        public long get() {
-            return longCount.get();
-        }
-
-        /**
-         * Attempts to get the count as an integer.
-         * @return Solution count as an integer; or -1 if count is larger than <code>Integer.MAX_VALUE</code>.
-         */
-        public int getInt() {
-            if (get() <= (long)Integer.MAX_VALUE) {
-                return (int)get();
-            } else {
-                return -1;
-            }
-        }
-
-        /** Gets whether the count has completed.*/
-        public boolean isDone() {
-            return pool == null || pool.isTerminated();
-        }
-
-        /** Gets whether the count was successful, i.e. it didn't time out or get interrupted.*/
-        public boolean wasSuccessful() {
-            return isDone() && removeCompletedTasks();
-        }
-
-        public void interrupt() {
-            if (pool != null) pool.shutdownNow();
-        }
-
-        public boolean await() throws InterruptedException {
-            if (pool == null) return true;
-            if (isDone()) return removeCompletedTasks();
-            return pool.awaitTermination(timeout, timeoutUnit);
-        }
-
-        private void submitAndShutdown(Collection<SudokuNode> nodes, int numThreads) {
-            if (pool != null) return;
-
-            this.pool = new ThreadPoolExecutor(
-                numThreads,
-                numThreads,
-                1L,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>()
-            );
-
-            for (SudokuNode n : nodes) {
-                tasks.add(pool.submit(() -> {
-                    n.sudoku.searchForSolutions3(solution -> {
-                        longCount.incrementAndGet();
-                        return true;
-                    });
-                    return true;
-                }));
-            }
-
-            pool.shutdown();
-        }
-
-        private boolean removeCompletedTasks() {
-            for (int i = tasks.size() - 1; i >= 0; i--) {
-                Future<Boolean> task = tasks.get(i);
-                if (task.isDone()) {
-                    try {
-						if (task.get()) {
-						    tasks.remove(i);
-						}
-					} catch (InterruptedException | ExecutionException e) {
-                        return false;
-					}
-                }
-            }
-            return true;
-        }
-    }
-
-    static ThreadPoolExecutor pool = new ThreadPoolExecutor(
-        1, 8,
-        10L, TimeUnit.MILLISECONDS,
-        new LinkedBlockingQueue<>()
-    );
-
-    public void searchForSolutionsAsync(
-        Consumer<Sudoku> solutionsCallbackAsync,
-        int maxThreads
-    ) {
-        Sudoku root = new Sudoku(this);
-        if (root.isSolved()) {
-            solutionsCallbackAsync.accept(root);
-            return;
-        }
-        // Ensure candidates and constraints are in good order for the search
-        root.resetCandidatesAndValidity();
-        root.reduce();
-        if (root.isSolved()) {
-            solutionsCallbackAsync.accept(root);
-            return;
-        }
-
-        // ThreadPoolExecutor pool = new ThreadPoolExecutor(
-        //     1, maxThreads,
-        //     10L, TimeUnit.MILLISECONDS,
-        //     new LinkedBlockingQueue<>()
-        // );
-
-        AtomicInteger threadsActive = new AtomicInteger(1);
-        pool.submit(() -> {
-            searchForSolutionsAsyncWorker(new SudokuNode(root), solutionsCallbackAsync, threadsActive);
-        });
-
-        while (threadsActive.get() > 0) {
-            try {
-                // System.out.println("waiting on " + threadsActive.get() + " threads");
-                Thread.sleep(10L);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        }
-
-        pool.shutdown();
-        try {
-            pool.awaitTermination(1L, TimeUnit.HOURS);
-        } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-    }
-
-    public static void searchForSolutionsAsyncWorker(
-        SudokuNode node,
-        Consumer<Sudoku> solutionsCallbackAsync,
-        AtomicInteger threadsActive
-    ) {
-        long startTime = System.currentTimeMillis();
-
-        ArrayList<SudokuNode> stack = new ArrayList<>();
-        stack.add(node);
-        while (!stack.isEmpty()) {
-            long curTime = System.currentTimeMillis();
-            long timeSinceStart = curTime - startTime;
-            if (!pool.isShutdown() && timeSinceStart > 25L && stack.size() > 3) {
-                startTime = curTime;
-
-                // Fast-forward in case all the nexts have been used on the lower end of the stack
-                SudokuNode firstNode; do {
-                    firstNode = stack.remove(0);
-                } while(!firstNode.hasNext() && stack.size() > 3);
-
-                if (firstNode.hasNext()) {
-                    while (firstNode.hasNext()) {
-                        SudokuNode next = firstNode.next();
-                        threadsActive.incrementAndGet();
-                        pool.submit(() -> {
-                            searchForSolutionsAsyncWorker(next, solutionsCallbackAsync, threadsActive);
-                        });
-                    }
-                }
-                // At this point, there is at least 3 items left in the stack,
-                // therefore safe to stack.peek() below.
-            }
-
-            SudokuNode top = stack.get(stack.size() - 1); // top = peek
-            if (top.sudoku.isSolved()) {
-                solutionsCallbackAsync.accept(top.sudoku);
-            }
-
-            // If necessary, rewind top until a node with nexts is found
-            while (!stack.isEmpty() && !(top = stack.get(stack.size() - 1)).hasNext()) {
-                stack.remove(stack.size() - 1); // pop
-            }
-
-            if (top.hasNext()) {
-                stack.add(top.next());
-            } // else stack is empty and the while loop will end
-        }
-
-        threadsActive.decrementAndGet();
-    }
-
-
-
-    /**
-     * Counts the number of solutions to this sudoku with the given number of threads,
-     * up to the given amount of time. Timeout will default to 1 hour if not positive.
-     * @param numThreads
-     * @param timeout
-     * @param timeoutUnit
-     * @return
-     */
-    public SolutionCountResult countSolutionsAsync(int numThreads, long timeout, TimeUnit timeoutUnit) {
-        SolutionCountResult result = new SolutionCountResult(timeout, timeoutUnit);
-
-        Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
-
-        Queue<SudokuNode> q = new LinkedList<>();
-        q.offer(new SudokuNode(root));
-
-        int maxSplitSize = (1 << 10);
-        while (!q.isEmpty() && q.size() < maxSplitSize) {
-            SudokuNode top = q.poll();
-            Sudoku sudoku = top.sudoku;
-
-            if (sudoku.isSolved()) {
-                result.longCount.incrementAndGet();
-                continue;
-            }
-
-            SudokuNode next;
-            while ((next = top.next()) != null) {
-                q.offer(next);
-            }
-        }
-
-        if (!q.isEmpty()) {
-            result.submitAndShutdown(q, numThreads);
-        }
-
-        return result;
+        return false;
     }
 
     /**
@@ -1691,31 +1457,29 @@ public class Sudoku {
      * Even with multiple threads, a very sparse puzzle may take a long time.
      */
     public long countSolutionsAsync(int numThreads) {
+        if (numThreads < 1) throw new IllegalArgumentException("numThreads must be positive");
+
         AtomicLong count = new AtomicLong();
 
         Sudoku root = new Sudoku(this);
         // Ensure candidates and constraints are in good order for the search
         root.resetCandidatesAndValidity();
 
-        int maxSplitSize = (1 << 12);
+        int maxSplitSize = numThreads * numThreads;
         Queue<SudokuNode> queue = new LinkedList<>();
         queue.offer(new SudokuNode(root));
         while (!queue.isEmpty() && queue.size() < maxSplitSize) {
-            SudokuNode top = queue.poll();
-            Sudoku sudoku = top.sudoku;
+            SudokuNode node = queue.poll();
 
-            if (sudoku.isSolved()) {
+            if (node.sudoku.isSolved()) {
                 count.incrementAndGet();
-            } else {
-                while (top.hasNext()) {
-                    queue.offer(top.next());
-                }
+                continue;
             }
+
+            while (node.hasNext()) queue.offer(node.next());
         }
 
-        if (queue.isEmpty()) {
-            return count.get();
-        }
+        if (queue.isEmpty()) return count.get();
 
         ThreadPoolExecutor pool = new ThreadPoolExecutor(
             numThreads, numThreads,
@@ -1736,6 +1500,8 @@ public class Sudoku {
             pool.awaitTermination(1L, TimeUnit.DAYS);
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            pool.close();
         }
 
         return count.get();
@@ -1746,13 +1512,50 @@ public class Sudoku {
      * Searches for and returns the first solution.
      * @return A new Sudoku instance (the solution).
      */
-    public Sudoku firstSolution() {
+    public Sudoku solution() {
         AtomicReference<Sudoku> result = new AtomicReference<>();
         searchForSolutions3(solution -> {
             result.set(solution);
             return false;
         });
         return result.get();
+    }
+
+    public List<Sudoku> getAllSolutions() {
+        return getAllSolutions(new ArrayList<>());
+    }
+
+    public List<Sudoku> getAllSolutions(List<Sudoku> list) {
+        searchForSolutions3(solution -> {
+            list.add(solution);
+            return false;
+        });
+        return list;
+    }
+
+    public List<Sudoku> getSolutions(int amount, List<Sudoku> list) {
+        searchForSolutions3(solution -> {
+            list.add(solution);
+            return list.size() < amount;
+        });
+        return list;
+    }
+
+    public void solve() {
+        AtomicReference<Sudoku> solution = new AtomicReference<>();
+        searchForSolutions3(_solution -> {
+            solution.set(_solution);
+            return false;
+        });
+
+        Sudoku _solution = solution.get();
+        if (_solution != null) {
+            this.numEmptyCells = _solution.numEmptyCells;
+            this.isValid = _solution.isValid;
+            System.arraycopy(_solution.digits, 0, this.digits, 0, SPACES);
+            System.arraycopy(_solution.candidates, 0, this.candidates, 0, SPACES);
+            System.arraycopy(_solution.constraints, 0, this.constraints, 0, DIGITS);
+        }
     }
 
     /**
