@@ -1380,26 +1380,21 @@ public class Sudoku {
     }
 
     /**
-     * Finds all solutions to this sudoku, using the given number of threads. This method blocks
-     * until all solutions are found, or until the specified amount of time has elapsed,
-     * at which point the TimeOutException will be thrown. Timeout will default to 1 hour if not positive.
-     *
-     * The given callback will be invoked periodically by each thread with a list of
-     * at most <code>batchSize</code> solutions as they are accumulated.
-     * @param solutionBatchCallback
-     * @param numThreads
-     * @param timeout
-     * @param timeoutUnit
+     * Finds all solutions to this sudoku, using the given number of threads.
+     * Blocks until all  are found, or until the specified amount of time has elapsed.
+     * @param solutionCallback Invoked with solutions as they are found.
+     * @param numThreads Number of threads to utilize.
+     * @param timeoutMs The amount of time to wait for all solutions to be found.
+     * If not positive, defaults to 1 hour.
      * @return True if all solutions were found; otherwise false (due to timeout or interruption).
      */
     public boolean searchForSolutionsAsync(
-        Consumer<Sudoku> solutionCallbackAsync,
+        Consumer<Sudoku> solutionCallback,
         int numThreads,
-        long timeout,
-        TimeUnit timeoutUnit
+        long timeoutMs
     ) {
         if (numThreads < 1) throw new IllegalArgumentException("numThreads must be positive");
-        if (timeout < 0L) timeout = 1L;
+        if (timeoutMs < 0L) timeoutMs = TimeUnit.HOURS.toMillis(1L);
 
         Sudoku root = new Sudoku(this);
         root.resetCandidatesAndValidity();
@@ -1412,7 +1407,7 @@ public class Sudoku {
             SudokuNode node = q.poll();
 
             if (node.sudoku.isSolved()) {
-                solutionCallbackAsync.accept(node.sudoku);
+                solutionCallback.accept(node.sudoku);
                 continue;
             }
 
@@ -1429,7 +1424,7 @@ public class Sudoku {
         for (SudokuNode node : q) {
             pool.submit(() -> {
                 node.sudoku.searchForSolutions3(solution -> {
-                    solutionCallbackAsync.accept(solution);
+                    solutionCallback.accept(solution);
                     return true;
                 });
             });
@@ -1437,19 +1432,34 @@ public class Sudoku {
 
         pool.shutdown();
         try {
-            boolean success = (timeout > 0L) ?
-                pool.awaitTermination(timeout, timeoutUnit) :
-                pool.awaitTermination(1L, TimeUnit.HOURS);
-
-            if (!success) pool.shutdownNow();
-            return success;
+            return pool.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
             pool.shutdownNow();
-		} finally {
-            pool.close();
-        }
+		}
         return false;
+    }
+
+    /**
+     * Finds all solutions to this sudoku, using the given number of threads.
+     * This method blocks until all solutions are found, up to 1 hour.
+     * @param solutionCallbackSync Invoked with solutions as they are found.
+     * @param numThreads Number of threads to utilize.
+     * @return True if all solutions were found; otherwise false (due to timeout or interruption).
+     */
+    public boolean searchForSolutionsAsync(Consumer<Sudoku> callback, int numThreads) {
+        return searchForSolutionsAsync(callback, numThreads, TimeUnit.HOURS.toMillis(1L));
+    }
+
+    /**
+     * Finds all solutions to this sudoku, using the number of threads currently available to the JVM.
+     * This method blocks until all solutions are found, up to 1 hour.
+     * @param solutionCallbackSync Invoked with solutions as they are found.
+     * @return True if all solutions were found; otherwise false (due to timeout or interruption).
+     */
+    public boolean searchForSolutionsAsync(Consumer<Sudoku> callback) {
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        return searchForSolutionsAsync(callback, numThreads, TimeUnit.HOURS.toMillis(1L));
     }
 
     /**
@@ -1554,8 +1564,6 @@ public class Sudoku {
             pool.awaitTermination(1L, TimeUnit.DAYS);
         } catch (InterruptedException e) {
             e.printStackTrace();
-        } finally {
-            pool.close();
         }
 
         return count.get();

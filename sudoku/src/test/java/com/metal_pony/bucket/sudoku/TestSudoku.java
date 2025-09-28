@@ -12,17 +12,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Vector;
 import java.util.Map.Entry;
-
-// Used with the disabled async tests
-// import java.util.Collections;
-// import java.util.Vector;
-// import java.util.concurrent.BlockingQueue;
-// import java.util.concurrent.Future;
-// import java.util.concurrent.LinkedBlockingQueue;
-// import java.util.concurrent.ThreadPoolExecutor;
-// import java.util.concurrent.TimeUnit;
-// import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 import com.metal_pony.bucket.util.Counting;
@@ -630,50 +623,28 @@ public class TestSudoku {
         }
     }
 
-    // TODO !IMPORTANT! THIS TEST SHOULD NOT RUN IN AUTOMATED CI CHECKS DUE TO THREADPOOL USAGE.
-    // @Test
-    // void test_searchForSolutionsAsync_withKnownValidPuzzle_findsSolution() {
-    //     Sudoku p = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+    @Test
+    void test_searchForSolutionsAsync_withKnownValidPuzzle_findsSolution() {
+        Sudoku p = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+        List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
+        p.searchForSolutionsAsync(solutionSet::add, 4, 1000L);
+        assertEquals(1, solutionSet.size());
+        assertEquals(
+            "237841569186795243594326718315674892469582137728139456642918375853467921971253684",
+            solutionSet.get(0).toString()
+        );
+    }
 
-    //     ThreadPoolExecutor pool = new ThreadPoolExecutor(2, 2, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    //     List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
-    //     p.searchForSolutionsAsync(pool, solutionSet::addAll, 1<<10);
-    //     pool.shutdown();
-    //     try {
-    //         pool.awaitTermination(10L, TimeUnit.SECONDS);
-    //     } catch (InterruptedException intEx) {
-    //         fail(intEx);
-    //     }
-
-    //     assertEquals(1, solutionSet.size());
-    //     assertEquals(
-    //         "237841569186795243594326718315674892469582137728139456642918375853467921971253684",
-    //         solutionSet.get(0).toString()
-    //     );
-    // }
-
-    // // TODO !IMPORTANT! THIS TEST SHOULD NOT RUN IN AUTOMATED CI CHECKS DUE TO THREADPOOL USAGE.
-    // @Test
-    // void test_searchForSolutionsAsync_findsCorrectNumberOfSolutions() {
-    //     for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
-    //         Sudoku puzzle = new Sudoku(entry.getKey());
-    //         int expectedNumSolutions = entry.getValue();
-    //         ThreadPoolExecutor pool = new ThreadPoolExecutor(2, 8, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    //         // List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
-    //         Vector<Sudoku> solutionSet = new Vector<>();
-    //         puzzle.searchForSolutionsAsync(pool, (solutionsBatch) -> { solutionSet.addAll(solutionsBatch); }, 64);
-    //         pool.shutdown();
-    //         try {
-    //             pool.awaitTermination(10L, TimeUnit.SECONDS);
-    //         } catch (InterruptedException intEx) {
-    //             System.out.printf("❌ [%8d] %s\n", expectedNumSolutions, entry.getKey());
-    //             fail(intEx);
-    //         }
-
-    //         assertEquals(expectedNumSolutions, solutionSet.size());
-    //         System.out.printf("✅ [%8d] %s\n", expectedNumSolutions, entry.getKey());
-    //     }
-    // }
+    @Test
+    void test_searchForSolutionsAsync_findsCorrectNumberOfSolutions() {
+        for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
+            Sudoku puzzle = new Sudoku(entry.getKey());
+            int expectedNumSolutions = entry.getValue();
+            Vector<Sudoku> solutionSet = new Vector<>();
+            puzzle.searchForSolutionsAsync(solutionSet::add, 64, 1000L);
+            assertEquals(expectedNumSolutions, solutionSet.size());
+        }
+    }
 
     @Test
     void searchForSolutions3() {
@@ -697,64 +668,44 @@ public class TestSudoku {
         });
     }
 
-    // @Test
-    void searchForSolutionsAsync_with1Thread_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 1);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 1);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
+    @Test
+    void searchForSolutionsAsync_forBlankPuzzle_hitsTimeLimit() {
+        assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 1, 333L));
+        assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 4, 333L));
+        assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 8, 333L));
     }
 
-    // @Test
-    void searchForSolutionsAsync_with4Threads_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 4);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
+    @Test
+    void searchForSolutionsAsync_findsAllSolutions() {
+        for (int numThreads : new int[]{1, 4, 8}) {
+            Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
+            AtomicInteger solutionCount = new AtomicInteger();
+            Arrays.sort(puzzleSolutions);
 
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 4);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
-    }
+            assertTrue(
+                puzzleFixture.searchForSolutionsAsync(s -> {
+                    solutionSet.add(s.normalize().toString());
+                    solutionCount.incrementAndGet();
+                }, numThreads, TimeUnit.MINUTES.toMillis(1L))
+            );
+            assertEquals(puzzleSolutions.length, solutionCount.get());
+            String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
+            Arrays.sort(foundSolutions);
+            assertArrayEquals(puzzleSolutions, foundSolutions);
 
-    // @Test
-    void searchForSolutionsAsync_with8Threads_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 8);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 8);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
+            PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
+                solutionSet.clear();
+                solutionCount.set(0);
+                assertTrue(
+                    new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
+                        solutionSet.add(s.toString());
+                        solutionCount.incrementAndGet();
+                    }, numThreads, TimeUnit.MINUTES.toMillis(1L))
+                );
+                assertEquals(expectedNumSolutions, solutionCount.get());
+                assertEquals(expectedNumSolutions, solutionSet.size());
+            });
+        }
     }
 
     @Test
@@ -783,35 +734,29 @@ public class TestSudoku {
         // Repeat of test above, but with the async method.
         // Invalid puzzles (0 solutions)
         for (String p : invalidPuzzles) {
-            assertEquals(0, new Sudoku(p).countSolutionsAsync(1));
-            assertEquals(0, new Sudoku(p).countSolutionsAsync(2));
-            assertEquals(0, new Sudoku(p).countSolutionsAsync(4));
-        }
-
-        // Invalid puzzles (multiple solutions)
-        for (String p : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
-            assertEquals(
-                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
-                new Sudoku(p).countSolutionsAsync(1)
-            );
-            assertEquals(
-                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
-                new Sudoku(p).countSolutionsAsync(2)
-            );
-            assertEquals(
-                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
-                new Sudoku(p).countSolutionsAsync(4)
-            );
+            assertEquals(0L, new Sudoku(p).countSolutionsAsync(1));
+            assertEquals(0L, new Sudoku(p).countSolutionsAsync(2));
+            assertEquals(0L, new Sudoku(p).countSolutionsAsync(4));
         }
 
         // Valid sudoku puzzles (single solutions)
-        for (String p : GeneratedPuzzles.PUZZLES_24_1000) {
-            assertEquals(1, new Sudoku(p).countSolutionsAsync(1));
-            assertEquals(1, new Sudoku(p).countSolutionsAsync(2));
-            assertEquals(1, new Sudoku(p).countSolutionsAsync(4));
+        for (String pStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(1));
+            assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(2));
+            assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(4));
+        }
+
+        // Valid puzzles (multiple solutions)
+        for (String pStr : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
+            Sudoku puzzle = new Sudoku(pStr);
+            int expectedCount = PUZZLESTRS_TO_NUM_SOLUTIONS.get(pStr).intValue();
+            assertEquals(expectedCount, puzzle.countSolutionsAsync(1));
+            assertEquals(expectedCount, puzzle.countSolutionsAsync(2));
+            assertEquals(expectedCount, puzzle.countSolutionsAsync(4));
         }
     }
 
+    // @Test
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 
