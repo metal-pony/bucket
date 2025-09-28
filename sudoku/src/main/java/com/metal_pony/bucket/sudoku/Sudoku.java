@@ -1569,6 +1569,34 @@ public class Sudoku {
         return count.get();
     }
 
+    /**
+     * Generates a random full Sudoku grid.
+     */
+    public static Sudoku generateConfig() {
+        return configSeed().solution();
+    }
+
+    /**
+     * Generate a given amount of random sudoku grids.
+     * @param amount Number of grids to generate.
+     * @param list List to store the grids.
+     * @return The given list, for convenience.
+     */
+    public static List<Sudoku> generateConfigs(int amount, List<Sudoku> list) {
+        for (int n = 0; n < amount; n++) {
+            list.add(generateConfig());
+        }
+        return list;
+    }
+
+    /**
+     * Generate a give amount of random sudoku grids.
+     * @param amount Number of grids to generate.
+     * @return A newly List containing the generated grids.
+     */
+    public static List<Sudoku> generateConfigs(int amount) {
+        return generateConfigs(amount, new ArrayList<>(amount));
+    }
 
     /**
      * Searches for and returns the first solution.
