@@ -527,9 +527,31 @@ public class TestSudoku {
                 String.format("Expected no solutions to be found within 1s. Took %dms", (timeEnd - timeStart))
             );
 
-            assertNull(p.firstSolution());
+            assertNull(p.solution());
 
             assertEquals(0, p.solutionsFlag());
+        }
+    }
+
+    @Test
+    void test_solutionIterator_withKnownInvalidPuzzles_findsNoSolutions() {
+        // Invalid puzzles, no solutions
+        for (String invalidStr : invalidPuzzles) {
+            Sudoku p = new Sudoku(invalidStr);
+            Set<String> solutionSet = new HashSet<>();
+            int countSolutions = 0;
+            long timeStart = System.currentTimeMillis();
+            for (Sudoku solution : p.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            long timeEnd = System.currentTimeMillis();
+            assertEquals(0, solutionSet.size());
+            assertEquals(0, countSolutions);
+            assertTrue(
+                (timeEnd - timeStart) < 1000L,
+                String.format("Expected no solutions to be found within 1s. Took %dms", (timeEnd - timeStart))
+            );
         }
     }
 
@@ -554,6 +576,57 @@ public class TestSudoku {
             solutionSet.clear();
             p.searchForSolutions3(s -> solutionSet.add(s.toString()));
             assertEquals(expectedNumSolutions, solutionSet.size());
+        }
+    }
+
+    @Test
+    void test_solutionIterator_withKnownValidPuzzle_findsSolution() {
+        // 17-clue puzzle, single solution
+        Set<String> solutionSet = new HashSet<>();
+        int countSolutions = 0;
+        Sudoku puzzle = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+        String knownSolution = "237841569186795243594326718315674892469582137728139456642918375853467921971253684";
+        for (Sudoku solution : puzzle.solutions()) {
+            countSolutions++;
+            solutionSet.add(solution.toString());
+            assertEquals(knownSolution, solution.toString());
+        }
+        assertEquals(1, solutionSet.size());
+        assertEquals(1, countSolutions);
+    }
+
+    @Test
+    void test_solutionIterator_withKnownValidPuzzles_findsSolution() {
+        // Pre-generated puzzles from file, single solutions.
+        Set<String> solutionSet = new HashSet<>();
+        for (String puzzleStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            Sudoku puzzle = new Sudoku(puzzleStr);
+            int countSolutions = 0;
+            solutionSet.clear();
+            for (Sudoku solution : puzzle.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            assertEquals(1, solutionSet.size());
+            assertEquals(1, countSolutions);
+        }
+    }
+
+    @Test
+    void test_solutionIterator_withKnownValidPuzzles_findsAllSolution() {
+        // Puzzles with multiple solutions
+        Set<String> solutionSet = new HashSet<>();
+        for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
+            int countSolutions = 0;
+            solutionSet.clear();
+            int expectedNumSolutions = entry.getValue();
+            Sudoku p = new Sudoku(entry.getKey());
+            for (Sudoku solution : p.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            assertEquals(expectedNumSolutions, solutionSet.size());
+            assertEquals(expectedNumSolutions, countSolutions);
         }
     }
 
@@ -933,7 +1006,7 @@ public class TestSudoku {
         Sudoku rehydratedS = new Sudoku(s.toBytes());
         assertArrayEquals(sBoard, rehydratedS.getBoard());
 
-        s = Sudoku.configSeed().firstSolution();
+        s = Sudoku.configSeed().solution();
         sBoard = s.getBoard();
         rehydratedS = new Sudoku(s.toBytes());
         assertArrayEquals(sBoard, rehydratedS.getBoard());

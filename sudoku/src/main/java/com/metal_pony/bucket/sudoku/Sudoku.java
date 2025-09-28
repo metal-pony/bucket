@@ -1453,6 +1453,60 @@ public class Sudoku {
     }
 
     /**
+     * Returns an iterator of all solutions, generated sequentially and on-demand.
+     */
+    public Iterable<Sudoku> solutions() {
+        return new SolutionIterator(this);
+    }
+
+    public static class SolutionIterator implements Iterator<Sudoku>, Iterable<Sudoku> {
+        Sudoku root;
+        Sudoku next;
+        Stack<SudokuNode> stack = new Stack<>();
+
+        public SolutionIterator(Sudoku root) {
+            this.root = new Sudoku(root);
+            this.stack = new Stack<>();
+            this.root.resetCandidatesAndValidity();
+            this.stack.push(new SudokuNode(this.root));
+            findNext();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return next != null;
+        }
+
+        @Override
+        public Sudoku next() {
+            Sudoku result = next;
+            findNext();
+            return result;
+        }
+
+        private void findNext() {
+            next = null;
+            while (!stack.isEmpty()) {
+                SudokuNode node = stack.peek();
+                if (node.sudoku.isSolved()) {
+                    next = node.sudoku;
+                    stack.pop();
+                    return;
+                } else if (node.hasNext()) {
+                    stack.push(node.next());
+                } else {
+                    stack.pop();
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Sudoku> iterator() {
+            return this;
+        }
+    }
+
+    /**
      * Counts the number of solutions to this sudoku with the given number of threads.
      * Even with multiple threads, a very sparse puzzle may take a long time.
      */
