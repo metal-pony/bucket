@@ -7,7 +7,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Stack;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -21,7 +20,6 @@ import java.util.function.Function;
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 import com.metal_pony.bucket.util.Counting;
 import com.metal_pony.bucket.util.Shuffler;
-import com.metal_pony.bucket.util.ThreadPool;
 
 public class Sudoku {
     static final char EMPTY_CHAR = '.';
@@ -1726,7 +1724,11 @@ public class Sudoku {
     public String fp(int level) { return fp(level, 1); }
     public String fp(int level, int numThreads) {
         SudokuSieve sieve = new SudokuSieve(getBoard());
-        sieve.seedThreaded(sieve.fullPrintCombos(level), numThreads);
+        if (numThreads == 1) {
+            sieve.seed(sieve.fullPrintCombos(level));
+        } else {
+            sieve.seedThreaded(sieve.fullPrintCombos(level), numThreads);
+        }
         return fpFromSieve(level, sieve);
     }
 

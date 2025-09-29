@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
@@ -103,18 +105,17 @@ public class PuzzleEntry {
     {
       "puzzle":   "%s",
       "solution": "%s",
-      "dc2":      "%s",
-      "dc3":      "%s",
+      "fp2":      "%s",
       "fp3":      "%s"
     }""";
     @Override
     public String toString() {
-        return String.format(JSON_FORMAT, puzzleStr(), solutionStr(), dc2(), dc3(), fp3());
+        return String.format(JSON_FORMAT, puzzleStr(), solutionStr(), fp2(), fp3());
     }
 
-    private static final String CSV_FORMAT = "%s,%s,%s,%s";//,%s";
+    private static final String CSV_FORMAT = "%s,%s,%s,%s,%s";
     public String toCsv() {
-        return String.format(CSV_FORMAT, puzzleStr(), solutionStr(), dc2(), dc3());//, fp3());
+        return String.format(CSV_FORMAT, puzzleStr(), solutionStr(), dc2(), dc3(), fp3());
     }
 
     /**
@@ -144,6 +145,27 @@ public class PuzzleEntry {
                 PUZZLES_17_JSON_RESOURCE
             ))
         );
+    }
+
+    public static List<PuzzleEntry> allSudoku17() {
+        List<PuzzleEntry> entries = new ArrayList<>();
+
+        Scanner scanner = new Scanner(
+            PuzzleEntry.class.getResourceAsStream(String.format(
+                "/%s/%s",
+                RESOURCES_DIR,
+                PUZZLES_17_RESOURCE
+            ))
+        );
+
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().trim();
+            if (line.isEmpty()) continue;
+            entries.add(new PuzzleEntry(line));
+        }
+
+        scanner.close();
+        return entries;
     }
 
     public static Stream<PuzzleEntry> allSudoku17AsStream() {

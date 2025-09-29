@@ -124,6 +124,7 @@ public class Main {
     put("countCompare", Main::compareCountSolutions);
 
     put("buildSieveTest", Main::buildSieveTestCSV);
+    put("buildjson17", Main::sudoku17ToJSON);
   }};
 
   static boolean verbose;
@@ -131,6 +132,40 @@ public class Main {
   // private static String padLeft(String str, int length, char fillChar) {
   //   return Character.toString(fillChar).repeat(length - str.length()) + str;
   // }
+
+  private static void sudoku17ToJSON(ArgsMap args) {
+    long start = System.currentTimeMillis();
+
+    // Use maximum of 8 processors while keeping 2 available for the system to keep doing its thing.
+    int numThreads = inBounds(Runtime.getRuntime().availableProcessors() - 2, 1, 8);
+    ThreadPoolExecutor pool = new ThreadPoolExecutor(
+      numThreads, numThreads,
+      1L, TimeUnit.SECONDS,
+      new LinkedBlockingQueue<>()
+    );
+
+    System.out.println("[");
+    PuzzleEntry.allSudoku17().forEach(entry -> {
+      pool.submit(() -> {
+        System.out.println(entry.toString() + ",");
+      });
+    });
+
+    pool.shutdown();
+    try {
+      pool.awaitTermination(1L, TimeUnit.DAYS);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    System.out.println("]");
+
+    long end = System.currentTimeMillis();
+    long total = end - start;
+    long mins = total / 60000L;
+    long secs = (total - (60000L * mins)) / 1000L;
+    String timeStr = (mins > 0) ? String.format("%d min, %d sec", mins, secs) : String.format("%d sec", secs);
+    System.out.printf("Done (%s)\n", timeStr);
+  }
 
   private static void process17s(ArgsMap args) {
     long start = System.currentTimeMillis();
