@@ -1322,56 +1322,6 @@ public class Sudoku {
         return count;
     }
 
-    public List<Future<List<Sudoku>>> searchForSolutions4() {
-        List<Future<List<Sudoku>>> allResults = new ArrayList<>();
-
-        Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
-        root.resetCandidatesAndValidity();
-
-        Queue<SudokuNode> q = new LinkedList<>();
-        q.offer(new SudokuNode(root));
-
-        List<Sudoku> preSolved = new ArrayList<>();
-        // int maxSplitSize = 16;
-        int maxSplitSize = 1 << 16;
-        while (!q.isEmpty() && q.size() < maxSplitSize) {
-            SudokuNode top = q.peek();
-            Sudoku sudoku = top.sudoku;
-
-            if (sudoku.isSolved()) {
-                q.poll();
-                preSolved.add(sudoku);
-                continue;
-            }
-
-            SudokuNode next = top.next();
-
-            if (next == null) {
-                q.poll();
-            } else {
-                q.offer(next);
-            }
-        }
-
-        if (!preSolved.isEmpty()) {
-            allResults.add(ThreadPool.submit(() -> preSolved));
-        }
-
-        for (SudokuNode node : q) {
-            List<Sudoku> results = new ArrayList<>();
-            allResults.add(ThreadPool.submit(() -> {
-                node.sudoku.searchForSolutions3(solution -> {
-                    results.add(solution);
-                    return true;
-                });
-                return results;
-            }));
-        }
-
-        return allResults;
-    }
-
     /**
      * Finds all solutions to this sudoku, using the given number of threads.
      * Blocks until all  are found, or until the specified amount of time has elapsed.
