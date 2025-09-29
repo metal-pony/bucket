@@ -1061,6 +1061,16 @@ public class Sudoku {
         return generatePuzzle(grid, numClues, null, 0, 0L, true);
     }
 
+    public Sudoku generatePuzzle(
+        int numClues,
+        SudokuSieve sieve,
+        int difficulty,
+        long timeoutMs,
+        boolean useSieve
+    ) {
+        return Sudoku.generatePuzzle(this, numClues, sieve, difficulty, timeoutMs, useSieve);
+    }
+
     /**
      * Generates a puzzle.
      * If numClues is less than the minimum 17, returns null.
