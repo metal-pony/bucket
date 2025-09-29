@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+# Generates Sudoku configurations.
+# Run this from the base project directory.
+
+java -jar sudoku/target/sudoku-1.0.0.jar "$@"
