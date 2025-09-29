@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -267,10 +268,7 @@ public class TestSudoku {
         @Test
         void generatePuzzle_whenSieveHasItems_butGridNull_throws() {
             assertThrows(IllegalArgumentException.class, () -> {
-                List<SudokuMask> sieve = new ArrayList<>();
-                SudokuMask mask = new SudokuMask("000000011001010000001001000000001100100000010100010000000100001010100000010000100");
-                sieve.add(mask);
-                Sudoku.generatePuzzle(null, 27, sieve, 0, 0L, true);
+                Sudoku.generatePuzzle(null, 27, new SudokuSieve(Sudoku.generateConfig()), 0, 0L, true);
             });
         }
 
@@ -342,6 +340,20 @@ public class TestSudoku {
     private final String configFixtureStr = "218574639573896124469123578721459386354681792986237415147962853695318247832745961";
     private Sudoku configFixture;
     private SudokuSieve configFixtureSieve;
+
+    // NOTE: level 4 fingerprints currently take several seconds to generate,
+    //  so they are disabled for CI checks.
+    private String[][] configFixtureFingerprints = new String[][]{
+        {"dc2", "9:9:7:4:2:3::16"},
+        {"dc3", "9::f::f:1:11:5:f:5:f:c:f:9:3d:e:16:25:21:8:8"},
+        // {"dc4", "9::f::18:6:3b:16:43:2b:75:63:9c:a8:14a:139:1b6:29c:352:3cc:49b:460:4a4:350:251:14e:6a:21:1"},
+        {"ac2", "9:6:4:9:1:4::6"},
+        {"ac3", "9::f::11:5:2a:8:2c:3:2e:8:12:b:30:6:11:7:1"},
+        // {"ac4", "9::f::18:6:4f:1e:7e:43:d2:75:f5:d0:138:ff:18f:11c:15e:10a:f4:b7:72:3d:17:a:4:1"},
+        {"fp2", "9:f:b:d:3:7::1c"},
+        {"fp3", "9::f::18:6:3b:d:3b:8:3d:14:21:14:6d:14:27:2c:22:8:8"},
+        // {"fp4", "9::f::18:6:53:23:9b:65:13b:d8:191:178:282:238:345:3b8:4b0:4d6:58f:517:516:38d:268:158:6e:22:1"},
+    };
 
     private final String puzzleFixtureStr = "1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......";
     private Sudoku puzzleFixture;
@@ -460,47 +472,70 @@ public class TestSudoku {
     }
 
     @Test
-    void testFingerprint2() {
-        assertEquals("9:f:b:d:3:7::1c", configFixture.fingerprint(2));
-        assertEquals("9::f::18:6:3b:d:36:6:32:9:d:5:39:2", configFixture.fingerprint(3));
-        // assertEquals("9::f::18:6:53:23:8e:47:cb:4b:8e:46:96:27:2f:d:7:2:1", configFixture.fingerprint(4));
+    void puzzleByteBreakdownAndRehydration() {
+        PuzzleEntry[] sudoku17 = PuzzleEntry.all17();
+        int i = 0;
+        for (PuzzleEntry pEntry : sudoku17) {
+            Sudoku p1 = pEntry.puzzle();
+
+            byte[] bytes = p1.toBytes();
+            Sudoku p2 = new Sudoku(bytes);
+
+            assertEquals(p1.toString(), p2.toString());
+            i++;
+        }
+        // System.out.printf("Read %d 17-clues puzzles, and tested byte representations on each.\n", sudoku17.length);
+        assertEquals(sudoku17.length, i);
+    }
+
+    @Test
+    void fingerprints() {
+        for (String[] algo : configFixtureFingerprints) {
+            String name = algo[0];
+            String expectedPrint = algo[1];
+            String actualFp;
+            try {
+                actualFp = (String)Sudoku.class.getMethod(name, new Class<?>[0]).invoke(configFixture, new Object[0]);
+                // Output for debugging
+                // boolean matches = expectedPrint.equals(actualFp);
+                // System.out.printf("CHECKING %s(): %s ", name, actualFp);
+                // System.out.println(matches ? "✅" : "❌ " + expectedPrint);
+                assertEquals(actualFp, expectedPrint);
+            } catch (
+                IllegalAccessException |
+                IllegalArgumentException |
+                InvocationTargetException |
+                NoSuchMethodException |
+                SecurityException e
+            ) {
+                e.printStackTrace();
+                fail(String.format("failed to run fingerprint algorithm \"%s\", listed in test class", name));
+            }
+        }
     }
 
     // @Test
-    void testFingerprint4() {
-        // {
-        //     "solution":     "384169752962735841175482936739648215416527389528391674291853467847216593653974128",
-        //     "fingerprint4": "8::c::13:5:45:2b:8f:6f:ec:5f:b4:62:95:27:37:b:2"
-        //   },
-        //   {
-        //     "solution":     "384791256297365841651482739875219364413657982926834175142578693568923417739146528",
-        //     "fingerprint4": "e::9::11:4:35:22:7e:3a:9c:47:8e:3b:84:18:29:d:4:1:1"
-        //   },
-        //   {
-        //     "solution":     "953168742862734951417952836746893125281645397395271468138529674574386219629417583",
-        //     "fingerprint4": "8::c::14:c:44:22:95:4b:d2:76:ac:54:c0:30:2b:11:4:1:1"
-        //   },
+    // NOTE: This takes a little while, so it's disabled for CI checks.
+    void fingerprint_afterShuffling_isAlwaysTheSame() {
+        int numShuffles = 100;
+        Sudoku grid = Sudoku.generateConfig();
+        String expectedLv2 = grid.fp2();
+        String expectedLv3 = grid.fp3();
 
-        // Pull the solutions and associated fingerprint4 from the comments below, and make some simple assertions
-        String[][] solutionsAndFingerprints = new String[][] {
-            new String[] {
-                "384169752962735841175482936739648215416527389528391674291853467847216593653974128",
-                "8::c::13:5:45:2b:8f:6f:ec:5f:b4:62:95:27:37:b:2"
-            },
-            // new String[] {
-            //     "384791256297365841651482739875219364413657982926834175142578693568923417739146528",
-            //     "e::9::11:4:35:22:7e:3a:9c:47:8e:3b:84:18:29:d:4:1:1"
-            // },
-            // new String[] {
-            //     "953168742862734951417952836746893125281645397395271468138529674574386219629417583",
-            //     "8::c::14:c:44:22:95:4b:d2:76:ac:54:c0:30:2b:11:4:1:1"
-            // },
-        };
+        int count = 0;
+        int slice = numShuffles / 80;
+        System.out.printf("[%s]\n[", "=".repeat(80));
+        for (int t = 0; t < numShuffles; t++) {
+            if (++count == slice) {
+                System.out.print('.');
+                count -= slice;
+            }
 
-        for (String[] pair : solutionsAndFingerprints) {
-            Sudoku p = new Sudoku(pair[0]);
-            assertEquals(pair[1], p.fingerprint(4));
+            grid.scramble();
+            assertEquals(expectedLv2, grid.fp2());
+            assertEquals(expectedLv3, grid.fp3());
         }
+        System.out.println("]");
     }
 
     @Test
@@ -910,7 +945,7 @@ public class TestSudoku {
             new SudokuMask("010000010001000100000111000001000100100001000000110010100000001000000000010000001")
         };
 
-        List<SudokuMask> actualItems = configFixtureSieve.items(new ArrayList<>());
+        List<SudokuMask> actualItems = new ArrayList<>(configFixtureSieve.items());
         assertEquals(actualItems.size(), expectedItems.length);
         actualItems.sort((a, b) -> a.compareTo(b));
         SudokuMask[] _actualItems = new SudokuMask[actualItems.size()];
@@ -971,6 +1006,7 @@ public class TestSudoku {
         }
     }
 
+    /** All the solutions to `puzzleFigure`. */
     private String[] copyPuzzleFixtureSolutions() {
         return new String[] {
             "123456789854937126967812435745269318691384572238571964486793251312645897579128643",

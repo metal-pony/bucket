@@ -1,12 +1,9 @@
 package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -16,122 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
-import com.metal_pony.bucket.util.Shuffler;
 
 public class SudokuSieve {
-    /**
-     * Filters the grid with the given mask, adding the solution diffs to the sieve
-     * if they validate as unavoidable sets.
-     * @param grid Sudoku grid associated with the sieve.
-     * @param sieve List of unavoidable sets.
-     * @param mask Applied to grid to create a puzzle.
-     * @param announce Whether to print out when items are added.
-     */
-    public static void searchForItemsFromMask(
-        Sudoku grid,
-        List<SudokuMask> sieve,
-        SudokuMask mask,
-        boolean announce
-    ) {
-        grid.filter(mask).searchForSolutions3((solution) -> {
-            SudokuMask diff = grid.diff2(solution);
-
-            // Filter out solutions that are the original grid
-            if (diff.bitCount() == 0)
-                return true;
-            // Filter out solutions already covered by an existing sieve item
-            for (SudokuMask item : sieve) {
-                if (mask.hasBitsSet(item))
-                    return true;
-            }
-            // Now, for a diff to be considered a sieve item...
-            // (1) it must not be reducible
-            Sudoku p = grid.filter(diff.flip());
-            int pEmptyCells = p.numEmptyCells();
-            p.reduce();
-            if (p.numEmptyCells() != pEmptyCells)
-                return true;
-            // (2) it must have multiple solutions
-            if (p.solutionsFlag() != 2)
-                return true;
-            // (3) for each empty cell, filling it with one of its remaining candidates and solving yields a solution
-            if (!p.allBranchesSolveUniquely())
-                return true;
-
-            // We've made it this far, so this diff is an Unavoidable Set ('UA' or 'sieve item')
-            sieve.add(diff.flip());
-            if (announce)
-                System.out.println("+ " + grid.filter(diff).toString());
-
-            return true;
-        });
-    }
-
-    /**
-     * Populates a sieve for a given grid.
-     * @param grid Full and valid sudoku grid.
-     * @param sieve (Optional) List of existing sieve items.
-     * @param level 2 through 5. Higher numbers will search for more unavoidable sets, and will
-     * take more time. Not recommended beyond 4.
-     * @return The given sieve list of unavoidable sets, if provided, or a newly allocated list.
-     */
-    public static List<SudokuMask> seedSieve(Sudoku grid, List<SudokuMask> sieve, int level) {
-        if (grid == null)
-            throw new IllegalArgumentException("Null grid");
-        if (!grid.isSolved())
-            throw new IllegalArgumentException("Invalid grid");
-        if (level < 2 || level > 5)
-            throw new IllegalArgumentException("Invalid level. Expected 2 <= level <= 5; got " + level);
-        if (sieve == null)
-            sieve = new ArrayList<>();
-
-        for (int r = Sudoku.DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
-            int dCombo = Sudoku.DIGIT_COMBOS_MAP[level][r];
-
-            SudokuMask rowMask = SudokuMask.full();
-            SudokuMask colMask = SudokuMask.full();
-            SudokuMask regionMask = SudokuMask.full();
-
-            for (int ci = 0; ci < Sudoku.SPACES; ci++) {
-                if ((dCombo & (1 << Sudoku.CELL_ROWS[ci])) > 0)
-                    rowMask.unsetBit(ci);
-                if ((dCombo & (1 << Sudoku.CELL_COLS[ci])) > 0)
-                    colMask.unsetBit(ci);
-                if ((dCombo & (1 << Sudoku.CELL_REGIONS[ci])) > 0)
-                    regionMask.unsetBit(ci);
-            }
-
-            searchForItemsFromMask(grid, sieve, grid.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]).flip(), false);
-            searchForItemsFromMask(grid, sieve, rowMask, false);
-            searchForItemsFromMask(grid, sieve, colMask, false);
-            searchForItemsFromMask(grid, sieve, regionMask, false);
-        }
-
-        sieve.sort((a, b) -> {
-            int aBits = a.bitCount();
-            int bBits = b.bitCount();
-            if (aBits > bBits)
-                return 1;
-            if (bBits > aBits)
-                return -1;
-            return a.compareTo(b);
-        });
-
-        return sieve;
-    }
-
-    /**
-     * Checks whether the given list contains unavoidable sets.
-     * TODO NYI
-     * @param grid
-     * @param sieve
-     * @return True if the list contains all unavoidable sets; otherwise false.
-     */
-    public static boolean isSieveValid(Sudoku grid, List<SudokuMask> sieve) {
-        // TODO
-        return false;
-    }
-
     private static class ItemGroup {
         final int order;
         final TreeSet<SudokuMask> items;
@@ -199,8 +82,8 @@ public class SudokuSieve {
     /**
      * @return A new List containing copies of this sieve's items.
      */
-    public List<SudokuMask> items() {
-        return items(new ArrayList<>(size));
+    public Set<SudokuMask> items() {
+        return items(new HashSet<>(size));
     }
 
     /**
@@ -208,7 +91,7 @@ public class SudokuSieve {
      * @param list A List to copy items into.
      * @return The given list, for convenience.
      */
-    public synchronized List<SudokuMask> items(List<SudokuMask> list) {
+    public synchronized Set<SudokuMask> items(Set<SudokuMask> list) {
         for (ItemGroup group : _itemGroupsByBitCount) {
             for (SudokuMask item : group.items) {
                 list.add(new SudokuMask(item));
@@ -289,23 +172,21 @@ public class SudokuSieve {
         return results;
     }
 
-    /**
-     * Populates the sieve at the given level.
-     * @param level 2 through 5. Higher numbers will search for more unavoidable sets, and will
-     * take more time. Not recommended beyond 4.
-     */
-    public void seed(int level) {
-        int[] board = _config.getBoard();
+    public void seed(Collection<SudokuMask> masks) {
+        masks.forEach(mask -> addFromFilter(mask));
+    }
+
+    // TODO These can be precompiled on class load
+    public List<SudokuMask> areaCombos(int level) {
+        if (level < 2 || level > 4) throw new IllegalArgumentException("Invalid level");
+
+        List<SudokuMask> combos = new ArrayList<>();
         for (int combo : Sudoku.DIGIT_COMBOS_MAP[level]) {
-            SudokuMask digMask = new SudokuMask();
             SudokuMask rowMask = new SudokuMask();
             SudokuMask colMask = new SudokuMask();
             SudokuMask regionMask = new SudokuMask();
 
             for (int ci = 0; ci < Sudoku.SPACES; ci++) {
-                if ((combo & (1 << (board[ci]) - 1)) > 0) {
-                    digMask.setBit(ci);
-                }
                 if ((combo & (1 << Sudoku.CELL_ROWS[ci])) > 0) {
                     rowMask.setBit(ci);
                 }
@@ -317,11 +198,62 @@ public class SudokuSieve {
                 }
             }
 
-            addFromFilter(digMask);
-            addFromFilter(rowMask);
-            addFromFilter(colMask);
-            addFromFilter(regionMask);
+            combos.add(rowMask);
+            combos.add(colMask);
+            combos.add(regionMask);
         }
+
+        return combos;
+    }
+
+    public List<SudokuMask> digitCombos(int level) {
+        if (level < 2 || level > 4) throw new IllegalArgumentException("Invalid level");
+
+        List<SudokuMask> combos = new ArrayList<>();
+        int[] board = _config.getBoard();
+        for (int combo : Sudoku.DIGIT_COMBOS_MAP[level]) {
+            SudokuMask digMask = new SudokuMask();
+
+            for (int ci = 0; ci < Sudoku.SPACES; ci++) {
+                if ((combo & (1 << (board[ci]) - 1)) > 0) {
+                    digMask.setBit(ci);
+                }
+            }
+
+            combos.add(digMask);
+        }
+
+        return combos;
+    }
+
+    public List<SudokuMask> fullPrintCombos(int level) {
+        List<SudokuMask> combos = new ArrayList<>();
+        combos.addAll(digitCombos(level));
+        combos.addAll(areaCombos(level));
+        return combos;
+    }
+
+    public void seedThreaded(Collection<SudokuMask> masks, int numThreads) {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            numThreads, numThreads,
+            1L, TimeUnit.MINUTES,
+            new LinkedBlockingQueue<>()
+        );
+
+        masks.forEach(mask -> pool.submit(() -> {
+            addFromFilter(mask);
+        }));
+
+        pool.shutdown();
+        try {
+			pool.awaitTermination(1L, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+    }
+
+    public void seedThreaded(Collection<SudokuMask> masks) {
+        seedThreaded(masks, Runtime.getRuntime().availableProcessors());
     }
 
     /**
@@ -329,15 +261,10 @@ public class SudokuSieve {
      * @param mask Mask representing an unavoidable set.
      * @return True if the mask is an unavoidable set; otherwise false.
      */
-    boolean validate(SudokuMask mask) {
-        SudokuMask maskInverted = new SudokuMask(mask.toString()).flip();
-        Sudoku p2 = _config.filter(maskInverted);
-
-        int pEmptyCells = p2.numEmptyCells;
-        p2.reduce();
-        if (p2.numEmptyCells != pEmptyCells) return false;
-        if (p2.solutionsFlag() != 2) return false;
-        return p2.allBranchesSolveUniquely();
+    public boolean validate(SudokuMask mask) {
+        return _config.filter(
+            new SudokuMask(mask.toString()).flip()
+        ).allBranchesSolveUniquely();
     }
 
     /**
@@ -427,7 +354,8 @@ public class SudokuSieve {
      * adds the diff as an item if it validates as an unavoidable set.
      * @param mask Used to filter the sudoku grid associated with this sieve.
      */
-    public void addFromFilter(SudokuMask mask) {
+    public int addFromFilter(SudokuMask mask) {
+        AtomicInteger numAdded = new AtomicInteger();
         _config.filter(mask.flip()).searchForSolutions3(solution -> {
             SudokuMask diff = _config.diff2(solution);
             if (
@@ -436,9 +364,28 @@ public class SudokuSieve {
                 validate(diff)
             ) {
                 rawAdd(diff);
+                numAdded.incrementAndGet();
             }
             return true;
         });
+        return numAdded.get();
+    }
+
+    public int addFromPuzzleMask(SudokuMask mask) {
+        AtomicInteger numAdded = new AtomicInteger();
+        _config.filter(mask).searchForSolutions3(solution -> {
+            SudokuMask diff = _config.diff2(solution);
+            if (
+                diff.bitCount() > 0 &&
+                !isDerivative(diff) &&
+                validate(diff)
+            ) {
+                rawAdd(diff);
+                numAdded.incrementAndGet();
+            }
+            return true;
+        });
+        return numAdded.get();
     }
 
     /**

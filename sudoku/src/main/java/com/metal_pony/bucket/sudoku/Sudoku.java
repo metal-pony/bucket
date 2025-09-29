@@ -2,6 +2,7 @@ package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -1077,14 +1078,14 @@ public class Sudoku {
     public static Sudoku generatePuzzle(
         Sudoku grid,
         int numClues,
-        List<SudokuMask> sieve,
+        SudokuSieve sieve,
         int difficulty,
         long timeoutMs,
         boolean useSieve
     ) {
         if (numClues < MIN_CLUES)
             return null;
-        if (sieve != null && !sieve.isEmpty() && grid == null)
+        if (sieve != null && grid == null)
             throw new IllegalArgumentException("Sieve provided without grid");
         if (grid == null)
             grid = configSeed().solution();
@@ -1095,7 +1096,7 @@ public class Sudoku {
         if (difficulty < 0 || difficulty > 4)
             throw new IllegalArgumentException(String.format("Invalid difficulty (%d); expected 0 <= difficulty <= 4", difficulty));
         if (sieve == null)
-            sieve = new ArrayList<>();
+            sieve = new SudokuSieve(grid);
 
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         long start = System.currentTimeMillis();
@@ -1116,14 +1117,7 @@ public class Sudoku {
                 // mask &= ~cellMask(choice);
                 mask.unsetBit(choice);
 
-                // Check if mask satisfies sieve
-                boolean satisfies = true;
-                for (SudokuMask item : sieve) {
-                    if (!mask.intersects(item)) {
-                        satisfies = false;
-                        break;
-                    }
-                }
+                boolean satisfies = sieve.doesMaskSatisfy(mask);
 
                 // If not, or if there are multiple solutions,
                 // put the cell back and try the next
@@ -1133,10 +1127,11 @@ public class Sudoku {
                     mask.setBit(choice);
 
                     // Once in awhile, check the time
-                    if (timeoutMs > 0L && (maskFails % 100) == 0) {
+                    if (timeoutMs > 0L && maskFails == 100) {
                         if ((System.currentTimeMillis() - start) > timeoutMs) {
                             return null;
                         }
+                        maskFails -= 100;
                     }
 
                     continue;
@@ -1144,14 +1139,12 @@ public class Sudoku {
 
                 if (grid.filter(mask).solutionsFlag() != 1) {
                     puzzleCheckFails++;
-                    if (useSieve && puzzleCheckFails == 100 && sieve.size() < 36) {
-                        SudokuSieve.seedSieve(grid, sieve, 2);
-                    } else if (useSieve && puzzleCheckFails == 2500 && sieve.size() < 200) {
-                        SudokuSieve.seedSieve(grid, sieve, 3);
-                    } else if (useSieve && puzzleCheckFails > 10000 && sieve.size() < 1000) {
-                        SudokuSieve.searchForItemsFromMask(grid, sieve, mask, false);
-                    } else if (useSieve && puzzleCheckFails > 25000) {
-                        // SudokuSieve.searchForItemsFromMask(grid, sieve, mask, false);
+                    if (useSieve && puzzleCheckFails == 100 && sieve.size() < 100) {
+                        sieve.seedThreaded(sieve.fullPrintCombos(2));
+                    } else if (useSieve && puzzleCheckFails == 2000 && sieve.size() < 1000) {
+                        sieve.seedThreaded(sieve.fullPrintCombos(3));
+                    } else if (useSieve && puzzleCheckFails > 10_000 && sieve.size() < 10_000) {
+                        sieve.addFromPuzzleMask(mask);
                     }
 
                     mask.setBit(choice);
@@ -1173,7 +1166,7 @@ public class Sudoku {
                 // grid.filter(mask).difficulty() != difficulty
             ) || remaining.size() == startChoices
             ) {
-                int numToPutBack = 1 + (putBacks % 4) + rand.nextInt(1 + (putBacks % 8));
+                int numToPutBack = 3 + rand.nextInt(3);
                 Shuffler.shuffle(removed);
                 for (int i = 0; i < numToPutBack; i++) {
                     int cell = removed.remove(removed.size() - 1);
@@ -1659,13 +1652,16 @@ public class Sudoku {
             int originalVal = candidates[ci];
             if (originalVal == 0) return false;
             if (digits[ci] == 0) {
+                int count = 0;
                 for (int candidateDigit : CANDIDATES_ARR[originalVal]) {
                     setDigit(ci, candidateDigit); // mutates constraints
                     int flag = solutionsFlag();
                     setDigit(ci, 0); // undo the constraints mutation
                     candidates[ci] = originalVal;
-                    if (flag != 1) return false;
+                    if (flag == 2) return false;
+                    if (flag == 1) count++;
                 }
+                if (count < 2) return false;
             }
         }
         return true;
@@ -1715,32 +1711,12 @@ public class Sudoku {
         return result;
     }
 
-    /**
-     * Generates a code for the solved sudoku.
-     * The code will be the same regardless of how the board is manipulated by
-     * symmetry-preserving transforms (rotating, mirroring, digit-swapping).
-     * This Sudoku must be solved before generating, or an exception will be thrown.
-     * The level indicates granularity. Higher levels involve exponentially more calculation.
-     * @param level From 2-4, Not recommended higher than 4.
-     * @return A 'fingerprint' code.
-     */
-    public String fingerprint(int level) {
-        if (level < 2 || level > 8) {
-            throw new IllegalArgumentException("sudoku fingerprint level (f) must be 2 <= f <= 8");
-        }
-
-        if (!SudokuUtility.isSolved(getBoard())) {
-            throw new IllegalArgumentException("cannot compute fingerprint: sudoku grid must be full");
-        }
-
-        SudokuSieve sieve = new SudokuSieve(getBoard());
-        sieve.seed(level);
-
+    private String fpFromSieve(int level, SudokuSieve sieve) {
         // Track the maximum number of cells used by any unavoidable set
         // int minNumCells = SPACES;
         int maxNumCells = 0;
         int[] itemCountByNumCells = new int[SPACES];
-        for (SudokuMask ua : sieve.items(new ArrayList<>())) {
+        for (SudokuMask ua : sieve.items()) {
             int numCells = ua.bitCount();
             itemCountByNumCells[numCells]++;
             // if (numCells < minNumCells) minNumCells = numCells;
@@ -1753,7 +1729,7 @@ public class Sudoku {
             // In level 2, there can be no UAs using an odd number of cells,
             // because each cell must have at least one complement.
             // Skipping odd numbers avoids "::", keeping the fingerprint short.
-            if (level == 2 && (numCells % 2) > 0) {
+            if (level == 2 && (numCells & 1) == 1) {
                 continue;
             }
 
@@ -1762,6 +1738,36 @@ public class Sudoku {
         }
 
         return String.join(":", itemsList);
+    }
+
+    private String dc(int level) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        sieve.seed(sieve.digitCombos(level));
+        return fpFromSieve(level, sieve);
+    }
+
+    private String ac(int level) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        sieve.seed(sieve.areaCombos(level));
+        return fpFromSieve(level, sieve);
+    }
+
+    public String dc2() { return dc(2); }
+    public String dc3() { return dc(3); }
+    public String dc4() { return dc(4); }
+
+    public String ac2() { return ac(2); }
+    public String ac3() { return ac(3); }
+    public String ac4() { return ac(4); }
+
+    public String fp2() { return fp(2); }
+    public String fp3() { return fp(3); }
+    public String fp4() { return fp(4); }
+    public String fp(int level) { return fp(level, 1); }
+    public String fp(int level, int numThreads) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        sieve.seedThreaded(sieve.fullPrintCombos(level), numThreads);
+        return fpFromSieve(level, sieve);
     }
 
     /***********************************************
