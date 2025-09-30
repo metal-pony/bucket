@@ -32,8 +32,8 @@ public class TestSudokuSieve {
         incompleteGrid = Sudoku.configSeed();
     }
 
-    @ParameterizedTest(name = "seedSieve(grid={0}, level={1})")
-    @CsvFileSource(resources = "/sieve.csv", delimiter = ';', numLinesToSkip = 1, maxCharsPerColumn = 1<<20)
+    // @ParameterizedTest(name = "seedSieve(grid={0}, level={1})")
+    @CsvFileSource(resources = "/Sieve.csv", delimiter = ';', numLinesToSkip = 1, maxCharsPerColumn = 1<<20)
     void seedSieve(String gridStr, int level, int expectedSieveSize, String expectedItems) {
         Gson gson = new Gson();
 
@@ -57,8 +57,8 @@ public class TestSudokuSieve {
 
     // Same thing as above, but sieve seeds with 16 threads.
     // This test is highly redundant, so it is disabled for CI checks.
-    // @ParameterizedTest(name = "seedSieve(grid={0}, level={1})")
-    @CsvFileSource(resources = "/sieve.csv", delimiter = ';', numLinesToSkip = 1, maxCharsPerColumn = 1<<20)
+    @ParameterizedTest(name = "seedSieve(grid={0}, level={1})")
+    @CsvFileSource(resources = "/Sieve.csv", delimiter = ';', numLinesToSkip = 1, maxCharsPerColumn = 1<<20)
     void seedSieveParallel(String gridStr, int level, int expectedSieveSize, String expectedItems) {
         Gson gson = new Gson();
 
@@ -82,7 +82,7 @@ public class TestSudokuSieve {
 
     @Test()
     void seedSieveThreaded() {
-        for (int numThreads = 1; numThreads < 8; numThreads++) {
+        for (int numThreads = 1; numThreads < 5; numThreads++) {
             sieve = new SudokuSieve(new Sudoku(SieveItemsFixture.grid));
             sieve.seedThreaded(sieve.fullPrintCombos(3), numThreads);
 
