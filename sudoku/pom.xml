@@ -4,7 +4,7 @@
   <parent>
     <artifactId>root</artifactId>
     <groupId>com.metal_pony.bucket</groupId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
   </parent>
 
   <name>Sudoku</name>
@@ -18,5 +18,29 @@
       <groupId>com.metal_pony.bucket</groupId>
       <version>${bucket.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-resources-plugin</artifactId>
+      <version>3.3.1</version>
+      <type>maven-plugin</type>
+    </dependency>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.13.2</version>
+    </dependency>
   </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/java/resources</directory>
+        <targetPath>resources</targetPath>
+        <includes>
+          <include>17-puzzle-records.json</include>
+          <include>sudoku-17.txt</include>
+        </includes>
+      </resource>
+    </resources>
+  </build>
 </project>

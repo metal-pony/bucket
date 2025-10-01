@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,17 +13,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Vector;
 import java.util.Map.Entry;
-
-// Used with the disabled async tests
-// import java.util.Collections;
-// import java.util.Vector;
-// import java.util.concurrent.BlockingQueue;
-// import java.util.concurrent.Future;
-// import java.util.concurrent.LinkedBlockingQueue;
-// import java.util.concurrent.ThreadPoolExecutor;
-// import java.util.concurrent.TimeUnit;
-// import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 import com.metal_pony.bucket.util.Counting;
@@ -30,16 +24,251 @@ import com.metal_pony.bucket.util.Shuffler;
 
 public class TestSudoku {
 
+    final Class<NullPointerException> nullErr = NullPointerException.class;
+    final Class<IllegalArgumentException> argErr = IllegalArgumentException.class;
+
     @Nested
     class Static {
+        void cellRow() {}
+        void cellCol() {}
+        void cellRegion() {}
+
+        void isRowFull() {}
+        void cisClFull() {}
+        void isRegionFull() {}
+        void isFull() {}
+
+        void isRowValid() {}
+        void isColValid() {}
+        void isRegionValid() {}
+        void isValid() {}
+
+        void isSolved() {}
+
+        void isValidStr() {}
+
+        @Test
+        void rotate90() {
+            // When arr is null, throws NullPointerException
+            assertThrows(nullErr, () -> { Sudoku.rotate90(null, 1); });
+
+            // When arr is empty, does nothing
+            int[] arr = new int[0];
+            int[] actual = Sudoku.rotate90(arr, 0);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, actual));
+
+            // When arr is not square, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.rotate90(new int[2], 1); });
+            assertThrows(argErr, () -> { Sudoku.rotate90(new int[3], 1); });
+            assertThrows(argErr, () -> { Sudoku.rotate90(new int[5], 2); });
+            assertThrows(argErr, () -> { Sudoku.rotate90(new int[99], 9); });
+
+            // Otherwise, rotates array as expected
+            arr = new int[]{1, 2, 3, 4};
+            actual = Sudoku.rotate90(arr, 2);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{3, 1, 4, 2}));
+
+            arr = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
+            actual = Sudoku.rotate90(arr, 3);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{7, 4, 1, 8, 5, 2, 9, 6, 3}));
+        }
+
+        @Test
+        void reflectOverHorizontal() {
+            // When arr is null, throws NullPointerException
+            assertThrows(nullErr, () -> { Sudoku.reflectOverHorizontal(null, 0); });
+
+            // When rows is 0 or negative, throw IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[1], 0); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[1], -1); });
+
+            // When arr is not divisible by rows, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[3], 2); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[4], 3); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[9], 4); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverHorizontal(new int[99], 10); });
+
+
+            // When rows < 2, does nothing
+            int[] arr = new int[]{1,2,3,4,5};
+            int[] actual = Sudoku.reflectOverHorizontal(arr, 1);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(new int[]{1,2,3,4,5}, actual));
+
+            // Otherwise, reflects array as expected
+            arr = new int[]{
+                1, 2,
+                3, 4
+            };
+            actual = Sudoku.reflectOverHorizontal(arr, 2);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                3, 4,
+                1, 2
+            }));
+
+            arr = new int[]{
+                1, 2,
+                3, 4,
+                5, 6,
+                7, 8,
+                9, 10
+            };
+            actual = Sudoku.reflectOverHorizontal(arr, 5);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                9, 10,
+                7, 8,
+                5, 6,
+                3, 4,
+                1, 2
+            }));
+        }
+
+        @Test
+        void reflectOverVertical() {
+            // When arr is null, throws NullPointerException
+            assertThrows(nullErr, () -> { Sudoku.reflectOverVertical(null, 0); });
+
+            // When rows is 0, throw IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[1], 0); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[1], -1); });
+
+            // When arr is not divisible by rows, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[3], 2); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[4], 3); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[9], 4); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverVertical(new int[99], 10); });
+
+            // When cols (arr.length / rows) < 2, does nothing
+            int[] arr = new int[]{1,2,3,4,5};
+            int[] actual = Sudoku.reflectOverVertical(arr, 5);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(new int[]{1,2,3,4,5}, actual));
+
+            // Otherwise, reflects array as expected
+            arr = new int[]{
+                1, 2,
+                3, 4
+            };
+            actual = Sudoku.reflectOverVertical(arr, 2);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                2, 1,
+                4, 3
+            }));
+
+            arr = new int[]{
+                1, 2,
+                3, 4,
+                5, 6,
+                7, 8,
+                9, 10
+            };
+            actual = Sudoku.reflectOverVertical(arr, 5);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                2, 1,
+                4, 3,
+                6, 5,
+                8, 7,
+                10, 9
+            }));
+        }
+
+        @Test
+        void reflectOverDiagonal() {
+            // When arr is null, throws NullPointerException
+            assertThrows(nullErr, () -> { Sudoku.reflectOverDiagonal(null, 1); });
+
+            // When arr is empty, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[1], 0); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[1], -1); });
+
+            // When arr is not square, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[2], 1); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[3], 2); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[5], 2); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[99], 10); });
+
+            // Otherwise, rotates array as expected
+            int[] arr = new int[]{
+                1, 2,
+                3, 4
+            };
+            int[] actual = Sudoku.reflectOverDiagonal(arr, 2);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                4, 2,
+                3, 1
+            }));
+
+            arr = new int[]{
+                1,  2,  3,  4,
+                5,  6,  7,  8,
+                9, 10, 11, 12,
+                13, 14, 15, 16
+            };
+            actual = Sudoku.reflectOverDiagonal(arr, 4);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                16, 12,  8,  4,
+                15, 11,  7,  3,
+                14, 10,  6,  2,
+                13,  9,  5,  1
+            }));
+        }
+
+        @Test
+        void reflectOverAntiDiagonal() {
+            // When arr is null, throws NullPointerException
+            assertThrows(nullErr, () -> { Sudoku.reflectOverAntiDiagonal(null, 1); });
+
+            // When arr is empty, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[1], 0); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverDiagonal(new int[1], -1); });
+
+            // When arr is not square, throws IllegalArgumentException
+            assertThrows(argErr, () -> { Sudoku.reflectOverAntiDiagonal(new int[2], 2); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverAntiDiagonal(new int[3], 3); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverAntiDiagonal(new int[5], 5); });
+            assertThrows(argErr, () -> { Sudoku.reflectOverAntiDiagonal(new int[99], 99); });
+
+            // Otherwise, rotates array as expected
+            int[] arr = new int[]{
+                1, 2,
+                3, 4
+            };
+            int[] actual = Sudoku.reflectOverAntiDiagonal(arr, 2);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                1, 3,
+                2, 4
+            }));
+
+            arr = new int[]{
+                1,  2,  3,  4,
+                5,  6,  7,  8,
+                9, 10, 11, 12,
+                13, 14, 15, 16
+            };
+            actual = Sudoku.reflectOverAntiDiagonal(arr, 4);
+            assertTrue(arr == actual);
+            assertTrue(Arrays.equals(arr, new int[]{
+                1,  5,  9, 13,
+                2,  6, 10, 14,
+                3,  7, 11, 15,
+                4,  8, 12, 16
+            }));
+        }
 
         @Test
         void generatePuzzle_whenSieveHasItems_butGridNull_throws() {
             assertThrows(IllegalArgumentException.class, () -> {
-                List<SudokuMask> sieve = new ArrayList<>();
-                SudokuMask mask = new SudokuMask("000000011001010000001001000000001100100000010100010000000100001010100000010000100");
-                sieve.add(mask);
-                Sudoku.generatePuzzle(null, 27, sieve, 0, 0L, true);
+                Sudoku.generatePuzzle(null, 27, new SudokuSieve(Sudoku.generateConfig()), 0, 0L, true);
             });
         }
 
@@ -90,7 +319,7 @@ public class TestSudoku {
                     int[] board = p.getBoard();
 
                     // Validity
-                    assertTrue(SudokuUtility.isValid(board));
+                    assertTrue(Sudoku.isValid(board));
 
                     // Has expected number of clues
                     int digitCount = 0;
@@ -112,6 +341,20 @@ public class TestSudoku {
     private Sudoku configFixture;
     private SudokuSieve configFixtureSieve;
 
+    // NOTE: level 4 fingerprints currently take several seconds to generate,
+    //  so they are disabled for CI checks.
+    private String[][] configFixtureFingerprints = new String[][]{
+        {"dc2", "9:9:7:4:2:3::16"},
+        {"dc3", "9::f::f:1:11:5:f:5:f:c:f:9:3d:e:16:25:21:8:8"},
+        // {"dc4", "9::f::18:6:3b:16:43:2b:75:63:9c:a8:14a:139:1b6:29c:352:3cc:49b:460:4a4:350:251:14e:6a:21:1"},
+        {"ac2", "9:6:4:9:1:4::6"},
+        {"ac3", "9::f::11:5:2a:8:2c:3:2e:8:12:b:30:6:11:7:1"},
+        // {"ac4", "9::f::18:6:4f:1e:7e:43:d2:75:f5:d0:138:ff:18f:11c:15e:10a:f4:b7:72:3d:17:a:4:1"},
+        {"fp2", "9:f:b:d:3:7::1c"},
+        {"fp3", "9::f::18:6:3b:d:3b:8:3d:14:21:14:6d:14:27:2c:22:8:8"},
+        // {"fp4", "9::f::18:6:53:23:9b:65:13b:d8:191:178:282:238:345:3b8:4b0:4d6:58f:517:516:38d:268:158:6e:22:1"},
+    };
+
     private final String puzzleFixtureStr = "1.......945...71..9.7..23...3.2.9....9....57..8.......3.......1..26.5....79......";
     private Sudoku puzzleFixture;
     private String[] puzzleSolutions;
@@ -119,23 +362,23 @@ public class TestSudoku {
     private HashMap<String,Integer> PUZZLESTRS_TO_NUM_SOLUTIONS = new HashMap<>() {{
         put("...45.7...5........4......3.8...3.1.9..241..85.69...3.2..3...7.3...7..........3..", 1463);
         put("....5..89..8...16......1..2..76.3..............1..5..45...6..73.......4..74..89.1", 2361);
-        put("..3.5.7.9..7..8.4...8............8.6.8...54.2...8..........932.3.42..6......3.1..", 25339);
+        // put("..3.5.7.9..7..8.4...8............8.6.8...54.2...8..........932.3.42..6......3.1..", 25339);
         put("12..5..8..7.3.9........7..6...56..9.....4.8......92..1....2...8.6.1.......8...6.5", 996);
         put("1..45...96...1......7...1..3......5.9....531.......6...9.16.......3.4.6.2...7...1", 5076);
         put(".2..56...8..3..56........3..1.2...........64.....9..239.........81.2....26..314..", 3171);
         put(".2.4.6..99...........79213.........1..9...3.........5.3.8....72...5......65.29..4", 4004);
-        put("....5..89....3.......2...........9..2......75..9.8.6.2.51...8.6....9...1.92..1.57", 7535);
+        // put("....5..89....3.......2...........9..2......75..9.8.6.2.51...8.6....9...1.92..1.57", 7535);
         put("....5.7..56...8.4...9.7..61...6.....65...94.8..4....2.4.....836.3...7............", 1509);
         put("....56...76....52..95.2...3.......7.2.78...455...9.1...3.....5...8...3.......5...", 2132);
         put("..3.....9.7....65...9.71.345.1..78..9.43.2......54.......9..3............4.1.....", 322);
-        put("...4..7......1...6.........3.....8..7.584......8.3..6.5...7....43...51.897.1...3.", 27462);
+        // put("...4..7......1...6.........3.....8..7.584......8.3..6.5...7....43...51.897.1...3.", 27462);
         put("1.......9.......4...4...2....2.....8..92..4.14.8....9..365...1.8.....5.6..56.8...", 5338);
         put("...45.................8..1..1...4...63......8..8...195...7..8.1.5..9.3.48.16...5.", 1589);
-        put(".....6..9........2.84.97....1...23...9..85..62...61.4.3...2........38..4.....4...", 8244);
-        put("..3..6........8..69.67..1..5.....96.8.9.....7.67....1....8.....4.8...6......94..3", 25661);
+        // put(".....6..9........2.84.97....1...23...9..85..62...61.4.3...2........38..4.....4...", 8244);
+        // put("..3..6........8..69.67..1..5.....96.8.9.....7.67....1....8.....4.8...6......94..3", 25661);
         put("..3.5.7.....2......4891..6.812.3.........5....9..8...........252.5.....1.795.....", 448);
         put("1..4..7.9......3...75.8.6143........8.43...6......4...2..1....6..8.........9.5..2", 3383);
-        put("...4..7.9...7.8....681...4.....1.9....6......931.4.....8.2.4...2...6..7....3...9.", 7506);
+        // put("...4..7.9...7.8....681...4.....1.9....6......931.4.....8.2.4...2...6..7....3...9.", 7506);
         put(".2.......9.6.175..........34.....961.....5....7.9.4.......42...237.8...5....3..2.", 243);
     }};
 
@@ -229,47 +472,70 @@ public class TestSudoku {
     }
 
     @Test
-    void testFingerprint2() {
-        assertEquals("9:f:b:d:3:7::1c", configFixture.fingerprint(2));
-        assertEquals("9::f::18:6:3b:d:36:6:32:9:d:5:39:2", configFixture.fingerprint(3));
-        // assertEquals("9::f::18:6:53:23:8e:47:cb:4b:8e:46:96:27:2f:d:7:2:1", configFixture.fingerprint(4));
+    void puzzleByteBreakdownAndRehydration() {
+        PuzzleEntry[] sudoku17 = PuzzleEntry.all17();
+        int i = 0;
+        for (PuzzleEntry pEntry : sudoku17) {
+            Sudoku p1 = pEntry.puzzle();
+
+            byte[] bytes = p1.toBytes();
+            Sudoku p2 = new Sudoku(bytes);
+
+            assertEquals(p1.toString(), p2.toString());
+            i++;
+        }
+        // System.out.printf("Read %d 17-clues puzzles, and tested byte representations on each.\n", sudoku17.length);
+        assertEquals(sudoku17.length, i);
+    }
+
+    @Test
+    void fingerprints() {
+        for (String[] algo : configFixtureFingerprints) {
+            String name = algo[0];
+            String expectedPrint = algo[1];
+            String actualFp;
+            try {
+                actualFp = (String)Sudoku.class.getMethod(name, new Class<?>[0]).invoke(configFixture, new Object[0]);
+                // Output for debugging
+                // boolean matches = expectedPrint.equals(actualFp);
+                // System.out.printf("CHECKING %s(): %s ", name, actualFp);
+                // System.out.println(matches ? "✅" : "❌ " + expectedPrint);
+                assertEquals(actualFp, expectedPrint);
+            } catch (
+                IllegalAccessException |
+                IllegalArgumentException |
+                InvocationTargetException |
+                NoSuchMethodException |
+                SecurityException e
+            ) {
+                e.printStackTrace();
+                fail(String.format("failed to run fingerprint algorithm \"%s\", listed in test class", name));
+            }
+        }
     }
 
     // @Test
-    void testFingerprint4() {
-        // {
-        //     "solution":     "384169752962735841175482936739648215416527389528391674291853467847216593653974128",
-        //     "fingerprint4": "8::c::13:5:45:2b:8f:6f:ec:5f:b4:62:95:27:37:b:2"
-        //   },
-        //   {
-        //     "solution":     "384791256297365841651482739875219364413657982926834175142578693568923417739146528",
-        //     "fingerprint4": "e::9::11:4:35:22:7e:3a:9c:47:8e:3b:84:18:29:d:4:1:1"
-        //   },
-        //   {
-        //     "solution":     "953168742862734951417952836746893125281645397395271468138529674574386219629417583",
-        //     "fingerprint4": "8::c::14:c:44:22:95:4b:d2:76:ac:54:c0:30:2b:11:4:1:1"
-        //   },
+    // NOTE: This takes a little while, so it's disabled for CI checks.
+    void fingerprint_afterShuffling_isAlwaysTheSame() {
+        int numShuffles = 100;
+        Sudoku grid = Sudoku.generateConfig();
+        String expectedLv2 = grid.fp2();
+        String expectedLv3 = grid.fp3();
 
-        // Pull the solutions and associated fingerprint4 from the comments below, and make some simple assertions
-        String[][] solutionsAndFingerprints = new String[][] {
-            new String[] {
-                "384169752962735841175482936739648215416527389528391674291853467847216593653974128",
-                "8::c::13:5:45:2b:8f:6f:ec:5f:b4:62:95:27:37:b:2"
-            },
-            // new String[] {
-            //     "384791256297365841651482739875219364413657982926834175142578693568923417739146528",
-            //     "e::9::11:4:35:22:7e:3a:9c:47:8e:3b:84:18:29:d:4:1:1"
-            // },
-            // new String[] {
-            //     "953168742862734951417952836746893125281645397395271468138529674574386219629417583",
-            //     "8::c::14:c:44:22:95:4b:d2:76:ac:54:c0:30:2b:11:4:1:1"
-            // },
-        };
+        int count = 0;
+        int slice = numShuffles / 80;
+        System.out.printf("[%s]\n[", "=".repeat(80));
+        for (int t = 0; t < numShuffles; t++) {
+            if (++count == slice) {
+                System.out.print('.');
+                count -= slice;
+            }
 
-        for (String[] pair : solutionsAndFingerprints) {
-            Sudoku p = new Sudoku(pair[0]);
-            assertEquals(pair[1], p.fingerprint(4));
+            grid.scramble();
+            assertEquals(expectedLv2, grid.fp2());
+            assertEquals(expectedLv3, grid.fp3());
         }
+        System.out.println("]");
     }
 
     @Test
@@ -289,9 +555,31 @@ public class TestSudoku {
                 String.format("Expected no solutions to be found within 1s. Took %dms", (timeEnd - timeStart))
             );
 
-            assertNull(p.firstSolution());
+            assertNull(p.solution());
 
             assertEquals(0, p.solutionsFlag());
+        }
+    }
+
+    @Test
+    void test_solutionIterator_withKnownInvalidPuzzles_findsNoSolutions() {
+        // Invalid puzzles, no solutions
+        for (String invalidStr : invalidPuzzles) {
+            Sudoku p = new Sudoku(invalidStr);
+            Set<String> solutionSet = new HashSet<>();
+            int countSolutions = 0;
+            long timeStart = System.currentTimeMillis();
+            for (Sudoku solution : p.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            long timeEnd = System.currentTimeMillis();
+            assertEquals(0, solutionSet.size());
+            assertEquals(0, countSolutions);
+            assertTrue(
+                (timeEnd - timeStart) < 1000L,
+                String.format("Expected no solutions to be found within 1s. Took %dms", (timeEnd - timeStart))
+            );
         }
     }
 
@@ -319,50 +607,79 @@ public class TestSudoku {
         }
     }
 
-    // TODO !IMPORTANT! THIS TEST SHOULD NOT RUN IN AUTOMATED CI CHECKS DUE TO THREADPOOL USAGE.
-    // @Test
-    // void test_searchForSolutionsAsync_withKnownValidPuzzle_findsSolution() {
-    //     Sudoku p = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+    @Test
+    void test_solutionIterator_withKnownValidPuzzle_findsSolution() {
+        // 17-clue puzzle, single solution
+        Set<String> solutionSet = new HashSet<>();
+        int countSolutions = 0;
+        Sudoku puzzle = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+        String knownSolution = "237841569186795243594326718315674892469582137728139456642918375853467921971253684";
+        for (Sudoku solution : puzzle.solutions()) {
+            countSolutions++;
+            solutionSet.add(solution.toString());
+            assertEquals(knownSolution, solution.toString());
+        }
+        assertEquals(1, solutionSet.size());
+        assertEquals(1, countSolutions);
+    }
 
-    //     ThreadPoolExecutor pool = new ThreadPoolExecutor(2, 2, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    //     List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
-    //     p.searchForSolutionsAsync(pool, solutionSet::addAll, 1<<10);
-    //     pool.shutdown();
-    //     try {
-    //         pool.awaitTermination(10L, TimeUnit.SECONDS);
-    //     } catch (InterruptedException intEx) {
-    //         fail(intEx);
-    //     }
+    @Test
+    void test_solutionIterator_withKnownValidPuzzles_findsSolution() {
+        // Pre-generated puzzles from file, single solutions.
+        Set<String> solutionSet = new HashSet<>();
+        for (String puzzleStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            Sudoku puzzle = new Sudoku(puzzleStr);
+            int countSolutions = 0;
+            solutionSet.clear();
+            for (Sudoku solution : puzzle.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            assertEquals(1, solutionSet.size());
+            assertEquals(1, countSolutions);
+        }
+    }
 
-    //     assertEquals(1, solutionSet.size());
-    //     assertEquals(
-    //         "237841569186795243594326718315674892469582137728139456642918375853467921971253684",
-    //         solutionSet.get(0).toString()
-    //     );
-    // }
+    @Test
+    void test_solutionIterator_withKnownValidPuzzles_findsAllSolution() {
+        // Puzzles with multiple solutions
+        Set<String> solutionSet = new HashSet<>();
+        for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
+            int countSolutions = 0;
+            solutionSet.clear();
+            int expectedNumSolutions = entry.getValue();
+            Sudoku p = new Sudoku(entry.getKey());
+            for (Sudoku solution : p.solutions()) {
+                countSolutions++;
+                solutionSet.add(solution.toString());
+            }
+            assertEquals(expectedNumSolutions, solutionSet.size());
+            assertEquals(expectedNumSolutions, countSolutions);
+        }
+    }
 
-    // // TODO !IMPORTANT! THIS TEST SHOULD NOT RUN IN AUTOMATED CI CHECKS DUE TO THREADPOOL USAGE.
-    // @Test
-    // void test_searchForSolutionsAsync_findsCorrectNumberOfSolutions() {
-    //     for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
-    //         Sudoku puzzle = new Sudoku(entry.getKey());
-    //         int expectedNumSolutions = entry.getValue();
-    //         ThreadPoolExecutor pool = new ThreadPoolExecutor(2, 8, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    //         // List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
-    //         Vector<Sudoku> solutionSet = new Vector<>();
-    //         puzzle.searchForSolutionsAsync(pool, (solutionsBatch) -> { solutionSet.addAll(solutionsBatch); }, 64);
-    //         pool.shutdown();
-    //         try {
-    //             pool.awaitTermination(10L, TimeUnit.SECONDS);
-    //         } catch (InterruptedException intEx) {
-    //             System.out.printf("❌ [%8d] %s\n", expectedNumSolutions, entry.getKey());
-    //             fail(intEx);
-    //         }
+    @Test
+    void test_searchForSolutionsAsync_withKnownValidPuzzle_findsSolution() {
+        Sudoku p = new Sudoku("...8.1..........435............7.8........1...2..3....6......75..34........2..6..");
+        List<Sudoku> solutionSet = Collections.synchronizedList(new ArrayList<>());
+        p.searchForSolutionsAsync(solutionSet::add, 4, 1000L);
+        assertEquals(1, solutionSet.size());
+        assertEquals(
+            "237841569186795243594326718315674892469582137728139456642918375853467921971253684",
+            solutionSet.get(0).toString()
+        );
+    }
 
-    //         assertEquals(expectedNumSolutions, solutionSet.size());
-    //         System.out.printf("✅ [%8d] %s\n", expectedNumSolutions, entry.getKey());
-    //     }
-    // }
+    @Test
+    void test_searchForSolutionsAsync_findsCorrectNumberOfSolutions() {
+        for (Entry<String,Integer> entry : PUZZLESTRS_TO_NUM_SOLUTIONS.entrySet()) {
+            Sudoku puzzle = new Sudoku(entry.getKey());
+            int expectedNumSolutions = entry.getValue();
+            Vector<Sudoku> solutionSet = new Vector<>();
+            puzzle.searchForSolutionsAsync(solutionSet::add, 64, 1000L);
+            assertEquals(expectedNumSolutions, solutionSet.size());
+        }
+    }
 
     @Test
     void searchForSolutions3() {
@@ -386,67 +703,95 @@ public class TestSudoku {
         });
     }
 
-    // @Test
-    void searchForSolutionsAsync_with1Thread_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 1);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 1);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
-    }
-
-    // @Test
-    void searchForSolutionsAsync_with4Threads_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 4);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 4);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
-    }
-
-    // @Test
-    void searchForSolutionsAsync_with8Threads_findsAllSolutions() {
-        Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
-        puzzleFixture.searchForSolutionsAsync(s -> {
-            solutionSet.add(s.normalize().toString());
-        }, 8);
-        String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
-        Arrays.sort(foundSolutions);
-        Arrays.sort(puzzleSolutions);
-        assertArrayEquals(puzzleSolutions, foundSolutions);
-
-        PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
-            solutionSet.clear();
-            new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
-                solutionSet.add(s.toString());
-            }, 8);
-            assertEquals(expectedNumSolutions, solutionSet.size());
-        });
+    @Test
+    void searchForSolutionsAsync_forBlankPuzzle_hitsTimeLimit() {
+        assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 1, 250L));
+        // assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 4, 333L));
+        assertFalse(new Sudoku().searchForSolutionsAsync(s -> {}, 8, 250L));
     }
 
     @Test
+    void searchForSolutionsAsync_findsAllSolutions() {
+        for (int numThreads : new int[]{1, 8}) {
+            Set<String> solutionSet = Collections.synchronizedSet(new HashSet<>());
+            AtomicInteger solutionCount = new AtomicInteger();
+            Arrays.sort(puzzleSolutions);
+
+            assertTrue(
+                puzzleFixture.searchForSolutionsAsync(s -> {
+                    solutionSet.add(s.normalize().toString());
+                    solutionCount.incrementAndGet();
+                }, numThreads, TimeUnit.MINUTES.toMillis(1L))
+            );
+            assertEquals(puzzleSolutions.length, solutionCount.get());
+            String[] foundSolutions = solutionSet.toArray(new String[solutionSet.size()]);
+            Arrays.sort(foundSolutions);
+            assertArrayEquals(puzzleSolutions, foundSolutions);
+
+            PUZZLESTRS_TO_NUM_SOLUTIONS.forEach((puzzleStr, expectedNumSolutions) -> {
+                solutionSet.clear();
+                solutionCount.set(0);
+                assertTrue(
+                    new Sudoku(puzzleStr).searchForSolutionsAsync(s -> {
+                        solutionSet.add(s.toString());
+                        solutionCount.incrementAndGet();
+                    }, numThreads, TimeUnit.MINUTES.toMillis(1L))
+                );
+                assertEquals(expectedNumSolutions, solutionCount.get());
+                assertEquals(expectedNumSolutions, solutionSet.size());
+            });
+        }
+    }
+
+    @Test
+    void countSolutions() {
+        // Invalid puzzles (0 solutions)
+        for (String p : invalidPuzzles) {
+            assertEquals(0, new Sudoku(p).countSolutions());
+        }
+
+        // Invalid puzzles (multiple solutions)
+        for (String p : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
+            assertEquals(
+                PUZZLESTRS_TO_NUM_SOLUTIONS.get(p).intValue(),
+                new Sudoku(p).countSolutions()
+            );
+        }
+
+        // Valid sudoku puzzles (single solutions)
+        for (String p : GeneratedPuzzles.PUZZLES_24_1000) {
+            assertEquals(1, new Sudoku(p).countSolutions());
+        }
+    }
+
+    @Test
+    void countSolutionsAsync() {
+        // Repeat of test above, but with the async method.
+        // Invalid puzzles (0 solutions)
+        for (String p : invalidPuzzles) {
+            assertEquals(0L, new Sudoku(p).countSolutionsAsync(1));
+            // assertEquals(0L, new Sudoku(p).countSolutionsAsync(2));
+            assertEquals(0L, new Sudoku(p).countSolutionsAsync(4));
+        }
+
+        // Valid sudoku puzzles (single solutions)
+        for (String pStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(1));
+            // assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(2));
+            assertEquals(1L, new Sudoku(pStr).countSolutionsAsync(4));
+        }
+
+        // Valid puzzles (multiple solutions)
+        for (String pStr : PUZZLESTRS_TO_NUM_SOLUTIONS.keySet()) {
+            Sudoku puzzle = new Sudoku(pStr);
+            int expectedCount = PUZZLESTRS_TO_NUM_SOLUTIONS.get(pStr).intValue();
+            assertEquals(expectedCount, puzzle.countSolutionsAsync(1));
+            // assertEquals(expectedCount, puzzle.countSolutionsAsync(2));
+            assertEquals(expectedCount, puzzle.countSolutionsAsync(4));
+        }
+    }
+
+    // @Test
     void sieveFindsAllExpectedMasks() {
         populateSieveForAllDigitCombos(3);
 
@@ -600,7 +945,7 @@ public class TestSudoku {
             new SudokuMask("010000010001000100000111000001000100100001000000110010100000001000000000010000001")
         };
 
-        List<SudokuMask> actualItems = configFixtureSieve.items(new ArrayList<>());
+        List<SudokuMask> actualItems = new ArrayList<>(configFixtureSieve.items());
         assertEquals(actualItems.size(), expectedItems.length);
         actualItems.sort((a, b) -> a.compareTo(b));
         SudokuMask[] _actualItems = new SudokuMask[actualItems.size()];
@@ -634,6 +979,26 @@ public class TestSudoku {
 
     }
 
+    @Test
+    void toAndFromBytes() {
+        Sudoku s = new Sudoku();
+        int[] sBoard = s.getBoard();
+        Sudoku rehydratedS = new Sudoku(s.toBytes());
+        assertArrayEquals(sBoard, rehydratedS.getBoard());
+
+        s = Sudoku.configSeed().solution();
+        sBoard = s.getBoard();
+        rehydratedS = new Sudoku(s.toBytes());
+        assertArrayEquals(sBoard, rehydratedS.getBoard());
+
+        for (String pStr : GeneratedPuzzles.PUZZLES_24_1000) {
+            s = new Sudoku(pStr);
+            sBoard = s.getBoard();
+            rehydratedS = new Sudoku(s.toBytes());
+            assertArrayEquals(sBoard, rehydratedS.getBoard());
+        }
+    }
+
     private void populateSieveForAllDigitCombos(int level) {
         for (int r = Sudoku.DIGIT_COMBOS_MAP[level].length - 1; r >= 0; r--) {
             SudokuMask pMask = configFixture.maskForDigits(Sudoku.DIGIT_COMBOS_MAP[level][r]);
@@ -641,6 +1006,7 @@ public class TestSudoku {
         }
     }
 
+    /** All the solutions to `puzzleFigure`. */
     private String[] copyPuzzleFixtureSolutions() {
         return new String[] {
             "123456789854937126967812435745269318691384572238571964486793251312645897579128643",

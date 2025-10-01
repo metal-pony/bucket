@@ -20,7 +20,7 @@ public class SudokuGuiDemo {
 
 		JButton btn = new JButton("Solve");
 		btn.addActionListener((event) -> {
-			Sudoku solution = sudoku.firstSolution();
+			Sudoku solution = sudoku.solution();
 
 			if (solution == null) {
 				System.out.println("null solution");
@@ -37,6 +37,6 @@ public class SudokuGuiDemo {
 		f.pack();
 		f.setVisible(true);
 
-		System.out.println(sudoku.firstSolution().toString());
+		System.out.println(sudoku.solution().toString());
 	}
 }

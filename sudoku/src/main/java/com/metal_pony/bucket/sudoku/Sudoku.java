@@ -2,13 +2,11 @@ package com.metal_pony.bucket.sudoku;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Stack;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -22,7 +20,6 @@ import java.util.function.Function;
 import com.metal_pony.bucket.sudoku.util.SudokuMask;
 import com.metal_pony.bucket.util.Counting;
 import com.metal_pony.bucket.util.Shuffler;
-import com.metal_pony.bucket.util.ThreadPool;
 
 public class Sudoku {
     static final char EMPTY_CHAR = '.';
@@ -108,6 +105,14 @@ public class Sudoku {
         return DECODER[encoded] > 0;
     }
 
+    public static int cellRow(int ci) { return ci / DIGITS; }
+    public static int cellCol(int ci) { return ci % DIGITS; }
+    public static int cellRegion(int ci) {
+        int regionRow = ci / (RANK * DIGITS);
+        int regionCol = (ci % DIGITS) / RANK;
+        return (regionRow * RANK) + regionCol;
+    }
+
     public static int[] CELL_ROWS = new int[SPACES];
     public static int[] CELL_COLS = new int[SPACES];
     public static int[] CELL_REGIONS = new int[SPACES];
@@ -123,9 +128,9 @@ public class Sudoku {
         int[] coli = new int[DIGITS];
         int[] regi = new int[DIGITS];
         for (int i = 0; i < SPACES; i++) {
-            int row = SudokuUtility.cellRow(i);
-            int col = SudokuUtility.cellCol(i);
-            int region = SudokuUtility.cellRegion(i);
+            int row = cellRow(i);
+            int col = cellCol(i);
+            int region = cellRegion(i);
             CELL_ROWS[i] = row;
             CELL_COLS[i] = col;
             CELL_REGIONS[i] = region;
@@ -136,7 +141,7 @@ public class Sudoku {
 
             int band = row / RANK;
             int rowInBand = row % RANK;
-		    int stack = col / RANK;
+            int stack = col / RANK;
             int colInStack = col % RANK;
             int indexInBand = i % (DIGITS * RANK);
             int indexInStack = (row * RANK) + colInStack;
@@ -152,9 +157,9 @@ public class Sudoku {
     public static int[][] CELL_NEIGHBORS = new int[SPACES][3*(DIGITS-1) - (DIGITS-1)/2]; // Not checked if true for other ranks
     static {
         for (int ci = 0; ci < SPACES; ci++) {
-            int row = SudokuUtility.cellRow(ci);
-            int col = SudokuUtility.cellCol(ci);
-            int region = SudokuUtility.cellRegion(ci);
+            int row = cellRow(ci);
+            int col = cellCol(ci);
+            int region = cellRegion(ci);
 
             int ri = 0;
             int coli = 0;
@@ -163,9 +168,9 @@ public class Sudoku {
 
             for (int cj = 0; cj < SPACES; cj++) {
                 if (ci == cj) continue;
-                int jrow = SudokuUtility.cellRow(cj);
-                int jcol = SudokuUtility.cellCol(cj);
-                int jregion = SudokuUtility.cellRegion(cj);
+                int jrow = cellRow(cj);
+                int jcol = cellCol(cj);
+                int jregion = cellRegion(cj);
 
                 if (jrow == row) {
                     ROW_NEIGHBORS[ci][ri++] = cj;
@@ -181,6 +186,336 @@ public class Sudoku {
                 }
             }
         }
+    }
+
+    private static boolean isAreaValid(int[] digits, int[] areaIndices) {
+        if (digits.length != SPACES) return false;
+        int digitsSeen = 0;
+        for (int i = 0; i < DIGITS; i++) {
+            int digit = digits[areaIndices[i]];
+            if (digit < 0 || digit > DIGITS) return false;
+            if (digit > 0) {
+                int digitMask = 1 << (digit - 1);
+                if ((digitMask & digitsSeen) > 0) return false;
+                digitsSeen |= digitMask;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAreaFull(int[] digits, int[] areaIndices) {
+        if (digits.length != SPACES) return false;
+        for (int i = 0; i < DIGITS; i++) {
+            int digit = digits[areaIndices[i]];
+            if (digit <= 0 || digit > DIGITS) return false;
+        }
+        return true;
+    }
+
+    public static boolean isRowValid(int[] digits, int rowIndex) {
+        return isAreaValid(digits, ROW_INDICES[rowIndex]);
+    }
+
+    public static boolean isColValid(int[] digits, int colIndex) {
+        return isAreaValid(digits, COL_INDICES[colIndex]);
+    }
+
+    public static boolean isRegionValid(int[] digits, int regionIndex) {
+        return isAreaValid(digits, REGION_INDICES[regionIndex]);
+    }
+
+    public static boolean isRowFull(int[] digits, int rowIndex) {
+        return isAreaFull(digits, ROW_INDICES[rowIndex]);
+    }
+
+    public static boolean isColFull(int[] digits, int colIndex) {
+        return isAreaFull(digits, COL_INDICES[colIndex]);
+    }
+
+    public static boolean isRegionFull(int[] digits, int regionIndex) {
+        return isAreaFull(digits, REGION_INDICES[regionIndex]);
+    }
+
+    public static boolean isValid(int[] digits) {
+        if (digits.length != SPACES) return false;
+
+        int[] rowValidity = new int[DIGITS];
+        int[] colValidity = new int[DIGITS];
+        int[] regionValidity = new int[DIGITS];
+
+        for (int ci = 0; ci < SPACES; ci++) {
+            int digit = digits[ci];
+            if (digit < 0 || digit > DIGITS) return false;
+            if (digit == 0) continue;
+
+            int row = CELL_ROWS[ci];
+            int col = CELL_COLS[ci];
+            int region = CELL_REGIONS[ci];
+            int digitMask = 1 << (digit - 1);
+            if (
+                (digitMask & rowValidity[row]) > 0 ||
+                (digitMask & colValidity[col]) > 0 ||
+                (digitMask & regionValidity[region]) > 0
+            ) {
+                return false;
+            }
+            rowValidity[row] |= digitMask;
+            colValidity[col] |= digitMask;
+            regionValidity[region] |= digitMask;
+        }
+
+        return true;
+    }
+
+    public static boolean isFull(int[] digits) {
+        if (digits.length != SPACES) return false;
+        for (int ci = 0; ci < DIGITS; ci++) {
+            if (digits[ci] <= 0 || digits[ci] > DIGITS) return false;
+        }
+        return true;
+    }
+
+    public static boolean isSolved(int[] digits) {
+        if (digits.length != SPACES) return false;
+
+        int[] rowValidity = new int[DIGITS];
+        int[] colValidity = new int[DIGITS];
+        int[] regionValidity = new int[DIGITS];
+
+        for (int ci = 0; ci < SPACES; ci++) {
+            int digit = digits[ci];
+            if (digit <= 0 || digit > DIGITS) return false;
+
+            int row = CELL_ROWS[ci];
+            int col = CELL_COLS[ci];
+            int region = CELL_REGIONS[ci];
+            int digitMask = 1 << (digit - 1);
+            if (
+                (digitMask & rowValidity[row]) > 0 ||
+                (digitMask & colValidity[col]) > 0 ||
+                (digitMask & regionValidity[region]) > 0
+            ) {
+                return false;
+            }
+            rowValidity[row] |= digitMask;
+            colValidity[col] |= digitMask;
+            regionValidity[region] |= digitMask;
+        }
+
+        return true;
+    }
+
+    /**
+     * Rotates the given matrix array 90 degrees clockwise.
+     * @param arr The matrix to rotate.
+     * @param n Length of one of the sides.
+     */
+    public static int[] rotate90(int[] arr, int n) {
+        if (arr == null) throw new NullPointerException();
+        if (n < 0) throw new IllegalArgumentException("n must be nonnegative");
+        if (arr.length != n * n) throw new IllegalArgumentException("arr length not n square");
+        for (int layer = 0; layer < n / 2; layer++) {
+            int first = layer;
+            int last = n - 1 - layer;
+            for (int i = first; i < last; i++) {
+                int offset = i - first;
+                int top = arr[first * n + i];
+                arr[first * n + i] = arr[(last - offset) * n + first];
+                arr[(last - offset) * n + first] = arr[last * n + (last - offset)];
+                arr[last * n + (last - offset)] = arr[i * n + last];
+                arr[i * n + last] = top;
+            }
+        }
+        return arr;
+    }
+
+    /**
+     * Reflects the board values over the horizontal axis (line from bottom to top).
+     * If the `arr.length / rows` is not a whole number, an error will be thrown.
+     * @param arr The matrix to reflect.
+     * @param rows The number of rows in the matrix.
+     */
+    public static int[] reflectOverHorizontal(int[] arr, int rows) {
+        if (arr == null) throw new NullPointerException();
+        if (rows <= 0) throw new IllegalArgumentException("rows must be positive");
+        if (arr.length % rows != 0) throw new IllegalArgumentException("array length must be divisible by number of rows");
+        int cols = arr.length / rows;
+        for (int r = 0; r < (rows / 2); r++) {
+            for (int c = 0; c < cols; c++) {
+                int ai = r * cols + c;
+                int bi = (rows - r - 1) * cols + c;
+                arr[ai] ^= arr[bi];
+                arr[bi] ^= arr[ai];
+                arr[ai] ^= arr[bi];
+            }
+        }
+        return arr;
+    }
+
+    /**
+     * Reflects the board values over the vertical axis (line from left to right).
+     * If the `arr.length / rows` is not a whole number, an error will be thrown.
+     * @param arr The matrix to reflect.
+     * @param rows The number of rows in the matrix.
+     */
+    public static int[] reflectOverVertical(int[] arr, int rows) {
+        if (arr == null) throw new NullPointerException();
+        if (rows <= 0) throw new IllegalArgumentException("rows must be positive");
+        if (arr.length % rows != 0) throw new IllegalArgumentException("array length must be divisible by number of rows");
+        int cols = arr.length / rows;
+        for (int c = 0; c < (cols / 2); c++) {
+            for (int r = 0; r < rows; r++) {
+                int ai = r * cols + c;
+                int bi = r * cols + (cols - c - 1);
+                arr[ai] ^= arr[bi];
+                arr[bi] ^= arr[ai];
+                arr[ai] ^= arr[bi];
+            }
+        }
+        return arr;
+    }
+
+    public static int[] reflectOverDiagonal(int[] arr, int rows) {
+        reflectOverVertical(arr, rows);
+        rotate90(arr, rows);
+        return arr;
+    }
+
+    public static int[] reflectOverAntiDiagonal(int[] arr, int rows) {
+        rotate90(arr, rows);
+        reflectOverVertical(arr, rows);
+        return arr;
+    }
+
+    /**
+     * Swaps the given bands. Bands are groups of 3 regions, horizontally.
+     * @param b1 Band index (0, 1, or 2)
+     * @param b2 Band index (0, 1, or 2) Different than b1
+     * @return This sudoku instance for convenience.
+     */
+    public static int[] swapBands(int[] arr, int b1, int b2) {
+        if (b1 == b2) return arr;
+        if (b1 < 0 || b2 < 0 || b1 > 2 || b2 > 2)
+            throw new IllegalArgumentException("swapBands error, specified band(s) out of bounds");
+        for (int i = 0; i < 27; i++) {
+            int ai = BAND_INDICES[b1][i];
+            int bi = BAND_INDICES[b2][i];
+
+            arr[ai] ^= arr[bi];
+            arr[bi] ^= arr[ai];
+            arr[ai] ^= arr[bi];
+        }
+        return arr;
+    }
+
+    /**
+     * Swaps the given rows within a band.
+     * @param b1 Band index (0, 1, or 2)
+     * @param ri1 Row index (0, 1, or 2)
+     * @param ri2 Row index (0, 1, or 2) Different than ri1
+     * @return This sudoku instance for convenience.
+     */
+    public static int[] swapBandRows(int[] arr, int bi, int ri1, int ri2) {
+        if (ri1 == ri2) return arr;
+        if (bi < 0 || bi > 2 || ri1 < 0 || ri2 < 0 || ri1 > 2 || ri2 > 2)
+            throw new IllegalArgumentException("swapBandRows error, specified band or row(s) out of bounds");
+        for (int i = 0; i < DIGITS; i++) {
+            int ii = BAND_ROW_INDICES[bi][ri1][i];
+            int jj = BAND_ROW_INDICES[bi][ri2][i];
+
+            arr[ii] ^= arr[jj];
+            arr[jj] ^= arr[ii];
+            arr[ii] ^= arr[jj];
+        }
+        return arr;
+    }
+
+    /**
+     * Swaps the given stacks. Stacks are groups of 3 regions, vertically.
+     * @param s1 Stack index (0, 1, or 2)
+     * @param s2 Stack index (0, 1, or 2) Different than s1
+     * @return This sudoku instance for convenience.
+     */
+    public static int[] swapStacks(int[] arr, int s1, int s2) {
+        if (s1 == s2) return arr;
+        if (s1 < 0 || s2 < 0 || s1 > 2 || s2 > 2)
+            throw new IllegalArgumentException("swapStacks error, specified stack(s) out of bounds");
+        for (int i = 0; i < 27; i++) {
+            int ai = STACK_INDICES[s1][i];
+            int bi = STACK_INDICES[s2][i];
+
+            arr[ai] ^= arr[bi];
+            arr[bi] ^= arr[ai];
+            arr[ai] ^= arr[bi];
+        }
+        return arr;
+    }
+
+    /**
+     * Swaps the given columns within a stack.
+     * @param b1 Stack index (0, 1, or 2)
+     * @param ri1 Column index (0, 1, or 2)
+     * @param ri2 Column index (0, 1, or 2) Different than si1
+     * @return This sudoku instance for convenience.
+     */
+    public static int[] swapStackCols(int[] arr, int si, int ci1, int ci2) {
+        if (ci1 == ci2) return arr;
+        if (si < 0 || ci1 < 0 || ci2 < 0 || si > 2 || ci1 > 2 || ci2 > 2)
+            throw new IllegalArgumentException("swapStackCols error, specified stack or col(s) out of bounds");
+        for (int i = 0; i < Sudoku.DIGITS; i++) {
+            int ii = STACK_COL_INDICES[si][ci1][i];
+            int jj = STACK_COL_INDICES[si][ci2][i];
+
+            arr[ii] ^= arr[jj];
+            arr[jj] ^= arr[ii];
+            arr[ii] ^= arr[jj];
+        }
+        return arr;
+    }
+
+    public static int[] normalize(int[] digits) {
+        if (digits.length != SPACES) {
+            throw new IllegalArgumentException("digits length must be 81");
+        }
+        // Top row must be filled in and valid.
+        if (!isRowFull(digits, 0) || !isRowValid(digits, 0)) {
+            throw new IllegalArgumentException("top row must be full and valid");
+        }
+        // All in array must be proper digits
+        for (int ci = 0; ci < SPACES; ci++) {
+            if (digits[ci] < 0 || digits[ci] > DIGITS) {
+                throw new IllegalArgumentException("bad value in sudoku matrix");
+            }
+        }
+
+        for (int tarDigit = 1; tarDigit <= DIGITS; tarDigit++) {
+            int curDigit = digits[tarDigit - 1];
+            if (curDigit != tarDigit) {
+                for (int ci = 0; ci < SPACES; ci++) {
+                    if (digits[ci] == curDigit) {
+                        digits[ci] = tarDigit;
+                    } else if (digits[ci] == tarDigit) {
+                        digits[ci] = curDigit;
+                    }
+                }
+            }
+        }
+
+        return digits;
+    }
+
+    public static int[] CANDIDATE_PAIRS = new int[36];
+    // There are (9 choose 2 = 36) pairs of digits.
+    static {
+        int i = 0;
+        for (int n = 0b11; n < ALL; n++) {
+            if (Integer.bitCount(n) == 2) {
+                CANDIDATE_PAIRS[i++] = n;
+            }
+        }
+    }
+    public static boolean isCandidatePair(int n) {
+        return (n > 0) && (n < ALL) && (Integer.bitCount(n) == 2);
     }
 
     public static final SudokuMask[] BAND_FILTERS;
@@ -207,6 +542,96 @@ public class Sudoku {
         }
     }
 
+    /**
+     * Checks that the given string is valid to be used to initialize a Sudoku instance.
+     * (i.e. is proper length and contains digits, '.', or '-' chars).
+     *
+     * NOTE: This does NOT check if the grid is a valid sudoku.
+     * For that, check <code>sudoku.solutionsFlag() == 1</code>.
+     * @param gridStr
+     * @return True if the string can be used to instantiate a Sudoku instance; otherwise false.
+     */
+    public static boolean isValidStr(String gridStr) {
+        return conformGridStr(gridStr) != null;
+    }
+
+    private static String conformGridStr(String gridStr) {
+        // Check for NULL and fail fast if length is bad.
+        if (gridStr == null || gridStr.length() > SPACES) return null;
+        // Expand '-' with 9 '0', and replace nonzero chars with '0'
+        gridStr = gridStr.replaceAll("-", "0".repeat(DIGITS)).replaceAll("[^1-9]", "0");
+        // Check for proper length
+        return (gridStr.length() == SPACES) ? gridStr : null;
+    }
+
+    public static String toFullString(int[] digits) {
+        StringBuilder strb = new StringBuilder("  ");
+        String lineSep = System.lineSeparator();
+        for (int i = 0; i < SPACES; i++) {
+            if (digits[i] > 0) {
+                strb.append(digits[i]);
+            } else {
+                strb.append('.');
+            }
+
+            // Print pipe between region columns
+            if ((((i+1)%3) == 0) && (((i+1)%9) != 0)) {
+                strb.append(" | ");
+            } else {
+                strb.append("   ");
+            }
+
+            if (((i+1)%9) == 0) {
+                strb.append(lineSep);
+
+                if (i < 80) {
+                    // Border between region rows
+                    if (((((i+1)/9)%3) == 0) && (((i/9)%8) != 0)) {
+                        strb.append(" -----------+-----------+------------");
+                    } else {
+                        strb.append("            |           |            ");
+                    }
+                    strb.append(lineSep);
+                    strb.append("  ");
+                }
+            }
+        }
+
+        return strb.toString();
+    }
+
+    public static String toMedString(int[] digits) {
+        StringBuilder strb = new StringBuilder();
+        String lineSep = System.lineSeparator();
+        for (int i = 0; i < SPACES; i++) {
+            if (digits[i] > 0) {
+                strb.append(digits[i]);
+            } else {
+                strb.append('.');
+            }
+
+            // Print pipe between region columns
+            if ((((i+1)%3) == 0) && (((i+1)%9) != 0)) {
+                strb.append(" | ");
+            } else {
+                strb.append(' ');
+            }
+
+            if (((i+1)%9) == 0) {
+                strb.append(lineSep);
+                if (i < 80) {
+                    // Border between region rows
+                    if (((((i+1)/9)%3) == 0) && (((i/9)%8) != 0)) {
+                        strb.append("------+-------+------");
+                        strb.append(lineSep);
+                    }
+                }
+            }
+        }
+
+        return strb.toString();
+    }
+
     /** Cell digits, as one would see on a sudoku board.*/
     int[] digits;
 
@@ -219,7 +644,7 @@ public class Sudoku {
      * `0b111111111` indicates that the cell can be any digit, and `0b000000000` indicates
      * that the cell cannot be any digit (and the puzzle is likely invalid).
      */
-    public int[] candidates;
+    int[] candidates;
 
     /**
      * Tracks the digits that have been used for each row, column, and region - combined into encoded 27-bit values.
@@ -234,23 +659,19 @@ public class Sudoku {
      */
     int[] constraints;
 
-    char[] str;
-
     int numEmptyCells = SPACES;
 
     boolean isValid = true;
 
     // TODO Implement isSolved cache
     // This should be cached true when isSolved is called, and invalidated whenever a value is changed
-    private boolean _isSolved = false;
+    boolean isSolved = false;
 
     public Sudoku() {
         this.digits = new int[SPACES];
         this.candidates = new int[SPACES];
         Arrays.fill(this.candidates, ALL);
         this.constraints = new int[DIGITS];
-        this.str = new char[SPACES];
-        Arrays.fill(this.str, EMPTY_CHAR);
     }
 
     public Sudoku(Sudoku other) {
@@ -260,25 +681,22 @@ public class Sudoku {
         System.arraycopy(other.digits, 0, this.digits, 0, SPACES);
         System.arraycopy(other.candidates, 0, this.candidates, 0, SPACES);
         System.arraycopy(other.constraints, 0, this.constraints, 0, DIGITS);
-        System.arraycopy(other.str, 0, this.str, 0, SPACES);
     }
 
-    public Sudoku(String str) {
+    public Sudoku(String gridStr) {
         this();
 
-        // Replace '-' and '.' with '0's
-        str = str.replaceAll("-", "0".repeat(DIGITS)).replaceAll("[^1-9]", "0");
-
-        if (str.length() != SPACES) {
-            throw new IllegalArgumentException("str is invalid as sudoku grid");
+        gridStr = conformGridStr(gridStr);
+        if (gridStr == null) {
+            throw new IllegalArgumentException("Malformed sudoku grid string");
         }
 
-		for (int i = 0; i < SPACES; i++) {
-            int digit = str.charAt(i) - '0';
+        for (int i = 0; i < SPACES; i++) {
+            int digit = gridStr.charAt(i) - '0';
             if (digit > 0) {
                 setDigit(i, digit);
             }
-		}
+        }
     }
 
     public Sudoku(int[] digits) {
@@ -295,8 +713,27 @@ public class Sudoku {
         }
     }
 
+    private static int[] fromBytes(byte[] bytes) {
+        if (bytes.length != 41) throw new IllegalArgumentException("bytes length must be 41");
+        int[] _digits = new int[SPACES];
+        for (int bi = 0; bi < 40; bi++) {
+            _digits[2*bi] = (int)( (bytes[bi] >>> 4) & 0xf );
+            _digits[2*bi + 1] = (int)( bytes[bi] & 0xf );
+        }
+        _digits[80] = (int)( (bytes[40] >>> 4) & 0xf );
+        return _digits;
+    }
+
+    public Sudoku(byte[] bytes) {
+        this(fromBytes(bytes));
+    }
+
     public int getDigit(int ci) {
         return digits[ci];
+    }
+
+    public int getCandidate(int ci) {
+        return candidates[ci];
     }
 
     public void setDigit(int ci, int digit) {
@@ -305,7 +742,6 @@ public class Sudoku {
 
         digits[ci] = digit;
         candidates[ci] = ENCODER[digit];
-        // str[ci] = (digit > 0) ? (char)(digit + '0') : EMPTY_CHAR;
 
         // Digit removed (or replaced)
         if (prevDigit > 0) {
@@ -341,25 +777,15 @@ public class Sudoku {
         ) & ALL;
     }
 
-    private int[] _digitsArr = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    public void fillRegions(int regionsMask) {
-        for (int regIndex = 0; regIndex < DIGITS; regIndex++) {
-            if ((regionsMask & (1<<(DIGITS - 1 - regIndex))) > 0) {
-                Shuffler.shuffle(_digitsArr);
-                for (int i = 0; i < DIGITS; i++) {
-                    this.setDigit(REGION_INDICES[regIndex][i], _digitsArr[i]);
-                }
-            }
-        }
-    }
-
-    private static final int[] regionsMasks = new int[] {
-        0b100010001, 0b100001010, 0b010100001,
-        0b010001100, 0b001100010, 0b001010100
-    };
     public static Sudoku configSeed() {
         Sudoku seed = new Sudoku();
-        seed.fillRegions(regionsMasks[0]);
+        int[] _digitsArr = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[0][i], _digitsArr[i]);
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[4][i], _digitsArr[i]);
+        Shuffler.shuffle(_digitsArr);
+        for (int i = 0; i < DIGITS; i++) seed.setDigit(REGION_INDICES[8][i], _digitsArr[i]);
         return seed;
     }
 
@@ -375,21 +801,73 @@ public class Sudoku {
         return board;
     }
 
-    public void resetEmptyCells() {
-        for (int ci = 0; ci < SPACES; ci++) {
-            if (digits[ci] == 0) candidates[ci] = ALL;
+    //////////////////////////////////////
+    ////// . . . . . . . . . . . . . . .//
+    //// . . .  RESTORE POINTS . . . /////
+    // . . . . . . . . . . . . . . .//////
+    //////////////////////////////////////
+
+    private static class Snapshot {
+        int[] digits = new int[SPACES];
+        int[] candidates = new int[SPACES];
+        int[] constraints = new int[DIGITS];
+        int numEmptyCells = SPACES;
+        boolean isValid = true;
+
+        Snapshot() {}
+        Snapshot(Sudoku sudoku) { set(sudoku); }
+
+        void set(Sudoku sudoku) {
+            for (int i = 0; i < SPACES; i++) {
+                this.digits[i] = sudoku.digits[i];
+                this.candidates[i] = sudoku.candidates[i];
+            }
+            for (int i = 0; i < DIGITS; i++) this.constraints[i] = sudoku.constraints[i];
+            this.numEmptyCells = sudoku.numEmptyCells;
+            this.isValid = sudoku.isValid;
         }
     }
 
-    public void resetConstraints() {
-        isValid = true;
-        constraints = new int[DIGITS];
+    /**
+     * Creates a Snapshot of the current state which can be used as a restore point.
+     */
+    public Snapshot snapshot() {
+        return new Snapshot(this);
+    }
+
+    /**
+     * Copies the snapshot data into this Sudoku instance.
+     * <br></br>
+     * ⚠️ instance state will be overwritten.
+     * @param data Snapshot to copy data from.
+     */
+    public void loadFromSnapshot(Snapshot data) {
         for (int i = 0; i < SPACES; i++) {
-            if (digits[i] > 0) {
-                if ((cellConstraints(i) & encode(digits[i])) > 0) {
+            this.digits[i] = data.digits[i];
+            this.candidates[i] = data.candidates[i];
+        }
+        for (int i = 0; i < DIGITS; i++) this.constraints[i] = data.constraints[i];
+        this.numEmptyCells = data.numEmptyCells;
+        this.isValid = data.isValid;
+    }
+
+    //////////////////////////////////////
+    //////////////////////////////////////
+
+    /**
+     * Resets isValid, rebuilds the constraints and candidates.
+     */
+    void resetCandidatesAndValidity() {
+        isValid = true;
+        Arrays.fill(constraints, 0);
+        for (int ci = 0; ci < SPACES; ci++) {
+            candidates[ci] = ALL;
+            if (digits[ci] > 0) {
+                candidates[ci] = ENCODER[digits[ci]];
+                if ((cellConstraints(ci) & candidates[ci]) > 0) {
                     isValid = false;
                 }
-                addConstraint(i, digits[i]);
+                addConstraint(ci, digits[ci]);
             }
         }
     }
@@ -419,20 +897,22 @@ public class Sudoku {
         return true;
     }
 
+    public boolean isValid() {
+        return this.isValid;
+    }
+
     public void reduce() {
         for (int i = 0; i < SPACES; i++) reduceCell(i);
     }
 
     void reduceCell(int ci) {
         if (digits[ci] > 0) return;
-        if (candidates[ci] == 0) {
-            isValid = false;
-            return;
-        }
 
-        // ? If candidate constraints reduces to 0, then the board is likely invalid.
-        int reducedCandidates = (candidates[ci] & ~cellConstraints(ci));
-        if (reducedCandidates <= 0) {
+        int originalCandidates = candidates[ci];
+        // If candidate reduces to 0, then the board is invalid.
+        candidates[ci] &= ~cellConstraints(ci);
+
+        if (candidates[ci] <= 0) {
             isValid = false;
             setDigit(ci, 0);
             return;
@@ -440,20 +920,96 @@ public class Sudoku {
 
         // If by applying the constraints, the number of candidates is reduced to 1,
         // then the cell is solved.
-        if (isDigit(reducedCandidates)) {
-            setDigit(ci, DECODER[reducedCandidates]);
+        if (isDigit(candidates[ci])) {
+            setDigit(ci, DECODER[candidates[ci]]);
         } else {
             int uniqueCandidate = getUniqueCandidate(ci);
             if (uniqueCandidate > 0) {
                 setDigit(ci, DECODER[uniqueCandidate]);
-                reducedCandidates = uniqueCandidate;
             } else {
-                candidates[ci] = reducedCandidates;
+                // If cell[ci] is not a double, then this next part can be skipped.
+                // if (isCandidatePair(reducedCandidates)) {
+                //     // For each area,
+                //     //    Look for candidate pairs
+                //     //    If found,
+                //     //      Remove the pair of digits from candidates in the area (except the pair of cells)
+                //     int ciRow = CELL_ROWS[ci];
+                //     int ciCol = CELL_COLS[ci];
+                //     int ciRegion = CELL_REGIONS[ci];
+                //     for (int col = 0; col < DIGITS; col++) {
+                //         // Look at row neighbors for a potential pair with ci
+                //         if (col == ciCol) continue; // Skip ci
+                //         int rowNi = DIGITS*ciRow + col;
+                //         if (decode(candidates[rowNi]) > 0) continue;
+                //         if (candidates[rowNi] == candidates[ci]) {
+                //             // Found pair (ci, gi)
+                //             // TODO Maintain a collection of 'seen pairs' and if we've seen this pair, skip processing.
+                //             // console.log(`Found pairs within row, value [ ${reducedCandidates.toString(2)} ] at (${ci}, ${rowNi})`);
+
+                //             for (int ei = 0; ei < DIGITS; ei++) {
+                //                 int ki = DIGITS*ciRow + ei;
+                //                 if (ci == ki || rowNi == ki || digits[ki] > 0) continue;
+                //                 int _before = candidates[ki];
+                //                 int _after = (_before & ~reducedCandidates);
+                //                 if (isDigit(_after)) {
+                //                     setDigit(ki, decode(_after));
+                //                     // console.log(`DIGIT resolved after reducing PAIR [${ki}] ${_before.toString(2)} -> ${decode(_after)}`);
+                //                 } else {
+                //                     candidates[ki] = _after;
+                //                 }
+                //                 if (_after < _before) {
+                //                     for (int ni : CELL_NEIGHBORS[ki]) {
+                //                         if (DECODER[candidates[ni]] == 0) reduceCell(ni);
+                //                     }
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
             }
         }
 
-        if (reducedCandidates < candidates[ci]) {
-            for (int n : CELL_NEIGHBORS[ci]) reduceCell(n);
+        if (candidates[ci] < originalCandidates) {
+            for (int n : CELL_NEIGHBORS[ci]) {
+                if (digits[n] == 0) {
+                    reduceCell(n);
+                }
+            }
+        }
+    }
+
+    private void constraintProp() {
+        for (int i = 0; i < SPACES; i++) {
+            _constraintProp(i);
+        }
+    }
+
+    private void _constraintProp(int ci) {
+        if (digits[ci] > 0) {
+            return;
+        }
+
+        int originalCandidates = candidates[ci];
+        // If candidate constraints reduces to 0, then the board is likely invalid.
+        candidates[ci] &= ~cellConstraints(ci);
+        if (candidates[ci] <= 0) {
+            isValid = false;
+            setDigit(ci, 0);
+            return;
+        }
+
+        // If by applying the constraints, the number of candidates is reduced to 1,
+        // then the cell is solved.
+        if (isDigit(candidates[ci])) {
+            setDigit(ci, DECODER[candidates[ci]]);
+        }
+
+        if (candidates[ci] < originalCandidates) {
+            for (int n : CELL_NEIGHBORS[ci]) {
+                if (digits[n] == 0) {
+                    _constraintProp(n);
+                }
+            }
         }
     }
 
@@ -498,9 +1054,19 @@ public class Sudoku {
      */
     public static Sudoku generatePuzzle(int numClues) {
         if (numClues < MIN_CLUES) return null;
-        Sudoku grid = configSeed().firstSolution();
+        Sudoku grid = configSeed().solution();
         if (numClues >= SPACES) return grid;
         return generatePuzzle(grid, numClues, null, 0, 0L, true);
+    }
+
+    public Sudoku generatePuzzle(
+        int numClues,
+        SudokuSieve sieve,
+        int difficulty,
+        long timeoutMs,
+        boolean useSieve
+    ) {
+        return Sudoku.generatePuzzle(this, numClues, sieve, difficulty, timeoutMs, useSieve);
     }
 
     /**
@@ -520,17 +1086,17 @@ public class Sudoku {
     public static Sudoku generatePuzzle(
         Sudoku grid,
         int numClues,
-        List<SudokuMask> sieve,
+        SudokuSieve sieve,
         int difficulty,
         long timeoutMs,
         boolean useSieve
     ) {
         if (numClues < MIN_CLUES)
             return null;
-        if (sieve != null && !sieve.isEmpty() && grid == null)
+        if (sieve != null && grid == null)
             throw new IllegalArgumentException("Sieve provided without grid");
         if (grid == null)
-            grid = configSeed().firstSolution();
+            grid = configSeed().solution();
         if (!grid.isSolved())
             throw new IllegalArgumentException("Solution grid is invalid");
         if (numClues >= SPACES)
@@ -538,7 +1104,7 @@ public class Sudoku {
         if (difficulty < 0 || difficulty > 4)
             throw new IllegalArgumentException(String.format("Invalid difficulty (%d); expected 0 <= difficulty <= 4", difficulty));
         if (sieve == null)
-            sieve = new ArrayList<>();
+            sieve = new SudokuSieve(grid);
 
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         long start = System.currentTimeMillis();
@@ -559,14 +1125,7 @@ public class Sudoku {
                 // mask &= ~cellMask(choice);
                 mask.unsetBit(choice);
 
-                // Check if mask satisfies sieve
-                boolean satisfies = true;
-                for (SudokuMask item : sieve) {
-                    if (!mask.intersects(item)) {
-                        satisfies = false;
-                        break;
-                    }
-                }
+                boolean satisfies = sieve.doesMaskSatisfy(mask);
 
                 // If not, or if there are multiple solutions,
                 // put the cell back and try the next
@@ -576,10 +1135,11 @@ public class Sudoku {
                     mask.setBit(choice);
 
                     // Once in awhile, check the time
-                    if (timeoutMs > 0L && (maskFails % 100) == 0) {
+                    if (timeoutMs > 0L && maskFails == 100) {
                         if ((System.currentTimeMillis() - start) > timeoutMs) {
                             return null;
                         }
+                        maskFails -= 100;
                     }
 
                     continue;
@@ -587,14 +1147,12 @@ public class Sudoku {
 
                 if (grid.filter(mask).solutionsFlag() != 1) {
                     puzzleCheckFails++;
-                    if (useSieve && puzzleCheckFails == 100 && sieve.size() < 36) {
-                        SudokuSieve.seedSieve(grid, sieve, 2);
-                    } else if (useSieve && puzzleCheckFails == 2500 && sieve.size() < 200) {
-                        SudokuSieve.seedSieve(grid, sieve, 3);
-                    } else if (useSieve && puzzleCheckFails > 10000 && sieve.size() < 1000) {
-                        SudokuSieve.searchForItemsFromMask(grid, sieve, mask, false);
-                    } else if (useSieve && puzzleCheckFails > 25000) {
-                        // SudokuSieve.searchForItemsFromMask(grid, sieve, mask, false);
+                    if (useSieve && puzzleCheckFails == 100 && sieve.size() < 100) {
+                        sieve.seedThreaded(sieve.fullPrintCombos(2));
+                    } else if (useSieve && puzzleCheckFails == 2000 && sieve.size() < 1000) {
+                        sieve.seedThreaded(sieve.fullPrintCombos(3));
+                    } else if (useSieve && puzzleCheckFails > 10_000 && sieve.size() < 10_000) {
+                        sieve.addFromPuzzleMask(mask);
                     }
 
                     mask.setBit(choice);
@@ -616,7 +1174,7 @@ public class Sudoku {
                 // grid.filter(mask).difficulty() != difficulty
             ) || remaining.size() == startChoices
             ) {
-                int numToPutBack = 1 + (putBacks % 4) + rand.nextInt(1 + (putBacks % 8));
+                int numToPutBack = 3 + rand.nextInt(3);
                 Shuffler.shuffle(removed);
                 for (int i = 0; i < numToPutBack; i++) {
                     int cell = removed.remove(removed.size() - 1);
@@ -632,14 +1190,10 @@ public class Sudoku {
         return grid.filter(mask);
     }
 
-    static class SudokuNode {
-        // int[] digits;
-        // int[] candidates;
-        // int[] constraints;
+    private static class SudokuNode {
         Sudoku sudoku;
         int index = -1;
         int values = -1;
-        ArrayList<SudokuNode> nexts;
         SudokuNode(Sudoku sudoku) {
             this.sudoku = sudoku;
             sudoku.reduce();
@@ -648,18 +1202,10 @@ public class Sudoku {
                 values = sudoku.candidates[index];
             }
         }
-        // void generateNextsIfNull() {
-        //     if (nexts == null) {
-        //         nexts = new ArrayList<>();
-        //         sudoku.getNextsAdditive(n -> nexts.add(new SudokuNode(n)));
-        //         Shuffler.shuffle(nexts);
-        //     }
-        // }
         SudokuNode next() {
-            // If this node's sudoku had no emptycells, then `index` and `values` would have never been set, and both would still be -1
-            if (values <= 0 || !sudoku.isValid) {
-                return null;
-            }
+            // If this node's sudoku had no emptycells, then `index` and `values`
+            // would have never been set, and both would still be -1
+            if (values <= 0 || !sudoku.isValid) return null;
 
             Sudoku s = new Sudoku(sudoku);
             int[] candidateDigits = CANDIDATES_ARR[values];
@@ -667,21 +1213,103 @@ public class Sudoku {
             s.setDigit(index, randomCandidateDigit);
             values &= ~(ENCODER[randomCandidateDigit]);
             return new SudokuNode(s);
-            // generateNextsIfNull();
-            // return (nexts.isEmpty()) ? null : nexts.remove(nexts.size() - 1);
         }
         boolean hasNext() {
             return (values > 0 && sudoku.isValid) ? true : false;
         }
     }
 
-    public void searchForSolutions3(Function<Sudoku,Boolean> solutionFoundCallback) {
+    private static class ANode {
+        Snapshot snapshot = new Snapshot();
+        int emptyCi = -1;
+        int emptyCandidates = -1;
+
+        ANode() {}
+
+        void set(Sudoku sudoku) {
+            snapshot.set(sudoku);
+            emptyCi = sudoku.pickEmptyCell();
+            emptyCandidates = -1;
+            if (!sudoku.isValid) return;
+            emptyCandidates = (snapshot.isValid && emptyCi > -1) ? snapshot.candidates[emptyCi] : -1;
+        }
+
+        boolean loadNext(Sudoku sudoku) {
+            if (emptyCandidates <= 0) {
+                return false;
+            }
+
+            do {
+                sudoku.loadFromSnapshot(snapshot);
+                int[] candidateDigits = CANDIDATES_ARR[emptyCandidates];
+
+                int randomCandidateDigit = candidateDigits[ThreadLocalRandom.current().nextInt(candidateDigits.length)];
+                // int randomCandidateDigit = candidateDigits[candidateDigits.length - 1];
+
+                sudoku.setDigit(emptyCi, randomCandidateDigit);
+                emptyCandidates -= ENCODER[randomCandidateDigit];
+
+                // sudoku.reduce();
+                for (int ni : CELL_NEIGHBORS[emptyCi]) {
+                    if (sudoku.digits[ni] == 0) sudoku.reduceCell(ni);
+                }
+
+            } while (emptyCandidates > 0 && !sudoku.isValid);
+
+            return sudoku.isValid;
+        }
+    }
+
+    public void searchForSolutions3(Function<Sudoku,Boolean> solutionCallback) {
+        Sudoku puzz = new Sudoku(this);
+        puzz.resetCandidatesAndValidity();
+        puzz.reduce();
+
+        // If we can stop early then GREAT!
+        if (!puzz.isValid) return;
+        if (puzz.isSolved()) {
+            solutionCallback.apply(puzz);
+            return;
+        }
+
+        ANode[] stack = new ANode[puzz.numEmptyCells];
+        for (int i = 0; i < stack.length; i++) stack[i] = new ANode();
+        stack[0].set(puzz);
+        stack[0].loadNext(puzz);
+        int curStackIndex = 0;
+
+        while (curStackIndex > -1) {
+            // NOTE: puzz state is modified by ANodes -- it will be kept in sync with the stack top.
+            if (!puzz.isValid) {
+                // While top does NOT have a valid alternative, POP off the stack.
+                while (curStackIndex > -1 && !stack[curStackIndex].loadNext(puzz)) curStackIndex--;
+            } else if (puzz.isSolved()) {
+                // Solution found, send to callback and possibly halt.
+                if (!solutionCallback.apply(new Sudoku(puzz))) break;
+                // While top does NOT have a valid alternative, POP off the stack.
+                while (curStackIndex > -1 && !stack[curStackIndex].loadNext(puzz)) curStackIndex--;
+            } else {
+                // Valid but not solved, PUSH to the stack.
+                curStackIndex++;
+                // Copy puzz state into node, then find/load the next valid state.
+                stack[curStackIndex].set(puzz);
+                stack[curStackIndex].loadNext(puzz);
+            }
+        }
+    }
+
+    /**
+     * Counts the puzzle's solution. (Synchronous DFS.)
+     * This may take a very long time if the puzzle is sparse.
+     * @return Number of solutions.
+     */
+    public long countSolutions() {
         Sudoku root = new Sudoku(this);
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
-        if (!root.isValid) return;
+        if (!root.isValid) return 0;
 
+        long count = 0L;
         Stack<SudokuNode> stack = new Stack<>();
         stack.push(new SudokuNode(root));
 
@@ -691,424 +1319,284 @@ public class Sudoku {
 
             if (sudoku.isSolved()) {
                 stack.pop();
-                if (solutionFoundCallback.apply(sudoku)) {
-                    continue;
-                } else {
-                    break;
-                }
-            }
-
-            SudokuNode next = top.next();
-
-            if (next == null) {
+                count++;
+            } else if (top.hasNext()) {
+                stack.push(top.next());
+            } else {
                 stack.pop();
-            } else {
-                stack.push(next);
-            }
-        }
-    }
-
-    public List<Future<List<Sudoku>>> searchForSolutions4() {
-        List<Future<List<Sudoku>>> allResults = new ArrayList<>();
-
-        Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
-
-        Queue<SudokuNode> q = new LinkedList<>();
-        q.offer(new SudokuNode(root));
-
-        List<Sudoku> preSolved = new ArrayList<>();
-        // int maxSplitSize = 16;
-        int maxSplitSize = 1 << 16;
-        while (!q.isEmpty() && q.size() < maxSplitSize) {
-            SudokuNode top = q.peek();
-            Sudoku sudoku = top.sudoku;
-
-            if (sudoku.isSolved()) {
-                q.poll();
-                preSolved.add(sudoku);
-                continue;
-            }
-
-            SudokuNode next = top.next();
-
-            if (next == null) {
-                q.poll();
-            } else {
-                q.offer(next);
             }
         }
 
-        if (!preSolved.isEmpty()) {
-            allResults.add(ThreadPool.submit(() -> preSolved));
-        }
-
-        for (SudokuNode node : q) {
-            List<Sudoku> results = new ArrayList<>();
-            allResults.add(ThreadPool.submit(() -> {
-                node.sudoku.searchForSolutions3(solution -> {
-                    results.add(solution);
-                    return true;
-                });
-                return results;
-            }));
-        }
-
-        return allResults;
+        return count;
     }
 
     /**
-     * Finds all solutions to this sudoku, using the given number of threads. This method blocks
-     * until all solutions are found, or until the specified amount of time has elapsed,
-     * at which point the TimeOutException will be thrown. Timeout will default to 1 hour if not positive.
-     *
-     * The given callback will be invoked periodically by each thread with a list of
-     * at most <code>batchSize</code> solutions as they are accumulated.
-     * @param solutionBatchCallback
-     * @param batchSize
-     * @param numThreads
-     * @param timeout
-     * @param timeoutUnit
+     * Finds all solutions to this sudoku, using the given number of threads.
+     * Blocks until all  are found, or until the specified amount of time has elapsed.
+     * @param solutionCallback Invoked with solutions as they are found.
+     * @param numThreads Number of threads to utilize.
+     * @param timeoutMs The amount of time to wait for all solutions to be found.
+     * If not positive, defaults to 1 hour.
      * @return True if all solutions were found; otherwise false (due to timeout or interruption).
      */
     public boolean searchForSolutionsAsync(
-        Consumer<List<Sudoku>> solutionBatchCallback,
-        int batchSize,
+        Consumer<Sudoku> solutionCallback,
         int numThreads,
-        long timeout,
-        TimeUnit timeoutUnit
+        long timeoutMs
     ) {
-        if (batchSize < 1) throw new IllegalArgumentException("batchSize must be positive");
         if (numThreads < 1) throw new IllegalArgumentException("numThreads must be positive");
-        if (timeout < 0L) timeout = 1L;
+        if (timeoutMs < 0L) timeoutMs = TimeUnit.HOURS.toMillis(1L);
 
         Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
+        root.resetCandidatesAndValidity();
 
         Queue<SudokuNode> q = new LinkedList<>();
         q.offer(new SudokuNode(root));
 
-        List<Sudoku> solvedBeforeSplit = new ArrayList<>();
-        final int MAX_QUEUE_SIZE = (1 << 10);
+        final int MAX_QUEUE_SIZE = numThreads * numThreads;
         while (!q.isEmpty() && q.size() < MAX_QUEUE_SIZE) {
-            SudokuNode top = q.poll();
-            Sudoku sudoku = top.sudoku;
+            SudokuNode node = q.poll();
 
-            if (sudoku.isSolved()) {
-                solvedBeforeSplit.add(sudoku);
-                if (solvedBeforeSplit.size() == batchSize) {
-                    solutionBatchCallback.accept(new ArrayList<>(solvedBeforeSplit));
-                    solvedBeforeSplit.clear();
-                }
+            if (node.sudoku.isSolved()) {
+                solutionCallback.accept(node.sudoku);
                 continue;
             }
 
             SudokuNode next;
-            while ((next = top.next()) != null) {
-                q.offer(next);
-            }
-        }
-
-        if (!solvedBeforeSplit.isEmpty()) {
-            solutionBatchCallback.accept(solvedBeforeSplit);
+            while ((next = node.next()) != null) q.offer(next);
         }
 
         ThreadPoolExecutor pool = new ThreadPoolExecutor(
-            numThreads,
-            numThreads,
-            1L,
-            TimeUnit.SECONDS,
+            numThreads, numThreads,
+            1L, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>()
         );
 
-        final int BATCH_SIZE = batchSize;
         for (SudokuNode node : q) {
             pool.submit(() -> {
-                List<Sudoku> resultBatch = new ArrayList<>();
                 node.sudoku.searchForSolutions3(solution -> {
-                    resultBatch.add(solution);
-                    if (resultBatch.size() == BATCH_SIZE) {
-                        solutionBatchCallback.accept(new ArrayList<>(resultBatch));
-                        resultBatch.clear();
-                    }
+                    solutionCallback.accept(solution);
                     return true;
                 });
-                solutionBatchCallback.accept(resultBatch);
             });
         }
 
         pool.shutdown();
         try {
-            boolean success = (timeout > 0L) ?
-                pool.awaitTermination(timeout, timeoutUnit) :
-                pool.awaitTermination(1L, TimeUnit.HOURS);
-            if (!success) {
-                pool.shutdownNow();
-            }
-            return success;
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+            return pool.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
             pool.shutdownNow();
-            return false;
-		}
+        }
+        return false;
     }
 
-    public static class SolutionCountResult {
-        private ThreadPoolExecutor pool;
-        private long timeout;
-        private TimeUnit timeoutUnit;
-        private List<Future<Boolean>> tasks;
+    /**
+     * Finds all solutions to this sudoku, using the given number of threads.
+     * This method blocks until all solutions are found, up to 1 hour.
+     * @param solutionCallbackSync Invoked with solutions as they are found.
+     * @param numThreads Number of threads to utilize.
+     * @return True if all solutions were found; otherwise false (due to timeout or interruption).
+     */
+    public boolean searchForSolutionsAsync(Consumer<Sudoku> callback, int numThreads) {
+        return searchForSolutionsAsync(callback, numThreads, TimeUnit.HOURS.toMillis(1L));
+    }
 
-        private AtomicLong longCount;
-        private SolutionCountResult(long timeout, TimeUnit timeoutUnit) {
-            this.longCount = new AtomicLong();
-            this.timeoutUnit = (timeout <= 0L) ? TimeUnit.HOURS : timeoutUnit;
-            this.timeout = (timeout <= 0L) ? 1L : timeout;
-            this.tasks = new ArrayList<>();
+    /**
+     * Finds all solutions to this sudoku, using the number of threads currently available to the JVM.
+     * This method blocks until all solutions are found, up to 1 hour.
+     * @param solutionCallbackSync Invoked with solutions as they are found.
+     * @return True if all solutions were found; otherwise false (due to timeout or interruption).
+     */
+    public boolean searchForSolutionsAsync(Consumer<Sudoku> callback) {
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        return searchForSolutionsAsync(callback, numThreads, TimeUnit.HOURS.toMillis(1L));
+    }
+
+    /**
+     * Returns an iterator of all solutions, generated sequentially and on-demand.
+     */
+    public Iterable<Sudoku> solutions() {
+        return new SolutionIterator(this);
+    }
+
+    public static class SolutionIterator implements Iterator<Sudoku>, Iterable<Sudoku> {
+        Sudoku root;
+        Sudoku next;
+        Stack<SudokuNode> stack = new Stack<>();
+
+        public SolutionIterator(Sudoku root) {
+            this.root = new Sudoku(root);
+            this.stack = new Stack<>();
+            this.root.resetCandidatesAndValidity();
+            this.stack.push(new SudokuNode(this.root));
+            findNext();
         }
 
-        /** Gets the current count.*/
-        public long get() {
-            return longCount.get();
+        @Override
+        public boolean hasNext() {
+            return next != null;
         }
 
-        /**
-         * Attempts to get the count as an integer.
-         * @return Solution count as an integer; or -1 if count is larger than <code>Integer.MAX_VALUE</code>.
-         */
-        public int getInt() {
-            if (get() <= (long)Integer.MAX_VALUE) {
-                return (int)get();
-            } else {
-                return -1;
-            }
+        @Override
+        public Sudoku next() {
+            Sudoku result = next;
+            findNext();
+            return result;
         }
 
-        /** Gets whether the count has completed.*/
-        public boolean isDone() {
-            return pool == null || pool.isTerminated();
-        }
-
-        /** Gets whether the count was successful, i.e. it didn't time out or get interrupted.*/
-        public boolean wasSuccessful() {
-            return isDone() && removeCompletedTasks();
-        }
-
-        public void interrupt() {
-            if (pool != null) pool.shutdownNow();
-        }
-
-        public boolean await() throws InterruptedException {
-            if (pool == null) return true;
-            if (isDone()) return removeCompletedTasks();
-            return pool.awaitTermination(timeout, timeoutUnit);
-        }
-
-        private void submitAndShutdown(Collection<SudokuNode> nodes, int numThreads) {
-            if (pool != null) return;
-
-            this.pool = new ThreadPoolExecutor(
-                numThreads,
-                numThreads,
-                1L,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>()
-            );
-
-            for (SudokuNode n : nodes) {
-                tasks.add(pool.submit(() -> {
-                    n.sudoku.searchForSolutions3(solution -> {
-                        longCount.incrementAndGet();
-                        return true;
-                    });
-                    return true;
-                }));
-            }
-
-            pool.shutdown();
-        }
-
-        private boolean removeCompletedTasks() {
-            for (int i = tasks.size() - 1; i >= 0; i--) {
-                Future<Boolean> task = tasks.get(i);
-                if (task.isDone()) {
-                    try {
-						if (task.get()) {
-						    tasks.remove(i);
-						}
-					} catch (InterruptedException | ExecutionException e) {
-                        return false;
-					}
+        private void findNext() {
+            next = null;
+            while (!stack.isEmpty()) {
+                SudokuNode node = stack.peek();
+                if (node.sudoku.isSolved()) {
+                    next = node.sudoku;
+                    stack.pop();
+                    return;
+                } else if (node.hasNext()) {
+                    stack.push(node.next());
+                } else {
+                    stack.pop();
                 }
             }
-            return true;
+        }
+
+        @Override
+        public Iterator<Sudoku> iterator() {
+            return this;
         }
     }
 
-    static ThreadPoolExecutor pool = new ThreadPoolExecutor(
-        1, 8,
-        10L, TimeUnit.MILLISECONDS,
-        new LinkedBlockingQueue<>()
-    );
+    /**
+     * Counts the number of solutions to this sudoku with the given number of threads.
+     * Even with multiple threads, a very sparse puzzle may take a long time.
+     */
+    public long countSolutionsAsync(int numThreads) {
+        if (numThreads < 1) throw new IllegalArgumentException("numThreads must be positive");
 
-    public void searchForSolutionsAsync(
-        Consumer<Sudoku> solutionsCallbackAsync,
-        int maxThreads
-    ) {
+        AtomicLong count = new AtomicLong();
+
         Sudoku root = new Sudoku(this);
-        if (root.isSolved()) {
-            solutionsCallbackAsync.accept(root);
-            return;
-        }
         // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
-        root.reduce();
-        if (root.isSolved()) {
-            solutionsCallbackAsync.accept(root);
-            return;
+        root.resetCandidatesAndValidity();
+
+        int maxSplitSize = numThreads * numThreads;
+        Queue<SudokuNode> queue = new LinkedList<>();
+        queue.offer(new SudokuNode(root));
+        while (!queue.isEmpty() && queue.size() < maxSplitSize) {
+            SudokuNode node = queue.poll();
+
+            if (node.sudoku.isSolved()) {
+                count.incrementAndGet();
+                continue;
+            }
+
+            while (node.hasNext()) queue.offer(node.next());
         }
 
-        // ThreadPoolExecutor pool = new ThreadPoolExecutor(
-        //     1, maxThreads,
-        //     10L, TimeUnit.MILLISECONDS,
-        //     new LinkedBlockingQueue<>()
-        // );
+        if (queue.isEmpty()) return count.get();
 
-        AtomicInteger threadsActive = new AtomicInteger(1);
-        pool.submit(() -> {
-            searchForSolutionsAsyncWorker(new SudokuNode(root), solutionsCallbackAsync, threadsActive);
-        });
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            numThreads, numThreads,
+            1L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>()
+        );
 
-        while (threadsActive.get() > 0) {
-            try {
-                // System.out.println("waiting on " + threadsActive.get() + " threads");
-                Thread.sleep(10L);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
+        while (!queue.isEmpty()) {
+            SudokuNode node = queue.poll();
+            pool.submit(() -> {
+                long localCount = node.sudoku.countSolutions();
+                count.addAndGet(localCount);
+            });
         }
 
         pool.shutdown();
         try {
-            pool.awaitTermination(1L, TimeUnit.HOURS);
+            pool.awaitTermination(1L, TimeUnit.DAYS);
         } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
+
+        return count.get();
     }
-
-    public static void searchForSolutionsAsyncWorker(
-        SudokuNode node,
-        Consumer<Sudoku> solutionsCallbackAsync,
-        AtomicInteger threadsActive
-    ) {
-        long startTime = System.currentTimeMillis();
-
-        ArrayList<SudokuNode> stack = new ArrayList<>();
-        stack.add(node);
-        while (!stack.isEmpty()) {
-            long curTime = System.currentTimeMillis();
-            long timeSinceStart = curTime - startTime;
-            if (!pool.isShutdown() && timeSinceStart > 25L && stack.size() > 3) {
-                startTime = curTime;
-
-                // Fast-forward in case all the nexts have been used on the lower end of the stack
-                SudokuNode firstNode; do {
-                    firstNode = stack.remove(0);
-                } while(!firstNode.hasNext() && stack.size() > 3);
-
-                if (firstNode.hasNext()) {
-                    while (firstNode.hasNext()) {
-                        SudokuNode next = firstNode.next();
-                        threadsActive.incrementAndGet();
-                        pool.submit(() -> {
-                            searchForSolutionsAsyncWorker(next, solutionsCallbackAsync, threadsActive);
-                        });
-                    }
-                }
-                // At this point, there is at least 3 items left in the stack,
-                // therefore safe to stack.peek() below.
-            }
-
-            SudokuNode top = stack.get(stack.size() - 1); // top = peek
-            if (top.sudoku.isSolved()) {
-                solutionsCallbackAsync.accept(top.sudoku);
-            }
-
-            // If necessary, rewind top until a node with nexts is found
-            while (!stack.isEmpty() && !(top = stack.get(stack.size() - 1)).hasNext()) {
-                stack.remove(stack.size() - 1); // pop
-            }
-
-            if (top.hasNext()) {
-                stack.add(top.next());
-            } // else stack is empty and the while loop will end
-        }
-
-        threadsActive.decrementAndGet();
-    }
-
-
 
     /**
-     * Counts the number of solutions to this sudoku with the given number of threads,
-     * up to the given amount of time. Timeout will default to 1 hour if not positive.
-     * @param numThreads
-     * @param timeout
-     * @param timeoutUnit
-     * @return
+     * Generates a random full Sudoku grid.
      */
-    public SolutionCountResult countSolutionsAsync(int numThreads, long timeout, TimeUnit timeoutUnit) {
-        SolutionCountResult result = new SolutionCountResult(timeout, timeoutUnit);
+    public static Sudoku generateConfig() {
+        return configSeed().solution();
+    }
 
-        Sudoku root = new Sudoku(this);
-        // Ensure candidates and constraints are in good order for the search
-        root.resetEmptyCells();
-        root.resetConstraints();
-
-        Queue<SudokuNode> q = new LinkedList<>();
-        q.offer(new SudokuNode(root));
-
-        int maxSplitSize = (1 << 10);
-        while (!q.isEmpty() && q.size() < maxSplitSize) {
-            SudokuNode top = q.poll();
-            Sudoku sudoku = top.sudoku;
-
-            if (sudoku.isSolved()) {
-                result.longCount.incrementAndGet();
-                continue;
-            }
-
-            SudokuNode next;
-            while ((next = top.next()) != null) {
-                q.offer(next);
-            }
+    /**
+     * Generate a given amount of random sudoku grids.
+     * @param amount Number of grids to generate.
+     * @param list List to store the grids.
+     * @return The given list, for convenience.
+     */
+    public static List<Sudoku> generateConfigs(int amount, List<Sudoku> list) {
+        for (int n = 0; n < amount; n++) {
+            list.add(generateConfig());
         }
+        return list;
+    }
 
-        if (!q.isEmpty()) {
-            result.submitAndShutdown(q, numThreads);
-        }
-
-        return result;
+    /**
+     * Generate a give amount of random sudoku grids.
+     * @param amount Number of grids to generate.
+     * @return A newly List containing the generated grids.
+     */
+    public static List<Sudoku> generateConfigs(int amount) {
+        return generateConfigs(amount, new ArrayList<>(amount));
     }
 
     /**
      * Searches for and returns the first solution.
      * @return A new Sudoku instance (the solution).
      */
-    public Sudoku firstSolution() {
+    public Sudoku solution() {
         AtomicReference<Sudoku> result = new AtomicReference<>();
         searchForSolutions3(solution -> {
             result.set(solution);
             return false;
         });
         return result.get();
+    }
+
+    public List<Sudoku> getAllSolutions() {
+        return getAllSolutions(new ArrayList<>());
+    }
+
+    public List<Sudoku> getAllSolutions(List<Sudoku> list) {
+        searchForSolutions3(solution -> {
+            list.add(solution);
+            return false;
+        });
+        return list;
+    }
+
+    public List<Sudoku> getSolutions(int amount, List<Sudoku> list) {
+        searchForSolutions3(solution -> {
+            list.add(solution);
+            return list.size() < amount;
+        });
+        return list;
+    }
+
+    public void solve() {
+        AtomicReference<Sudoku> solution = new AtomicReference<>();
+        searchForSolutions3(_solution -> {
+            solution.set(_solution);
+            return false;
+        });
+
+        Sudoku _solution = solution.get();
+        if (_solution != null) {
+            this.numEmptyCells = _solution.numEmptyCells;
+            this.isValid = _solution.isValid;
+            System.arraycopy(_solution.digits, 0, this.digits, 0, SPACES);
+            System.arraycopy(_solution.candidates, 0, this.candidates, 0, SPACES);
+            System.arraycopy(_solution.constraints, 0, this.constraints, 0, DIGITS);
+        }
     }
 
     /**
@@ -1122,13 +1610,16 @@ public class Sudoku {
             int originalVal = candidates[ci];
             if (originalVal == 0) return false;
             if (digits[ci] == 0) {
+                int count = 0;
                 for (int candidateDigit : CANDIDATES_ARR[originalVal]) {
                     setDigit(ci, candidateDigit); // mutates constraints
                     int flag = solutionsFlag();
                     setDigit(ci, 0); // undo the constraints mutation
                     candidates[ci] = originalVal;
-                    if (flag != 1) return false;
+                    if (flag == 2) return false;
+                    if (flag == 1) count++;
                 }
+                if (count < 2) return false;
             }
         }
         return true;
@@ -1178,32 +1669,12 @@ public class Sudoku {
         return result;
     }
 
-    /**
-     * Generates a code for the solved sudoku.
-     * The code will be the same regardless of how the board is manipulated by
-     * symmetry-preserving transforms (rotating, mirroring, digit-swapping).
-     * This Sudoku must be solved before generating, or an exception will be thrown.
-     * The level indicates granularity. Higher levels involve exponentially more calculation.
-     * @param level From 2-4, Not recommended higher than 4.
-     * @return A 'fingerprint' code.
-     */
-    public String fingerprint(int level) {
-        if (level < 2 || level > 8) {
-            throw new IllegalArgumentException("sudoku fingerprint level (f) must be 2 <= f <= 8");
-        }
-
-        if (!SudokuUtility.isSolved(getBoard())) {
-            throw new IllegalArgumentException("cannot compute fingerprint: sudoku grid must be full");
-        }
-
-        SudokuSieve sieve = new SudokuSieve(getBoard());
-        sieve.seed(level);
-
+    private String fpFromSieve(int level, SudokuSieve sieve) {
         // Track the maximum number of cells used by any unavoidable set
         // int minNumCells = SPACES;
         int maxNumCells = 0;
         int[] itemCountByNumCells = new int[SPACES];
-        for (SudokuMask ua : sieve.items(new ArrayList<>())) {
+        for (SudokuMask ua : sieve.items()) {
             int numCells = ua.bitCount();
             itemCountByNumCells[numCells]++;
             // if (numCells < minNumCells) minNumCells = numCells;
@@ -1216,7 +1687,7 @@ public class Sudoku {
             // In level 2, there can be no UAs using an odd number of cells,
             // because each cell must have at least one complement.
             // Skipping odd numbers avoids "::", keeping the fingerprint short.
-            if (level == 2 && (numCells % 2) > 0) {
+            if (level == 2 && (numCells & 1) == 1) {
                 continue;
             }
 
@@ -1225,6 +1696,40 @@ public class Sudoku {
         }
 
         return String.join(":", itemsList);
+    }
+
+    private String dc(int level) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        sieve.seed(sieve.digitCombos(level));
+        return fpFromSieve(level, sieve);
+    }
+
+    private String ac(int level) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        sieve.seed(sieve.areaCombos(level));
+        return fpFromSieve(level, sieve);
+    }
+
+    public String dc2() { return dc(2); }
+    public String dc3() { return dc(3); }
+    public String dc4() { return dc(4); }
+
+    public String ac2() { return ac(2); }
+    public String ac3() { return ac(3); }
+    public String ac4() { return ac(4); }
+
+    public String fp2() { return fp(2); }
+    public String fp3() { return fp(3); }
+    public String fp4() { return fp(4); }
+    public String fp(int level) { return fp(level, 1); }
+    public String fp(int level, int numThreads) {
+        SudokuSieve sieve = new SudokuSieve(getBoard());
+        if (numThreads == 1) {
+            sieve.seed(sieve.fullPrintCombos(level));
+        } else {
+            sieve.seedThreaded(sieve.fullPrintCombos(level), numThreads);
+        }
+        return fpFromSieve(level, sieve);
     }
 
     /***********************************************
@@ -1247,7 +1752,7 @@ public class Sudoku {
      * @param b 1 through 9
      */
     public void swapDigits(int a, int b) {
-		if (a == b) return;
+        if (a == b) return;
         if (a <= 0 || a > 9 || b <= 0 || b > 9) return;
         for (int i = 0; i < SPACES; i++) {
             int d = digits[i];
@@ -1257,7 +1762,7 @@ public class Sudoku {
                 setDigit(i, a);
             }
         }
-	}
+    }
 
     /**
      * Rearranges the board digits so the top row is sequential.
@@ -1266,11 +1771,11 @@ public class Sudoku {
      */
     public Sudoku normalize() {
         for (int d = 1; d <= DIGITS; d++) {
-			int cellDigit = digits[d - 1];
-			if (cellDigit > 0 && cellDigit != d) {
-				swapDigits(cellDigit, d);
-			}
-		}
+            int cellDigit = digits[d - 1];
+            if (cellDigit > 0 && cellDigit != d) {
+                swapDigits(cellDigit, d);
+            }
+        }
         return this;
     }
 
@@ -1280,10 +1785,9 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku rotate(int turns) {
-        turns = ((turns % 4) + 4) % 4;
         for (int t = 0; t < turns; t++) {
-            SudokuUtility.rotate90(candidates);
-            SudokuUtility.rotate90(digits);
+            rotate90(candidates, DIGITS);
+            rotate90(digits, DIGITS);
         }
         return this;
     }
@@ -1293,8 +1797,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku reflectHorizontal() {
-        SudokuUtility.reflectOverHorizontal(candidates, DIGITS);
-        SudokuUtility.reflectOverHorizontal(digits, DIGITS);
+        reflectOverHorizontal(candidates, DIGITS);
+        reflectOverHorizontal(digits, DIGITS);
         return this;
     }
 
@@ -1303,8 +1807,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku reflectVertical() {
-        SudokuUtility.reflectOverVertical(candidates, DIGITS);
-        SudokuUtility.reflectOverVertical(digits, DIGITS);
+        reflectOverVertical(candidates, DIGITS);
+        reflectOverVertical(digits, DIGITS);
         return this;
     }
 
@@ -1313,8 +1817,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku reflectDiagonal() {
-        SudokuUtility.reflectOverDiagonal(candidates);
-        SudokuUtility.reflectOverDiagonal(digits);
+        reflectOverDiagonal(candidates, DIGITS);
+        reflectOverDiagonal(digits, DIGITS);
         return this;
     }
 
@@ -1323,8 +1827,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku reflectAntiDiagonal() {
-        SudokuUtility.reflectOverAntiDiagonal(candidates);
-        SudokuUtility.reflectOverAntiDiagonal(digits);
+        reflectOverAntiDiagonal(candidates, DIGITS);
+        reflectOverAntiDiagonal(digits, DIGITS);
         return this;
     }
 
@@ -1335,8 +1839,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku swapBands(int b1, int b2) {
-        SudokuUtility.swapBands(candidates, b1, b2);
-        SudokuUtility.swapBands(digits, b1, b2);
+        swapBands(candidates, b1, b2);
+        swapBands(digits, b1, b2);
         return this;
     }
 
@@ -1348,8 +1852,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku swapBandRows(int bi, int ri1, int ri2) {
-        SudokuUtility.swapBandRows(candidates, bi, ri1, ri2);
-        SudokuUtility.swapBandRows(digits, bi, ri1, ri2);
+        swapBandRows(candidates, bi, ri1, ri2);
+        swapBandRows(digits, bi, ri1, ri2);
         return this;
     }
 
@@ -1360,8 +1864,8 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku swapStacks(int s1, int s2) {
-        SudokuUtility.swapStacks(candidates, s1, s2);
-        SudokuUtility.swapStacks(digits, s1, s2);
+        swapStacks(candidates, s1, s2);
+        swapStacks(digits, s1, s2);
         return this;
     }
 
@@ -1373,8 +1877,54 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku swapStackCols(int si, int ci1, int ci2) {
-        SudokuUtility.swapStackCols(candidates, si, ci1, ci2);
-        SudokuUtility.swapStackCols(digits, si, ci1, ci2);
+        swapStackCols(candidates, si, ci1, ci2);
+        swapStackCols(digits, si, ci1, ci2);
+        return this;
+    }
+
+    public Sudoku scramble() {
+        rotate(ThreadLocalRandom.current().nextInt(4));
+
+        int[] digits = new int[9];
+        for (int d = 1; d <= 9; d++)
+            digits[d - 1] = d;
+        Shuffler.shuffle(digits);
+        for (int d = 1; d <= 9; d++)
+            swapDigits(d, digits[d - 1]);
+
+        List<Runnable> transforms = new ArrayList<>(){{
+            add(() -> swapBands(0, 1));
+            add(() -> swapBands(0, 2));
+            add(() -> swapBands(1, 2));
+            add(() -> swapBandRows(0, 0, 1));
+            add(() -> swapBandRows(0, 0, 2));
+            add(() -> swapBandRows(0, 1, 2));
+            add(() -> swapBandRows(1, 0, 1));
+            add(() -> swapBandRows(1, 0, 2));
+            add(() -> swapBandRows(1, 1, 2));
+            add(() -> swapBandRows(2, 0, 1));
+            add(() -> swapBandRows(2, 0, 2));
+            add(() -> swapBandRows(2, 1, 2));
+            add(() -> swapStacks(0, 1));
+            add(() -> swapStacks(0, 2));
+            add(() -> swapStacks(1, 2));
+            add(() -> swapStackCols(0, 0, 1));
+            add(() -> swapStackCols(0, 0, 2));
+            add(() -> swapStackCols(0, 1, 2));
+            add(() -> swapStackCols(1, 0, 1));
+            add(() -> swapStackCols(1, 0, 2));
+            add(() -> swapStackCols(1, 1, 2));
+            add(() -> swapStackCols(2, 0, 1));
+            add(() -> swapStackCols(2, 0, 2));
+            add(() -> swapStackCols(2, 1, 2));
+            add(() -> reflectHorizontal());
+            add(() -> reflectVertical());
+            add(() -> reflectDiagonal());
+            add(() -> reflectAntiDiagonal());
+        }};
+        for (int t = 0; t < 137; t++)
+            transforms.get(ThreadLocalRandom.current().nextInt(28)).run();
+
         return this;
     }
 
@@ -1505,11 +2055,9 @@ public class Sudoku {
 
     @Override
     public String toString() {
-        // return new String(str);
-
         StringBuilder strb = new StringBuilder();
         for (int d : this.digits) {
-            strb.append((d > 0) ? Integer.toString(d) : ".");
+            strb.append((d > 0) ? (char)('0' + d) : '.');
         }
         return strb.toString();
     }
@@ -1518,6 +2066,31 @@ public class Sudoku {
      * @return A multi-line string representation of the puzzle.
      */
     public String toFullString() {
-        return SudokuUtility.toFullString(digits);
+        return toFullString(digits);
+    }
+
+    /**
+     * @return A multi-line string representation of the puzzle.
+     */
+    public String toMedString() {
+        return toMedString(digits);
+    }
+
+    /**
+     * Export this sudoku digits as 41 bytes.
+     * For use with <code>new Sudoku(bytesArr)</code>.
+     * @return A byte array containing this sudoku's digit information.
+     */
+    public byte[] toBytes() {
+        if (numEmptyCells == SPACES) return new byte[41];
+
+        int len = 41;
+        byte[] result = new byte[len];
+        for (int i = 0; i < len - 1; i++) {
+            result[i] = (byte)( ((digits[i*2] & 0xf) << 4) + (digits[i*2 + 1] & 0xf) );
+        }
+        result[40] = (byte)( ((digits[80] & 0xf) << 4) + 0xf );
+
+        return result;
     }
 }

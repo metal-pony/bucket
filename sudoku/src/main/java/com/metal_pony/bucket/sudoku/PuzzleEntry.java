@@ -1,106 +1,121 @@
 package com.metal_pony.bucket.sudoku;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Scanner;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.stream.Stream;
 
 import com.google.gson.Gson;
+import com.metal_pony.bucket.util.ThreadPool;
 
 public class PuzzleEntry {
     static final String RESOURCES_DIR = "resources";
-    static final String PUZZLES_17_RESOURCE = "17-puzzle-records.json";
+    static final String PUZZLES_17_JSON_RESOURCE = "17-puzzle-records.json";
+    static final String PUZZLES_17_RESOURCE = "sudoku-17.txt";
+
+    static InputStream puzzles17Stream() {
+        String rscName = String.format("/%s/%s", RESOURCES_DIR, PUZZLES_17_RESOURCE);
+        return PuzzleEntry.class.getResourceAsStream(rscName);
+    }
 
     String puzzle;
+    Sudoku _puzzle;
     String solution;
-    String fingerprint2;
-    String fingerprint3;
-    String fingerprint4;
+    Sudoku _solution;
+
+    String dc2, dc3, dc4;
+    String ac2, ac3, ac4;
+    String fp2, fp3, fp4;
+
+    public PuzzleEntry(String puzzle) {
+        this.puzzle = puzzle;
+    }
 
     public PuzzleEntry(
         String puzzle,
         String solution,
-        String fingerprint2,
-        String fingerprint3,
-        String fingerprint4
+        String dc2, String dc3, String dc4,
+        String ac2, String ac3, String ac4,
+        String fp2, String fp3, String fp4
     ) {
         this.puzzle = puzzle;
         this.solution = solution;
-        this.fingerprint2 = fingerprint2;
-        this.fingerprint3 = fingerprint3;
-        this.fingerprint4 = fingerprint4;
+        this.dc2 = dc2;
+        this.dc3 = dc3;
+        this.dc4 = dc4;
+        this.ac2 = ac2;
+        this.ac3 = ac3;
+        this.ac4 = ac4;
+        this.fp2 = fp2;
+        this.fp3 = fp3;
+        this.fp4 = fp4;
     }
 
+    public String puzzleStr() { return puzzle; }
     public Sudoku puzzle() {
-        return new Sudoku(puzzle);
+        return (_puzzle == null) ? (_puzzle = new Sudoku(puzzle)) : _puzzle;
     }
 
-    public void clear() {
-        solution = null;
-        fingerprint2 = null;
-        fingerprint3 = null;
-        fingerprint4 = null;
-    }
-
-    /**
-     * Gets the puzzle's solution. Computed as firstSolution if not cached.
-     */
-    public String solution() {
-        if (solution == null) {
-            solution = new Sudoku(puzzle).firstSolution().toString();
+    public String solutionStr() {
+        if (solution == null || solution.isBlank()) {
+            _solution = puzzle().solution();
+            solution = _solution.toString();
         }
         return solution;
     }
 
-    /**
-     * Gets the solution's fingerprint (level 2).
-     * Computed if not already cached.
-     * @return Solution's fingerprint.
-     */
-    public String fingerprint2() {
-        if (fingerprint2 == null) {
-            fingerprint2 = new Sudoku(solution()).fingerprint(2);
+    public Sudoku solution() {
+        if (solution == null || solution.isBlank()) {
+            _solution = puzzle().solution();
+            solution = _solution.toString();
+        } else if (_solution == null) {
+            _solution = puzzle().solution();
         }
-        return fingerprint2;
+        return _solution;
     }
 
-    /**
-     * Gets the solution's fingerprint (level 3).
-     * Computed if not already cached.
-     * @return Solution's fingerprint.
-     */
-    public String fingerprint3() {
-        if (fingerprint3 == null) {
-            fingerprint3 = new Sudoku(solution()).fingerprint(3);
-        }
-        return fingerprint3;
+    public void clear() {
+        solution = null;
+        dc2 = null; dc3 = null; dc4 = null;
+        ac2 = null; ac3 = null; ac4 = null;
+        fp2 = null; fp3 = null; fp4 = null;
     }
 
-    /**
-     * Gets the solution's fingerprint (level 4).
-     * Computed if not already cached. Computation may block for several seconds.
-     * @return Solution's fingerprint.
-     */
-    public String fingerprint4() {
-        if (fingerprint4 == null) {
-            fingerprint4 = new Sudoku(solution()).fingerprint(4);
-        }
-        return fingerprint4;
-    }
+    public String dc2() { return (dc2 == null) ? (dc2 = solution().dc2()) : dc2; }
+    public String dc3() { return (dc3 == null) ? (dc3 = solution().dc3()) : dc3; }
+    public String dc4() { return (dc4 == null) ? (dc4 = solution().dc4()) : dc4; }
+    public String ac2() { return (ac2 == null) ? (ac2 = solution().ac2()) : ac2; }
+    public String ac3() { return (ac3 == null) ? (ac3 = solution().ac3()) : ac3; }
+    public String ac4() { return (ac4 == null) ? (ac4 = solution().ac4()) : ac4; }
+    public String fp2() { return (fp2 == null) ? (fp2 = solution().fp2()) : fp2; }
+    public String fp3() { return (fp3 == null) ? (fp3 = solution().fp3()) : fp3; }
+    public String fp4() { return (fp4 == null) ? (fp4 = solution().fp4()) : fp4; }
 
+    private static final String JSON_FORMAT = """
+    {
+      "puzzle":   "%s",
+      "solution": "%s",
+      "fp2":      "%s",
+      "fp3":      "%s"
+    }""";
     @Override
     public String toString() {
-        return String.format(
-            """
-            {
-              "puzzle":       "%s",
-              "solution":     "%s",
-              "fingerprint2": "%s",
-              "fingerprint3": "%s",
-              "fingerprint4": "%s"
-            }""",
-            puzzle, solution(), fingerprint2(), fingerprint3(), fingerprint4()
-        );
+        return String.format(JSON_FORMAT, puzzleStr(), solutionStr(), fp2(), fp3());
+    }
+
+    private static final String CSV_FORMAT = "%s,%s,%s,%s,%s";
+    public String toCsv() {
+        return String.format(CSV_FORMAT, puzzleStr(), solutionStr(), dc2(), dc3(), fp3());
     }
 
     /**
@@ -127,8 +142,93 @@ public class PuzzleEntry {
             PuzzleEntry.class.getResourceAsStream(String.format(
                 "/%s/%s",
                 RESOURCES_DIR,
+                PUZZLES_17_JSON_RESOURCE
+            ))
+        );
+    }
+
+    public static List<PuzzleEntry> allSudoku17() {
+        List<PuzzleEntry> entries = new ArrayList<>();
+
+        Scanner scanner = new Scanner(
+            PuzzleEntry.class.getResourceAsStream(String.format(
+                "/%s/%s",
+                RESOURCES_DIR,
                 PUZZLES_17_RESOURCE
             ))
         );
+
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine().trim();
+            if (line.isEmpty()) continue;
+            entries.add(new PuzzleEntry(line));
+        }
+
+        scanner.close();
+        return entries;
+    }
+
+    public static Stream<PuzzleEntry> allSudoku17AsStream() {
+        Scanner scanner = new Scanner(
+            PuzzleEntry.class.getResourceAsStream(String.format(
+                "/%s/%s",
+                RESOURCES_DIR,
+                PUZZLES_17_RESOURCE
+            ))
+        );
+        return Stream.generate(() -> {
+            try {
+                if (scanner.hasNextLine()) {
+                    String line = scanner.nextLine().trim();
+                    if (Sudoku.isValidStr(line)) {
+                        return new PuzzleEntry(line);
+                    } else {
+                        System.err.println("failed to create sudoku from file line\n" + line);
+                        return null;
+                    }
+                } else {
+                    scanner.close();
+                    return null;
+                }
+            } catch (IllegalStateException ex) {
+                // The scanner may be closed
+                return null;
+            }
+        });
+    }
+
+    public static void buildCSV(String outFilePath, int numThreads) {
+        ThreadPool.setSizeAndStart(numThreads);
+        Queue<Future<String>> entries = new LinkedList<>();
+
+        try (
+            InputStream sudoku17inStream = puzzles17Stream();
+            Scanner sudoku17Scanner = new Scanner(sudoku17inStream);
+        ) {
+            while (sudoku17Scanner.hasNextLine()) {
+                String line = sudoku17Scanner.nextLine().trim();
+                if (line.isEmpty()) continue;
+                entries.offer(ThreadPool.submit(() -> new PuzzleEntry(line).toCsv()));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ThreadPool.shutdown();
+
+        try (
+            PrintWriter fOut = new PrintWriter(outFilePath);
+        ) {
+            int n = 0;
+            while (!entries.isEmpty()) {
+                Future<String> entry = entries.poll();
+                String entryStr = entry.get();
+                System.out.printf("[%d] %s\n", n, entryStr);
+                fOut.println(entryStr);
+                n++;
+            }
+        } catch (FileNotFoundException | InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
     }
 }
