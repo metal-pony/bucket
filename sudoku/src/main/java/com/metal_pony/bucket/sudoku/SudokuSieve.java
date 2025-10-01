@@ -246,10 +246,10 @@ public class SudokuSieve {
 
         pool.shutdown();
         try {
-			pool.awaitTermination(1L, TimeUnit.DAYS);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+            pool.awaitTermination(1L, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void seedThreaded(Collection<SudokuMask> masks) {

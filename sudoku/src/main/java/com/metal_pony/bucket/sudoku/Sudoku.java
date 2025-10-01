@@ -106,12 +106,12 @@ public class Sudoku {
     }
 
     public static int cellRow(int ci) { return ci / DIGITS; }
-	public static int cellCol(int ci) { return ci % DIGITS; }
-	public static int cellRegion(int ci) {
-		int regionRow = ci / (RANK * DIGITS);
-		int regionCol = (ci % DIGITS) / RANK;
-		return (regionRow * RANK) + regionCol;
-	}
+    public static int cellCol(int ci) { return ci % DIGITS; }
+    public static int cellRegion(int ci) {
+        int regionRow = ci / (RANK * DIGITS);
+        int regionCol = (ci % DIGITS) / RANK;
+        return (regionRow * RANK) + regionCol;
+    }
 
     public static int[] CELL_ROWS = new int[SPACES];
     public static int[] CELL_COLS = new int[SPACES];
@@ -141,7 +141,7 @@ public class Sudoku {
 
             int band = row / RANK;
             int rowInBand = row % RANK;
-		    int stack = col / RANK;
+            int stack = col / RANK;
             int colInStack = col % RANK;
             int indexInBand = i % (DIGITS * RANK);
             int indexInStack = (row * RANK) + colInStack;
@@ -190,199 +190,199 @@ public class Sudoku {
 
     private static boolean isAreaValid(int[] digits, int[] areaIndices) {
         if (digits.length != SPACES) return false;
-		int digitsSeen = 0;
-		for (int i = 0; i < DIGITS; i++) {
-			int digit = digits[areaIndices[i]];
-            if (digit < 0 || digit > DIGITS) return false;
-			if (digit > 0) {
-				int digitMask = 1 << (digit - 1);
-				if ((digitMask & digitsSeen) > 0) return false;
-				digitsSeen |= digitMask;
-			}
-		}
-		return true;
-	}
-
-	private static boolean isAreaFull(int[] digits, int[] areaIndices) {
-        if (digits.length != SPACES) return false;
-		for (int i = 0; i < DIGITS; i++) {
+        int digitsSeen = 0;
+        for (int i = 0; i < DIGITS; i++) {
             int digit = digits[areaIndices[i]];
-			if (digit <= 0 || digit > DIGITS) return false;
-		}
-		return true;
-	}
+            if (digit < 0 || digit > DIGITS) return false;
+            if (digit > 0) {
+                int digitMask = 1 << (digit - 1);
+                if ((digitMask & digitsSeen) > 0) return false;
+                digitsSeen |= digitMask;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAreaFull(int[] digits, int[] areaIndices) {
+        if (digits.length != SPACES) return false;
+        for (int i = 0; i < DIGITS; i++) {
+            int digit = digits[areaIndices[i]];
+            if (digit <= 0 || digit > DIGITS) return false;
+        }
+        return true;
+    }
 
     public static boolean isRowValid(int[] digits, int rowIndex) {
-		return isAreaValid(digits, ROW_INDICES[rowIndex]);
-	}
+        return isAreaValid(digits, ROW_INDICES[rowIndex]);
+    }
 
-	public static boolean isColValid(int[] digits, int colIndex) {
-		return isAreaValid(digits, COL_INDICES[colIndex]);
-	}
+    public static boolean isColValid(int[] digits, int colIndex) {
+        return isAreaValid(digits, COL_INDICES[colIndex]);
+    }
 
-	public static boolean isRegionValid(int[] digits, int regionIndex) {
-		return isAreaValid(digits, REGION_INDICES[regionIndex]);
-	}
+    public static boolean isRegionValid(int[] digits, int regionIndex) {
+        return isAreaValid(digits, REGION_INDICES[regionIndex]);
+    }
 
-	public static boolean isRowFull(int[] digits, int rowIndex) {
-		return isAreaFull(digits, ROW_INDICES[rowIndex]);
-	}
+    public static boolean isRowFull(int[] digits, int rowIndex) {
+        return isAreaFull(digits, ROW_INDICES[rowIndex]);
+    }
 
-	public static boolean isColFull(int[] digits, int colIndex) {
-		return isAreaFull(digits, COL_INDICES[colIndex]);
-	}
+    public static boolean isColFull(int[] digits, int colIndex) {
+        return isAreaFull(digits, COL_INDICES[colIndex]);
+    }
 
-	public static boolean isRegionFull(int[] digits, int regionIndex) {
-		return isAreaFull(digits, REGION_INDICES[regionIndex]);
-	}
+    public static boolean isRegionFull(int[] digits, int regionIndex) {
+        return isAreaFull(digits, REGION_INDICES[regionIndex]);
+    }
 
     public static boolean isValid(int[] digits) {
-		if (digits.length != SPACES) return false;
-
-		int[] rowValidity = new int[DIGITS];
-		int[] colValidity = new int[DIGITS];
-		int[] regionValidity = new int[DIGITS];
-
-		for (int ci = 0; ci < SPACES; ci++) {
-			int digit = digits[ci];
-            if (digit < 0 || digit > DIGITS) return false;
-			if (digit == 0) continue;
-
-			int row = CELL_ROWS[ci];
-			int col = CELL_COLS[ci];
-			int region = CELL_REGIONS[ci];
-			int digitMask = 1 << (digit - 1);
-			if (
-                (digitMask & rowValidity[row]) > 0 ||
-                (digitMask & colValidity[col]) > 0 ||
-                (digitMask & regionValidity[region]) > 0
-			) {
-				return false;
-			}
-			rowValidity[row] |= digitMask;
-			colValidity[col] |= digitMask;
-			regionValidity[region] |= digitMask;
-		}
-
-		return true;
-	}
-
-	public static boolean isFull(int[] digits) {
-		if (digits.length != SPACES) return false;
-		for (int ci = 0; ci < DIGITS; ci++) {
-			if (digits[ci] <= 0 || digits[ci] > DIGITS) return false;
-		}
-		return true;
-	}
-
-	public static boolean isSolved(int[] digits) {
-		if (digits.length != SPACES) return false;
+        if (digits.length != SPACES) return false;
 
         int[] rowValidity = new int[DIGITS];
-		int[] colValidity = new int[DIGITS];
-		int[] regionValidity = new int[DIGITS];
+        int[] colValidity = new int[DIGITS];
+        int[] regionValidity = new int[DIGITS];
 
-		for (int ci = 0; ci < SPACES; ci++) {
-			int digit = digits[ci];
-            if (digit <= 0 || digit > DIGITS) return false;
+        for (int ci = 0; ci < SPACES; ci++) {
+            int digit = digits[ci];
+            if (digit < 0 || digit > DIGITS) return false;
+            if (digit == 0) continue;
 
-			int row = CELL_ROWS[ci];
-			int col = CELL_COLS[ci];
-			int region = CELL_REGIONS[ci];
-			int digitMask = 1 << (digit - 1);
-			if (
+            int row = CELL_ROWS[ci];
+            int col = CELL_COLS[ci];
+            int region = CELL_REGIONS[ci];
+            int digitMask = 1 << (digit - 1);
+            if (
                 (digitMask & rowValidity[row]) > 0 ||
                 (digitMask & colValidity[col]) > 0 ||
                 (digitMask & regionValidity[region]) > 0
-			) {
-				return false;
-			}
-			rowValidity[row] |= digitMask;
-			colValidity[col] |= digitMask;
-			regionValidity[region] |= digitMask;
-		}
+            ) {
+                return false;
+            }
+            rowValidity[row] |= digitMask;
+            colValidity[col] |= digitMask;
+            regionValidity[region] |= digitMask;
+        }
 
-		return true;
-	}
+        return true;
+    }
+
+    public static boolean isFull(int[] digits) {
+        if (digits.length != SPACES) return false;
+        for (int ci = 0; ci < DIGITS; ci++) {
+            if (digits[ci] <= 0 || digits[ci] > DIGITS) return false;
+        }
+        return true;
+    }
+
+    public static boolean isSolved(int[] digits) {
+        if (digits.length != SPACES) return false;
+
+        int[] rowValidity = new int[DIGITS];
+        int[] colValidity = new int[DIGITS];
+        int[] regionValidity = new int[DIGITS];
+
+        for (int ci = 0; ci < SPACES; ci++) {
+            int digit = digits[ci];
+            if (digit <= 0 || digit > DIGITS) return false;
+
+            int row = CELL_ROWS[ci];
+            int col = CELL_COLS[ci];
+            int region = CELL_REGIONS[ci];
+            int digitMask = 1 << (digit - 1);
+            if (
+                (digitMask & rowValidity[row]) > 0 ||
+                (digitMask & colValidity[col]) > 0 ||
+                (digitMask & regionValidity[region]) > 0
+            ) {
+                return false;
+            }
+            rowValidity[row] |= digitMask;
+            colValidity[col] |= digitMask;
+            regionValidity[region] |= digitMask;
+        }
+
+        return true;
+    }
 
     /**
-	 * Rotates the given matrix array 90 degrees clockwise.
-	 * @param arr The matrix to rotate.
+     * Rotates the given matrix array 90 degrees clockwise.
+     * @param arr The matrix to rotate.
      * @param n Length of one of the sides.
-	 */
-	public static int[] rotate90(int[] arr, int n) {
+     */
+    public static int[] rotate90(int[] arr, int n) {
         if (arr == null) throw new NullPointerException();
         if (n < 0) throw new IllegalArgumentException("n must be nonnegative");
         if (arr.length != n * n) throw new IllegalArgumentException("arr length not n square");
-		for (int layer = 0; layer < n / 2; layer++) {
-			int first = layer;
-			int last = n - 1 - layer;
-			for (int i = first; i < last; i++) {
-				int offset = i - first;
-				int top = arr[first * n + i];
-				arr[first * n + i] = arr[(last - offset) * n + first];
-				arr[(last - offset) * n + first] = arr[last * n + (last - offset)];
-				arr[last * n + (last - offset)] = arr[i * n + last];
-				arr[i * n + last] = top;
-			}
-		}
-		return arr;
-	}
+        for (int layer = 0; layer < n / 2; layer++) {
+            int first = layer;
+            int last = n - 1 - layer;
+            for (int i = first; i < last; i++) {
+                int offset = i - first;
+                int top = arr[first * n + i];
+                arr[first * n + i] = arr[(last - offset) * n + first];
+                arr[(last - offset) * n + first] = arr[last * n + (last - offset)];
+                arr[last * n + (last - offset)] = arr[i * n + last];
+                arr[i * n + last] = top;
+            }
+        }
+        return arr;
+    }
 
     /**
-	 * Reflects the board values over the horizontal axis (line from bottom to top).
-	 * If the `arr.length / rows` is not a whole number, an error will be thrown.
-	 * @param arr The matrix to reflect.
-	 * @param rows The number of rows in the matrix.
-	 */
-	public static int[] reflectOverHorizontal(int[] arr, int rows) {
+     * Reflects the board values over the horizontal axis (line from bottom to top).
+     * If the `arr.length / rows` is not a whole number, an error will be thrown.
+     * @param arr The matrix to reflect.
+     * @param rows The number of rows in the matrix.
+     */
+    public static int[] reflectOverHorizontal(int[] arr, int rows) {
         if (arr == null) throw new NullPointerException();
         if (rows <= 0) throw new IllegalArgumentException("rows must be positive");
         if (arr.length % rows != 0) throw new IllegalArgumentException("array length must be divisible by number of rows");
-		int cols = arr.length / rows;
-		for (int r = 0; r < (rows / 2); r++) {
-			for (int c = 0; c < cols; c++) {
+        int cols = arr.length / rows;
+        for (int r = 0; r < (rows / 2); r++) {
+            for (int c = 0; c < cols; c++) {
                 int ai = r * cols + c;
-				int bi = (rows - r - 1) * cols + c;
-				arr[ai] ^= arr[bi];
-				arr[bi] ^= arr[ai];
-				arr[ai] ^= arr[bi];
-			}
-		}
-		return arr;
-	}
+                int bi = (rows - r - 1) * cols + c;
+                arr[ai] ^= arr[bi];
+                arr[bi] ^= arr[ai];
+                arr[ai] ^= arr[bi];
+            }
+        }
+        return arr;
+    }
 
-	/**
-	 * Reflects the board values over the vertical axis (line from left to right).
-	 * If the `arr.length / rows` is not a whole number, an error will be thrown.
-	 * @param arr The matrix to reflect.
-	 * @param rows The number of rows in the matrix.
-	 */
-	public static int[] reflectOverVertical(int[] arr, int rows) {
+    /**
+     * Reflects the board values over the vertical axis (line from left to right).
+     * If the `arr.length / rows` is not a whole number, an error will be thrown.
+     * @param arr The matrix to reflect.
+     * @param rows The number of rows in the matrix.
+     */
+    public static int[] reflectOverVertical(int[] arr, int rows) {
         if (arr == null) throw new NullPointerException();
         if (rows <= 0) throw new IllegalArgumentException("rows must be positive");
         if (arr.length % rows != 0) throw new IllegalArgumentException("array length must be divisible by number of rows");
-		int cols = arr.length / rows;
-		for (int c = 0; c < (cols / 2); c++) {
-			for (int r = 0; r < rows; r++) {
-				int ai = r * cols + c;
-				int bi = r * cols + (cols - c - 1);
-				arr[ai] ^= arr[bi];
-				arr[bi] ^= arr[ai];
-				arr[ai] ^= arr[bi];
-			}
-		}
-		return arr;
-	}
+        int cols = arr.length / rows;
+        for (int c = 0; c < (cols / 2); c++) {
+            for (int r = 0; r < rows; r++) {
+                int ai = r * cols + c;
+                int bi = r * cols + (cols - c - 1);
+                arr[ai] ^= arr[bi];
+                arr[bi] ^= arr[ai];
+                arr[ai] ^= arr[bi];
+            }
+        }
+        return arr;
+    }
 
     public static int[] reflectOverDiagonal(int[] arr, int rows) {
         reflectOverVertical(arr, rows);
-		rotate90(arr, rows);
+        rotate90(arr, rows);
         return arr;
     }
 
     public static int[] reflectOverAntiDiagonal(int[] arr, int rows) {
-		rotate90(arr, rows);
+        rotate90(arr, rows);
         reflectOverVertical(arr, rows);
         return arr;
     }
@@ -489,8 +489,8 @@ public class Sudoku {
         }
 
         for (int tarDigit = 1; tarDigit <= DIGITS; tarDigit++) {
-			int curDigit = digits[tarDigit - 1];
-			if (curDigit != tarDigit) {
+            int curDigit = digits[tarDigit - 1];
+            if (curDigit != tarDigit) {
                 for (int ci = 0; ci < SPACES; ci++) {
                     if (digits[ci] == curDigit) {
                         digits[ci] = tarDigit;
@@ -498,8 +498,8 @@ public class Sudoku {
                         digits[ci] = curDigit;
                     }
                 }
-			}
-		}
+            }
+        }
 
         return digits;
     }
@@ -566,7 +566,7 @@ public class Sudoku {
 
     public static String toFullString(int[] digits) {
         StringBuilder strb = new StringBuilder("  ");
-		String lineSep = System.lineSeparator();
+        String lineSep = System.lineSeparator();
         for (int i = 0; i < SPACES; i++) {
             if (digits[i] > 0) {
                 strb.append(digits[i]);
@@ -600,9 +600,9 @@ public class Sudoku {
         return strb.toString();
     }
 
-	public static String toMedString(int[] digits) {
+    public static String toMedString(int[] digits) {
         StringBuilder strb = new StringBuilder();
-		String lineSep = System.lineSeparator();
+        String lineSep = System.lineSeparator();
         for (int i = 0; i < SPACES; i++) {
             if (digits[i] > 0) {
                 strb.append(digits[i]);
@@ -615,15 +615,15 @@ public class Sudoku {
                 strb.append(" | ");
             } else {
                 strb.append(' ');
-			}
+            }
 
             if (((i+1)%9) == 0) {
-				strb.append(lineSep);
+                strb.append(lineSep);
                 if (i < 80) {
                     // Border between region rows
                     if (((((i+1)/9)%3) == 0) && (((i/9)%8) != 0)) {
                         strb.append("------+-------+------");
-						strb.append(lineSep);
+                        strb.append(lineSep);
                     }
                 }
             }
@@ -691,12 +691,12 @@ public class Sudoku {
             throw new IllegalArgumentException("Malformed sudoku grid string");
         }
 
-		for (int i = 0; i < SPACES; i++) {
+        for (int i = 0; i < SPACES; i++) {
             int digit = gridStr.charAt(i) - '0';
             if (digit > 0) {
                 setDigit(i, digit);
             }
-		}
+        }
     }
 
     public Sudoku(int[] digits) {
@@ -1384,10 +1384,10 @@ public class Sudoku {
         pool.shutdown();
         try {
             return pool.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
             pool.shutdownNow();
-		}
+        }
         return false;
     }
 
@@ -1752,7 +1752,7 @@ public class Sudoku {
      * @param b 1 through 9
      */
     public void swapDigits(int a, int b) {
-		if (a == b) return;
+        if (a == b) return;
         if (a <= 0 || a > 9 || b <= 0 || b > 9) return;
         for (int i = 0; i < SPACES; i++) {
             int d = digits[i];
@@ -1762,7 +1762,7 @@ public class Sudoku {
                 setDigit(i, a);
             }
         }
-	}
+    }
 
     /**
      * Rearranges the board digits so the top row is sequential.
@@ -1771,11 +1771,11 @@ public class Sudoku {
      */
     public Sudoku normalize() {
         for (int d = 1; d <= DIGITS; d++) {
-			int cellDigit = digits[d - 1];
-			if (cellDigit > 0 && cellDigit != d) {
-				swapDigits(cellDigit, d);
-			}
-		}
+            int cellDigit = digits[d - 1];
+            if (cellDigit > 0 && cellDigit != d) {
+                swapDigits(cellDigit, d);
+            }
+        }
         return this;
     }
 
@@ -1827,7 +1827,7 @@ public class Sudoku {
      * @return This sudoku instance for convenience.
      */
     public Sudoku reflectAntiDiagonal() {
-		reflectOverAntiDiagonal(candidates, DIGITS);
+        reflectOverAntiDiagonal(candidates, DIGITS);
         reflectOverAntiDiagonal(digits, DIGITS);
         return this;
     }
